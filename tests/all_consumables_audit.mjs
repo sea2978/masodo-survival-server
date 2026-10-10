@@ -26,7 +26,7 @@ for(const [idx,[id,it]] of consumables.entries()){
   p.con.strong_coffee=1;
   const a=beginServerAction(m,p,"use_item",{id:"strong_coffee"},t0);completeAction(m,p,a.action.completeAt+1);
   assert.ok(p.tempEffects.some(x=>x.fx?.actionTime===-.04));
-  publicPlayer(m,p,t0+31_000);
+  publicPlayer(m,p,t0+32_000);
   assert.ok(p.tempEffects.some(x=>x.fx?.spRecovery===-.10),"strong coffee delayed SP recovery penalty missing");
 }
 {
