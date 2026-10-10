@@ -101,7 +101,7 @@ function combinedFx(p,match,now=Date.now()){
     const it=item(id);if(!it)continue;
     const named=NAMED_GEAR_FX[id];
     if(named)for(const[k,v]of Object.entries(named))if(typeof v==="number")out[k]=(out[k]||0)+v;
-    if(id==="toxin_kit"||id==="synergy_03"){out.poisonChance=(out.poisonChance||0)+.06}
+    if(id==="toxin_kit"||id==="synergy_03"){}
     if(id==="propulsion"||id==="synergy_04"){out.moveSp=(out.moveSp||0)+1}
     if(id==="plate"||id==="synergy_05"){out.lowDef=(out.lowDef||0)+4}
     if(id==="spell_amp"||id==="synergy_07"){out.statusChance=(out.statusChance||0)+.03}
@@ -482,6 +482,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     if(sd.mark){p.trackingMarks??={};p.trackingMarks[t.playerId]=now+sd.mark*1000}
   }
 
+  if((p.eq||[]).includes("toxin_kit")&&Math.random()<clamp(.06+(combinedFx(p,match,now).statusChance||0),0,.95))applyStatus(t,"poison",1,8,p.playerId,now,p,match);
   applyOnHitStatuses(match,p,t,now);
   const death=t.hp<=0?killPlayer(match,p,t,now):null,killed=!!death?.killed;
   if(skill)applySkillSelfEffects(match,p,sd,d,killed,now);
@@ -560,6 +561,7 @@ export function eventChoiceAvailability(e,p,index){
   if(/단말 태그 보유 시/.test(text)||/단말로/.test(choice.label||"")){
     if(!hasTerminal(p))return{available:false,reason:"단말 장비 필요"};
   }
+  if(e.id==="E048"&&index===0&&!hasTool(p)&&(p.mat?.electronics||0)<1)return{available:false,reason:"도구 또는 전자부품 필요"};
   if(e.id==="E078"&&index===0&&!hasTool(p)&&(p.mat?.precision||0)<1)return{available:false,reason:"도구 또는 정밀부품 필요"};
   return{available:true,reason:""};
 }
@@ -578,8 +580,12 @@ function searchResult(match,p,now){
     if(pool.length){
       const specialBoost=mods.nextSpecialEventBoost||0;
       const specialRegional=mods.regionSpecialEventBoosts[p.region]?.bonus||0;
-      const e=weightedPick(pool,x=>1+(mods.eventWeights[x.id]?.bonus||0)+(x.type?.includes("특수")?(specialBoost+specialRegional):0));
-      mods.nextSpecialEventBoost=0;match.lastEventId=e.id;match.eventPity[p.region]=0;p.pendingEvent=e.id;return {kind:"event",event:e}
+      const e=weightedPick(pool,x=>{
+        let w=1+(mods.eventWeights[x.id]?.bonus||0)+(x.type?.includes("특수")?(specialBoost+specialRegional):0);
+        if(x.id==="E002"&&specialState(match,"special_01")?.state==="unspawned")w+=.75;
+        return w
+      });
+      mods.nextSpecialEventBoost=0;if(mods.eventWeights[e.id]?.oneShot)delete mods.eventWeights[e.id];match.lastEventId=e.id;match.eventPity[p.region]=0;p.pendingEvent=e.id;return {kind:"event",event:e}
     }
   } else match.eventPity[p.region]=(match.eventPity[p.region]||0)+.007;
   const ground=groundSpecialsInRegion(match,p.region);
@@ -971,6 +977,13 @@ function eventAwardItem(match,p,id,count=1){
   }
   return got;
 }
+function eventAwardEquipmentType(match,p,type){
+  const rows=Object.entries(ITEMS).filter(([id,it])=>it?.t==="e"&&it.weaponType===type&&["고급","희귀"].includes(it.tier));
+  if(!rows.length)return 0;
+  rows.sort((a,b)=>(b[1].tier==="희귀"?1:0)-(a[1].tier==="희귀"?1:0));
+  const rare=rows.filter(([,it])=>it.tier==="희귀"),pool=rare.length?rare:rows;
+  return eventAwardItem(match,p,pick(pool)[0],1);
+}
 function eventAwardGeneric(match,p,kind,count=1){
   const mats=eventGenericMaterialPool(),cons=eventConsumablePool(),eq=Object.keys(ITEMS).filter(id=>ITEMS[id]?.t==="e");let pool=[];
   if(kind==="material")pool=mats;
@@ -991,7 +1004,11 @@ function eventExtractCount(text,def=1){
   const n=text.match(/(\d+)개/);return n?+n[1]:def;
 }
 function eventSpecialCandidates(ev,text){
-  return (ev.special||"").split("/").map(x=>x.trim()).filter(Boolean).map(findItemIdByExactName).filter(id=>id&&text.includes(item(id)?.n||""));
+  const all=(ev.special||"").split("/").map(x=>x.trim()).filter(Boolean).map(findItemIdByExactName).filter(Boolean);
+  const named=all.filter(id=>text.includes(item(id)?.n||""));
+  if(named.length)return named;
+  if(!/다음/.test(text)&&/(?:특수재료 )?(?:판정률|획득률).*?(?:상승|증가)/.test(text))return all;
+  return [];
 }
 function eventRewardClauses(text){
   return (text||"").split("/").map(x=>x.trim()).filter(Boolean);
@@ -1032,6 +1049,9 @@ function awardGenericClause(match,p,clause,e,index,rewards,summary){
   if(/장신구/.test(clause))return award("accessory",Math.min(count,2),"장신구 재료 획득");
   if(/고급보상|가치 높은 보상/.test(clause))return award("high_reward",Math.min(count,3),"고급 보상 획득");
   if(/^보상 \d+개/.test(clause))return award("high_material",count,"보상 획득");
+  const typeMatch=clause.match(/(검|활|낫|도구) 계열 고급 (?:아이템|무기)/);
+  if(typeMatch){const got=eventAwardEquipmentType(match,p,typeMatch[1]);if(got)summary.push(typeMatch[1]+" 계열 장비 획득");return got}
+  if(/투척재료/.test(clause))return award("material",count,"투척 재료 획득");
   if(/안전 획득/.test(clause)&&e.id==="E022"&&index===1)return award("material",3,"안전 보상 획득");
   return 0;
 }
@@ -1162,6 +1182,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if((mmod=text.match(/(\d+)초간 악의조직 훈련장 특수이벤트 \+(\d+)%/)))mods.regionSpecialEventBoosts.evil_training={bonus:+mmod[2]/100,until:now+(+mmod[1])*1000};
   if(/다음 온실 이벤트 특수재료 확률 \+30%/.test(text))mods.regionSpecialBoosts.estate={bonus:.30,until:now+60000};
   if(/다음 마도 이벤트 가중치 \+/.test(text))mods.nextSpecialEventBoost=Math.max(mods.nextSpecialEventBoost||0,.20);
+  if(/다음 구내식당 특수음식 이벤트 확률 \+50%/.test(text))mods.eventWeights.E045={bonus:.50,oneShot:true};
   if(/무작위 외부 지역 하나의 이벤트 가중치/.test(text)){
     const external=["city","estate","church","factory"],r=pick(external);mods.regionEventBoosts[r]={bonus:.25,until:now+60000};
   }
