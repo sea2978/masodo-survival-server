@@ -929,7 +929,11 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
     }else{eventAwardGeneric(match,p,"material",1);summary.push("특수재료 판정 실패")}
   }
 
-  const exact=Object.entries(ITEMS).filter(([id,it])=>!isSpecialMaterial(id)&&it?.n&&text.includes(it.n)).sort((a,b)=>b[1].n.length-a[1].n.length);
+  const exact=Object.entries(ITEMS).filter(([id,it])=>{
+    if(isSpecialMaterial(id)||!it?.n||!text.includes(it.n))return false;
+    const pos=text.indexOf(it.n),tail=text.slice(pos,pos+it.n.length+12);
+    return !/소비/.test(tail);
+  }).sort((a,b)=>b[1].n.length-a[1].n.length);
   const used=new Set(),alternative=/또는|중 하나/.test(text);
   const exactToAward=alternative&&exact.length>1?[pick(exact)]:exact;
   for(const[id,it]of exactToAward){
