@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import { createServerPlayer } from "../src/game_data.js";
+import { ENCOUNTER_EVENTS } from "../src/offline_content.js";
+import { eventChoiceAvailability } from "../src/match_engine.js";
+const p=createServerPlayer({sessionId:"c1",playerName:"C1",charId:"c01",startRegion:"city"},0);
+const e=ENCOUNTER_EVENTS.find(x=>x.id==="E004");
+assert.ok(e);
+assert.equal(eventChoiceAvailability(e,p,1).available,false);
+p.eq.push("basic_tool");
+assert.equal(eventChoiceAvailability(e,p,1).available,true);
+console.log("E004 condition ok");
