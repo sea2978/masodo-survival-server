@@ -17,7 +17,9 @@ jobs:
         run: npm run test:engine
       - name: Catalog and version
         run: npm run test:catalog
-      - name: Recommendations and event conditions
+      - name: Recommendations
         run: npm run test:recommendations
+      - name: Event conditions
+        run: npm run test:event-conditions
       - name: 15 minute simulation
         run: npm run test:simulation
