@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { CHARACTERS, REGIONS, createAIPlayer, createServerPlayer } from "../src/game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "../src/offline_content.js";
-import { beginServerAction, completeAction, initWorld, publicPlayer, runAIStep } from "../src/match_engine.js";
+import { beginServerAction, completeAction, initWorld, publicPlayer, resolveEventChoice, runAIStep } from "../src/match_engine.js";
 
 assert.equal(CHARACTERS.length,51);
 assert.equal(REGIONS.length,13);
@@ -125,6 +125,18 @@ publicPlayer(match,poisonVictim,t0+112_100);
 assert.equal(poisonVictim.alive,false,"poison tick should kill low-HP victim");
 assert.equal(poisonKiller.kills,beforeKills+1,"status death should credit the source player");
 assert.ok(match.corpses.some(x=>x.name==="서노리"),"status death should create a corpse");
+
+const eventPlayer=createServerPlayer({sessionId:"s10",playerName:"EventQA",charId:"c01",startRegion:"city"},9);
+match.players.push(eventPlayer);
+eventPlayer.pendingEvent="E001";
+const beforeOffset=match.timeOffsetMs||0;
+oldRnd=Math.random;Math.random=()=>0.5;
+const er=resolveEventChoice(match,eventPlayer,0,t0+120_000);
+Math.random=oldRnd;
+assert.equal(er.ok,true);
+assert.equal(eventPlayer.pendingEvent,null);
+assert.ok((match.timeOffsetMs||0)>=beforeOffset+1000,"event time cost should advance virtual match time");
+assert.ok(typeof er.summary==="string"&&er.summary.length>0);
 
 const pub=publicPlayer(match,p,t0+50_000);
 assert.equal(pub.playerName,"QA");
