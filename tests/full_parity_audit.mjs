@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { CHARACTERS } from "../src/game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "../src/offline_content.js";
 import { PASSIVE_FX, COMBAT_SKILL_DEFS, ACTION_SKILL_DEFS, NAMED_GEAR_FX } from "../src/skill_defs.js";
+import { INTENTIONAL_SOURCE_GAPS } from "../src/audit_manifest.js";
 
 assert.equal(CHARACTERS.length,51);
 assert.equal(Object.keys(PASSIVE_FX).length,51);
@@ -21,6 +22,8 @@ const gearKeys=new Set(["hit","crit","detect","conceal","skillSpFlat","statusCha
 for(const [id,row] of Object.entries(PASSIVE_FX))for(const k of Object.keys(row))assert.ok(passiveKeys.has(k),`unreviewed passive key ${id}.${k}`);
 for(const [id,row] of Object.entries(COMBAT_SKILL_DEFS))for(const k of Object.keys(row))assert.ok(combatKeys.has(k),`unreviewed combat key ${id}.${k}`);
 for(const [id,row] of Object.entries(ACTION_SKILL_DEFS))for(const k of Object.keys(row))assert.ok(actionKeys.has(k),`unreviewed action key ${id}.${k}`);
+const tempFxKeys=new Set(["searchLoot","conceal","defFlat","detect","statusChance","moveTime","moveSp","crit","woundedDetect","prep","taken","incomingStatusDuration","profGain","damage","hit","sleepChance","bindChance","poisonChance"]);
+for(const [id,row] of Object.entries(ACTION_SKILL_DEFS))for(const k of Object.keys(row.tempFx||{}))assert.ok(tempFxKeys.has(k),`unreviewed action tempFx key ${id}.${k}`);
 for(const [id,row] of Object.entries(NAMED_GEAR_FX))for(const k of Object.keys(row))assert.ok(gearKeys.has(k),`unreviewed gear key ${id}.${k}`);
 
 assert.equal(WILD_TEMPLATES.length,12);
@@ -28,6 +31,10 @@ const wildSkills=new Set(["bite_bleed","harass","scan_delay","emp","berserk","to
 for(const w of WILD_TEMPLATES)assert.ok(wildSkills.has(w.skill),`unreviewed wild skill: ${w.skill}`);
 
 assert.equal(ENCOUNTER_EVENTS.length,78);
+const knownConditions=new Set(["일반 탐색","백색 양산살이 아직 라운드에 존재하지 않을 때 우선","약품/도구 태그 보유 시 조건부 선택 활성","정밀부품 보유 시 조건부 강화","비/번개 계열 환경 이벤트가 활성화되면 확률 상승","도구 보유 시 강화","금속 재료 2종 이상 보유","정밀부품 또는 도구 보유 시 강화","단말 태그 보유 시 강화","매우 낮은 확률","도구 또는 전자부품 보유 시 강화","상태이상 보유 시 우선 가치 상승","랜덤 간부방 이벤트","도구/정밀부품 보유 시 강화"]);
+for(const e of ENCOUNTER_EVENTS)assert.ok(knownConditions.has(e.condition),`unreviewed event condition: ${e.id} ${e.condition}`);
+assert.equal(INTENTIONAL_SOURCE_GAPS.length,3);
+assert.deepEqual(new Set(INTENTIONAL_SOURCE_GAPS.map(x=>x.id)),new Set(["E015_ENVIRONMENT_BONUS","E052_MAGIC_CRAFT_EFFECT","E066_HOSTILE_NPC"]));
 for(const e of ENCOUNTER_EVENTS){
   assert.ok(e.id&&e.region&&e.name&&Array.isArray(e.choices)&&e.choices.length===3,`malformed event ${e.id}`);
   for(const ch of e.choices)assert.ok(ch.label&&typeof ch.result==="string",`malformed choice ${e.id}`);
