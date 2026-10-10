@@ -85,13 +85,13 @@ function craftItem(p,id){
   if(!addItem(p,id,1))return {ok:false,error:"inventory_full"};
   return {ok:true,itemId:id,itemName:it.n};
 }
-function status(p,id){const s=p.statuses?.[id];return s&&s.until>Date.now()?s:null}
+function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.until>now?s:null}
 function applyStatus(p,id,stacks=1,duration=5,sourceId=null,now=Date.now()){
   p.statuses??={};
+  if(id==="sleep"&&p.statusImmunity?.sleepUntil>now)return false;
   const max=id==="poison"||id==="bleed"?3:id==="slow"?2:1;
   const old=p.statuses[id];
   p.statuses[id]={stacks:clamp((old?.until>now?old.stacks:0)+stacks,1,max),until:now+duration*1000,sourceId};
-  if(id==="sleep"&&p.statusImmunity?.sleepUntil>now)return false;
   return true
 }
 function cleanseExpired(p,now){
@@ -267,7 +267,7 @@ function charAction(match,p,now){
 export function publicPlayer(match,p,now=Date.now()){
   updatePassiveTime(match,now);
   return {...p,maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
-    inventory:{eq:(p.eq||[]).map(id=>({id,...item(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,n,...item(id)}))}
+    inventory:{eq:(p.eq||[]).map(id=>({id,...item(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
 }
 export function actionDuration(match,p,type,payload={},now=Date.now()){
@@ -292,6 +292,18 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(type==="craft"&&!canCraft(p,payload.id))return {ok:false,error:"cannot_craft"};
   if(type==="use_item"&&owned(p,payload.id)<=0)return {ok:false,error:"item_missing"};
   if(["attack","skill","flee"].includes(type)&&!encounterTarget(match,p))return {ok:false,error:"no_encounter"};
+  if(type==="skill"){
+    const sd=COMBAT_SKILL_DEFS[p.charId]||{sp:12,cd:55};
+    const cost=Math.max(0,(sd.sp??12)-(p.nextSkillSpDiscount||0));
+    if(status(p,"silence",now))return {ok:false,error:"silenced"};
+    if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
+    if(p.sp<cost)return {ok:false,error:"not_enough_sp"};
+  }
+  if(type==="char_action"){
+    const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
+    if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
+    if(p.sp<(d.sp||0))return {ok:false,error:"not_enough_sp"};
+  }
   if(type==="flee"&&status(p,"bind"))return {ok:false,error:"bound"};
   return {ok:true};
 }
