@@ -20,5 +20,5 @@ const oldRandom=Math.random;Math.random=()=>0.5;
 const result=resolveEventChoice(match,p,1,t0+1000);
 Math.random=oldRandom;
 assert.equal(result.ok,true);
-assert.equal(p.mat.precision,before-1,"precision part must be consumed and not re-awarded");
+assert.equal(p.mat.precision||0,before-1,"precision part must be consumed and not re-awarded");
 console.log("event condition smoke ok",{precision:p.mat.precision});
