@@ -1,133 +1,54 @@
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>마소도 Cloudflare 멀티플레이 Phase 2A</title>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>마소도 온라인 알파 Phase 2B</title>
 <style>
-body{font-family:system-ui,sans-serif;background:#101318;color:#eee;max-width:1000px;margin:0 auto;padding:24px}
-.panel{background:#181d24;border:1px solid #333b46;border-radius:10px;padding:16px;margin:12px 0}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;align-items:center}
-input,button,select{background:#0f1318;color:#eee;border:1px solid #46515f;border-radius:6px;padding:9px;min-height:40px}
-button{cursor:pointer}.good{color:#9bd69b}.bad{color:#ef9a9a}.muted{color:#a8b0bb}.host{color:#ffd66b}
-#log{height:220px;overflow:auto;background:#0b0e12;padding:10px;white-space:pre-wrap}
-code{color:#acd0ff}a{color:#acd0ff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-#moveButtons button{min-width:150px}
-@media(max-width:720px){.grid{grid-template-columns:1fr}}
-</style>
-</head>
-<body>
-<h1>마소도 Cloudflare 멀티플레이 Phase 2A</h1>
-<p class="muted">방/Ready뿐 아니라 경기 시작 상태와 지역 이동 판정을 Cloudflare Durable Object 서버가 직접 관리합니다.</p>
-
-<div class="panel">
-  <h2>1. 로비</h2>
-  <div class="row">
-    <button id="create">방 생성</button>
-    <input id="room" placeholder="방 코드" maxlength="6">
-    <input id="name" placeholder="플레이어 이름" value="Player">
-    <select id="char"><option value="c01">c01 · 서노리</option></select>
-    <select id="startRegion"><option value="city">텅 빈 도심</option></select>
-    <button id="join">접속</button>
-  </div>
-  <div class="row">
-    <button id="ready">Ready ON</button>
-    <button id="unready">Ready OFF</button>
-    <button id="start">방장: 경기 시작</button>
-    <a href="/offline.html">0.6.4 오프라인 빌드</a>
-  </div>
-  <p>연결: <b id="status">미접속</b></p>
-  <div id="roomState"></div>
-</div>
+*{box-sizing:border-box}body{margin:0;background:#0b0e12;color:#e8ecf1;font-family:system-ui,sans-serif}.wrap{max-width:1180px;margin:auto;padding:16px}.panel{background:#151a21;border:1px solid #303844;border-radius:12px;padding:14px;margin-bottom:12px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}button,input,select{background:#0d1117;color:#eee;border:1px solid #46515f;border-radius:8px;padding:9px 11px;min-height:40px}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.good{color:#9bd69b}.bad{color:#ef9a9a}.muted{color:#9ca7b4}.host{color:#ffd66b}.stat{display:inline-block;margin-right:14px}.actions button{min-width:120px}.card{background:#0f141a;border:1px solid #2a333e;border-radius:9px;padding:10px;margin:7px 0}.enemy{border-color:#734b4b}.event{border-color:#6e6239}.invcols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.scroll{max-height:280px;overflow:auto}#log{height:220px;overflow:auto;background:#080b0f;padding:10px;white-space:pre-wrap;font-size:12px}@media(max-width:800px){.grid,.invcols{grid-template-columns:1fr}}
+</style></head><body><div class="wrap">
+<h1>마법소녀들의 도시 · 온라인 알파 Phase 2B</h1>
+<div class="panel"><h2>로비</h2><div class="row">
+<button id="create">방 생성</button><input id="room" placeholder="방 코드" maxlength="6"><input id="name" value="Player" placeholder="이름">
+<select id="char"><option value="c01">c01 · 서노리</option></select><select id="startRegion"><option value="city">텅 빈 도심</option></select><button id="join">접속</button>
+</div><div class="row"><button id="ready">Ready ON</button><button id="unready">Ready OFF</button><button id="start">방장: 경기 시작</button><a href="/offline.html">오프라인 빌드</a></div>
+<p>연결: <b id="status">미접속</b></p><div id="roomState"></div></div>
 
 <div class="grid">
-  <div class="panel">
-    <h2>2. 서버 경기 상태</h2>
-    <div id="matchEmpty" class="muted">경기가 시작되면 서버 상태가 표시됩니다.</div>
-    <div id="matchState" hidden>
-      <p><b id="selfName">-</b> · <span id="selfChar">-</span></p>
-      <p>현재 지역: <b id="selfRegion">-</b></p>
-      <p>HP <b id="selfHp">-</b> / SP <b id="selfSp">-</b> / 포만도 <b id="selfSat">-</b></p>
-      <p>생존 <b id="aliveCount">-</b>명</p>
-      <p id="pendingAction" class="muted">행동 없음</p>
-      <div id="moveButtons" class="row"></div>
-      <button id="refresh">상태 새로고침</button>
-    </div>
-  </div>
+<div>
+<div class="panel"><h2>경기</h2><div id="noMatch" class="muted">경기 시작 전입니다.</div><div id="game" hidden>
+<div><b id="pname">-</b> · <span id="pchar">-</span> · <span id="region">-</span></div>
+<p><span class="stat">HP <b id="hp">-</b></span><span class="stat">SP <b id="sp">-</b></span><span class="stat">포만도 <b id="sat">-</b></span><span class="stat">ATK <b id="atk">-</b></span><span class="stat">DEF <b id="def">-</b></span></p>
+<p>생존 <b id="alive">-</b>명 · 경과 <b id="elapsed">0</b>초 · 스킬 CD <b id="cdc">0</b> · 행동 CD <b id="cda">0</b></p>
+<div id="pending" class="muted">행동 없음</div>
+<div class="row actions"><button id="search">탐색</button><button id="rest">휴식</button><button id="attack">일반 공격</button><button id="skill">전투 스킬</button><button id="charAction">추가 행동</button><button id="flee">도주</button><button id="refresh">상태 갱신</button></div>
+<h3>이동</h3><div id="moves" class="row"></div>
+<div id="encounter"></div><div id="eventBox"></div>
+</div></div>
 
-  <div class="panel">
-    <h2>서버 로그</h2>
-    <div id="log"></div>
-  </div>
+<div class="panel"><h2>인벤토리</h2><div class="invcols"><div><h3>장비</h3><div id="eq"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div><div><h3>소모품</h3><div id="con"></div></div></div></div>
+<div class="panel"><h2>제작 가능</h2><div id="craft" class="scroll"></div></div>
+<div class="panel"><h2>시체</h2><div id="corpses"></div></div>
 </div>
-
+<div><div class="panel"><h2>서버 로그</h2><div id="log"></div></div><div class="panel"><h2>다른 생존자</h2><div id="others"></div></div></div>
+</div></div>
 <script type="module">
-import { MasodoNetworkAdapter } from "./network_adapter.js";
-const net=new MasodoNetworkAdapter(location.origin), $=s=>document.querySelector(s);
-let lastRoom=null,lastMatch=null;
-
-const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};
-const regionName=id=>{
-  const list=net.catalog?.regions||lastMatch?.regions||[];
-  return list.find(r=>r.id===id)?.name||id;
-};
-
-function fillCatalog(){
-  const chars=net.catalog?.characters||[];
-  const regions=net.catalog?.regions||[];
-  if(chars.length)$('#char').innerHTML=chars.map(c=>`<option value="${c.id}">${c.id} · ${c.name}</option>`).join("");
-  if(regions.length)$('#startRegion').innerHTML=regions.map(r=>`<option value="${r.id}">${r.name}</option>`).join("");
+import{MasodoNetworkAdapter}from"./network_adapter.js";const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
+const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
+function fillCatalog(){if(net.catalog?.characters?.length)$('#char').innerHTML=net.catalog.characters.map(c=>`<option value="${c.id}">${c.id} · ${c.name}</option>`).join("");if(net.catalog?.regions?.length)$('#startRegion').innerHTML=net.catalog.regions.map(r=>`<option value="${r.id}">${r.name}</option>`).join("")}
+function renderRoom(r){$('#roomState').innerHTML=`<p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${p.playerName} / ${p.charId} / ${rname(p.startRegion)}</div>`).join("")}
+function busy(){return!!M?.self?.pendingAction}
+function renderMatch(m){M=m;$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;
+$('#pname').textContent=p.playerName;$('#pchar').textContent=p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
+$('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:"행동 없음";
+const dis=busy()||!p.alive;for(const id of['search','rest','attack','skill','charAction','flee'])$('#'+id).disabled=dis;
+$('#moves').innerHTML=(m.adjacency?.[p.region]||[]).map(id=>`<button data-move="${id}" ${dis?'disabled':''}>${rname(id)}</button>`).join("");$('#moves').querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>net.move(b.dataset.move));
+$('#eq').innerHTML=p.inventory.eq.length?p.inventory.eq.map(it=>`<div class="card"><b>${it.n}</b><div class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</div></div>`).join(""):'<span class="muted">없음</span>';
+$('#mat').innerHTML=p.inventory.mat.length?p.inventory.mat.map(it=>`<div>${it.name} ×${it.n}</div>`).join(""):'<span class="muted">없음</span>';
+$('#con').innerHTML=p.inventory.con.length?p.inventory.con.map(it=>`<div class="card"><b>${it.n} ×${it.n===undefined?'?':it.n}</b><button data-use="${it.id}" ${busy()?'disabled':''}>사용</button></div>`).join(""):'<span class="muted">없음</span>';$('#con').querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.use));
+$('#craft').innerHTML=m.craftable?.length?m.craftable.map(it=>`<div class="card"><b>${it.name}</b> <span class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</span> <button data-craft="${it.id}" ${busy()?'disabled':''}>제작</button></div>`).join(""):'<span class="muted">현재 제작 가능 항목 없음</span>';$('#craft').querySelectorAll('[data-craft]').forEach(b=>b.onclick=()=>net.craft(b.dataset.craft));
+$('#others').innerHTML=m.others.map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.playerName} / ${o.charId} / 처치 ${o.kills}</div>`).join("");
+$('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.encounter.name}</b><div>HP ${Math.max(0,Math.round(m.encounter.hp))}/${m.encounter.maxHp}</div><div class="muted">${m.encounter.skillText||''}</div></div>`:"";
+$('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingEvent.name}</b><p>${m.pendingEvent.type}</p>${m.pendingEvent.choices.map((c,i)=>`<button data-event="${i}">${c.label}</button><div class="muted">${c.result}</div>`).join("")}</div>`:"";$('#eventBox').querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>net.eventChoice(Number(b.dataset.event)));
+$('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{let rows=[];for(const id of c.eq||[])rows.push(`<button data-loot="${c.id}|eq|${id}">장비 ${id}</button>`);for(const[id,n]of Object.entries(c.mat||{}))rows.push(`<button data-loot="${c.id}|mat|${id}">재료 ${id} ×${n}</button>`);for(const[id,n]of Object.entries(c.con||{}))rows.push(`<button data-loot="${c.id}|con|${id}">소모품 ${id} ×${n}</button>`);return`<div class="card"><b>${c.name}의 시체</b><div class="row">${rows.join("")}</div></div>`}).join(""):'<span class="muted">없음</span>';$('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,k,id]=b.dataset.loot.split('|');net.lootCorpse(c,k,id)});
 }
-
-function renderRoom(r){
-  lastRoom=r;
-  $('#roomState').innerHTML=`<p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p>`+
-    r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${p.playerName} / ${p.charId} / 시작: ${regionName(p.startRegion)}</div>`).join("");
-}
-
-function renderMatch(m){
-  lastMatch=m;
-  $('#matchEmpty').hidden=true;$('#matchState').hidden=false;
-  const p=m.self;
-  if(!p){$('#matchState').innerHTML='<p class="bad">이 연결에 대응하는 서버 플레이어가 없습니다.</p>';return}
-  $('#selfName').textContent=p.playerName;$('#selfChar').textContent=p.charId;
-  $('#selfRegion').textContent=regionName(p.region);
-  $('#selfHp').textContent=Math.round(p.hp)+'/'+p.maxHp;
-  $('#selfSp').textContent=Math.round(p.sp)+'/'+p.maxSp;
-  $('#selfSat').textContent=Math.round(p.satiety);
-  $('#aliveCount').textContent=m.aliveCount;
-
-  const pa=p.pendingAction;
-  $('#pendingAction').textContent=pa?`${pa.label}: ${regionName(pa.from)} → ${regionName(pa.to)} (서버 완료시각 ${new Date(pa.completeAt).toLocaleTimeString()})`:'행동 없음';
-
-  const next=(m.adjacency?.[p.region]||[]);
-  $('#moveButtons').innerHTML=next.map(id=>`<button data-move="${id}" ${pa?'disabled':''}>${regionName(id)}로 이동</button>`).join("");
-  $('#moveButtons').querySelectorAll('[data-move]').forEach(btn=>btn.addEventListener('click',()=>net.move(btn.dataset.move)));
-}
-
-net.on("*",m=>log(JSON.stringify(m)));
-net.on("connected",m=>{
-  $('#status').textContent="WebSocket 연결됨";$('#status').className="good";
-  if(m.catalog){net.catalog=m.catalog;fillCatalog()}
-});
-net.on("room_state",m=>renderRoom(m.room));
-net.on("match_started",m=>{log("경기 시작: "+m.matchId);net.requestState()});
-net.on("match_state",m=>renderMatch(m.match));
-net.on("action_accepted",m=>log("서버 행동 접수: "+JSON.stringify(m.action)));
-net.on("error",m=>log("SERVER ERROR: "+m.error));
-net.on("close",()=>{$('#status').textContent="연결 종료";$('#status').className="bad"});
-
-$('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성: "+r.code)}catch(e){log("생성 실패: "+e.message)}};
-$('#join').onclick=async()=>{try{
-  await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value});
-  $('#status').textContent="접속 중...";
-}catch(e){log("접속 실패: "+e.message)}};
-$('#char').addEventListener('change',()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)});
-$('#startRegion').addEventListener('change',()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)});
-$('#ready').onclick=()=>net.setReady(true);
-$('#unready').onclick=()=>net.setReady(false);
-$('#start').onclick=()=>net.requestStart();
-$('#refresh').onclick=()=>net.requestState();
-</script>
-</body>
-</html>
+net.on("*",m=>{if(!["match_state"].includes(m.type))log(JSON.stringify(m))});net.on("connected",m=>{$('#status').textContent="연결됨";$('#status').className="good";net.catalog=m.catalog;fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_started",()=>net.requestState());net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>log("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>log("EVENT "+JSON.stringify(m.result)));net.on("error",m=>log("SERVER ERROR: "+m.error));net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad"});
+$('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성 "+r.code)}catch(e){log(e.message)}};$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value})}catch(e){log(e.message)}};$('#char').onchange=()=>net.setCharacter($('#char').value);$('#startRegion').onchange=()=>net.setStartRegion($('#startRegion').value);$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=()=>net.search();$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
+setInterval(()=>{if(net.ws?.readyState===WebSocket.OPEN&&M)net.requestState()},2000);
+</script></body></html>
