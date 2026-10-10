@@ -102,6 +102,11 @@
         </div>
 
         <div class="panel">
+          <h2>추천 제작</h2>
+          <div id="recommended" class="scroll"></div>
+        </div>
+
+        <div class="panel">
           <h2>제작 가능</h2>
           <div id="craft" class="scroll"></div>
         </div>
@@ -174,6 +179,11 @@ $('#moves').innerHTML=(m.adjacency?.[p.region]||[]).map(id=>`<button data-move="
 $('#eq').innerHTML=p.inventory.eq.length?p.inventory.eq.map(it=>`<div class="card"><b>${it.n}</b><div class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</div></div>`).join(""):'<span class="muted">없음</span>';
 $('#mat').innerHTML=p.inventory.mat.length?p.inventory.mat.map(it=>`<div>${it.name} ×${it.count}</div>`).join(""):'<span class="muted">없음</span>';
 $('#con').innerHTML=p.inventory.con.length?p.inventory.con.map(it=>`<div class="card"><b>${it.n} ×${it.count}</b><button data-use="${it.id}" ${(busy()||inEvent)?'disabled':''}>사용</button></div>`).join(""):'<span class="muted">없음</span>';$('#con').querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.use));
+$('#recommended').innerHTML=m.recommendations?.length?m.recommendations.map(it=>{
+  const miss=(it.missing||[]).slice(0,3).map(x=>`${x.name} ${x.have}/${x.need}`).join(" · ");
+  return `<div class="card"><b>★ ${it.name}</b> <span class="muted">${it.tier||''} · 점수 ${Math.round(it.score)}</span><div>${it.reason}</div><div class="muted">${it.ready?'지금 제작 가능':('재료 '+it.have+'/'+it.need+(miss?' · '+miss:''))}</div>${it.ready?`<button data-rec-craft="${it.id}" ${(busy()||inEncounter||inEvent)?'disabled':''}>추천 장비 제작</button>`:''}</div>`
+}).join(""):'<span class="muted">현재 캐릭터에 대한 추천 제작품이 없습니다.</span>';
+$('#recommended').querySelectorAll('[data-rec-craft]').forEach(b=>b.onclick=()=>net.craft(b.dataset.recCraft));
 $('#craft').innerHTML=m.craftable?.length?m.craftable.map(it=>`<div class="card"><b>${it.name}</b> <span class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</span> <button data-craft="${it.id}" ${(busy()||inEncounter||inEvent)?'disabled':''}>제작</button></div>`).join(""):'<span class="muted">현재 제작 가능 항목 없음</span>';$('#craft').querySelectorAll('[data-craft]').forEach(b=>b.onclick=()=>net.craft(b.dataset.craft));
 $('#others').innerHTML=m.others.map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${o.playerName} / ${o.charId} / 처치 ${o.kills}</div>`).join("");
 $('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.encounter.name}</b><div>HP ${Math.max(0,Math.round(m.encounter.hp))}/${m.encounter.maxHp}</div><div class="muted">${m.encounter.skillText||''}</div></div>`:"";
