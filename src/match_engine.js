@@ -380,7 +380,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   const names=(e.special||"").split("/").map(x=>x.trim()).filter(Boolean);
   const specialIds=names.map(findItemIdByExactName).filter(id=>id&&text.includes(item(id)?.n||""));
   if(specialIds.length){
-    const guaranteed=!/판정|확률/.test(text),boost=/크게 상승|상승|증가/.test(text),chance=guaranteed?1:(boost?.78:.55);
+    const guaranteed=!/판정|확률/.test(text),boost=/크게 상승|상승|증가/.test(text),chance=guaranteed ? 1 : (boost ? .78 : .55);
     if(Math.random()<chance){
       const valid=specialIds.filter(id=>specialState(match,id)?.state==="unspawned");
       if(valid.length){const id=pick(valid);if(grantSpecial(match,p,id))rewards.push(id)}
