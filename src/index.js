@@ -24,7 +24,7 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
     if (url.pathname === "/api/health") {
-      return withCors(json({ ok: true, service: "masodo-survival-server", phase: 1, protocolVersion: 1 }));
+      return withCors(json({ ok: true, service: "masodo-survival-server", phase: "2A", protocolVersion: 2 }));
     }
 
     if (url.pathname === "/api/room/create" && request.method === "POST") {
