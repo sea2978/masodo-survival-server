@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { CHARACTERS, REGIONS, createServerPlayer } from "../src/game_data.js";
+import { CHARACTERS, REGIONS, createAIPlayer, createServerPlayer } from "../src/game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "../src/offline_content.js";
-import { beginServerAction, completeAction, initWorld, publicPlayer } from "../src/match_engine.js";
+import { beginServerAction, completeAction, initWorld, publicPlayer, runAIStep } from "../src/match_engine.js";
 
 assert.equal(CHARACTERS.length,51);
 assert.equal(REGIONS.length,13);
@@ -40,6 +40,15 @@ p.encounter=null;
 p.pendingEvent=ENCOUNTER_EVENTS[0].id;
 assert.equal(beginServerAction(match,p,"search",{},t0+20_100).error,"event_choice_required");
 p.pendingEvent=null;
+
+const ai=createAIPlayer(1,"c02","city","aggro");
+assert.equal(ai.isAI,true);
+assert.equal(ai.playerName,"이하령");
+match.players.push(ai);
+const oldRandom=Math.random;
+Math.random=()=>0;
+assert.equal(runAIStep(match,ai,t0+30_000),true);
+Math.random=oldRandom;
 
 const pub=publicPlayer(match,p,t0+20_000);
 assert.equal(pub.playerName,"QA");
