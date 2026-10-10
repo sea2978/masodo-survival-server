@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>마소도 온라인 알파 Phase 2C</title>
+<title>마소도 온라인 알파 · 버전 확인 중</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#0b0e12;color:#e8ecf1;font-family:system-ui,sans-serif}.wrap{max-width:1180px;margin:auto;padding:16px}.panel{background:#151a21;border:1px solid #303844;border-radius:12px;padding:14px;margin-bottom:12px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}button,input,select{background:#0d1117;color:#eee;border:1px solid #46515f;border-radius:8px;padding:9px 11px;min-height:40px}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.good{color:#9bd69b}.bad{color:#ef9a9a}.muted{color:#9ca7b4}.host{color:#ffd66b}.stat{display:inline-block;margin-right:14px}.actions button{min-width:120px}.card{background:#0f141a;border:1px solid #2a333e;border-radius:9px;padding:10px;margin:7px 0}.enemy{border-color:#734b4b}.event{border-color:#6e6239}.invcols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.scroll{max-height:280px;overflow:auto}#log{height:220px;overflow:auto;background:#080b0f;padding:10px;white-space:pre-wrap;font-size:12px}@media(max-width:800px){.grid,.invcols{grid-template-columns:1fr}}
 #lobbyScreen,#gameScreen{min-height:100vh}
@@ -10,7 +10,8 @@
 <div class="wrap">
   <section id="lobbyScreen">
     <div class="panel">
-      <h1>마법소녀들의 도시 · 온라인 알파 Phase 2C</h1>
+      <h1>마법소녀들의 도시 · 온라인 알파</h1>
+      <div class="card" style="border-color:#6b7f99"><b id="buildBadge">버전 확인 중...</b><div id="buildProtocol" class="muted">서버에서 현재 배포 버전을 확인합니다.</div></div>
       <p class="muted">방을 만들거나 참가한 뒤 캐릭터와 시작 지역을 선택하고 준비 상태를 맞춰주세요.</p>
 
       <h2>방 참가</h2>
@@ -50,7 +51,7 @@
       <div class="row" style="justify-content:space-between">
         <div>
           <h1 style="margin:0">마법소녀들의 도시 · 온라인 매치</h1>
-          <div class="muted">Cloudflare 서버 권위형 테스트</div>
+          <div class="muted">Cloudflare 서버 권위형 · <span id="gameBuildLabel">버전 확인 중</span></div>
         </div>
         <div class="row">
           <span>연결: <b id="gameStatus" class="good">연결됨</b></span>
@@ -135,6 +136,14 @@ function renderCharInfo(){
   if(!c){$('#charInfo').textContent="캐릭터 정보 없음";return}
   $('#charInfo').innerHTML=`<b>${c.name}</b> · ${c.arch||""}<br>HP ${c.baseHp} / SP ${c.baseSp} / ATK ${Number(c.baseAtk).toFixed(1)} / DEF ${Number(c.baseDef).toFixed(1)}<br><span class="muted">선호: ${c.preferredWeapon||"-"} · 패시브: ${c.passive||"-"} · 전투: ${c.combat||"-"} · 행동: ${c.action||"-"}</span>`;
 }
+function renderBuild(){
+  const b=net.build;if(!b)return;
+  const label=b.buildLabel||(`v${b.version||"?"} · Phase ${b.phase||"?"}`);
+  $('#buildBadge').textContent=label;
+  $('#buildProtocol').textContent=`프로토콜 ${b.protocolVersion??"-"} · 이 표시가 바뀌면 새 서버 버전이 적용된 것입니다.`;
+  $('#gameBuildLabel').textContent=label;
+  document.title=`마소도 온라인 알파 · ${label}`;
+}
 function fillCatalog(){
   if(net.catalog?.characters?.length){
     const keep=$('#char').value;
@@ -178,9 +187,10 @@ $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{
 }).join(""):'<span class="muted">없음</span>';
 $('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,k,id,qty,rep]=b.dataset.loot.split('|');net.lootCorpse(c,k,id,Number(qty)||1,rep==='1')});
 }
-net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";net.catalog=m.catalog;fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_started",()=>net.requestState());net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error);M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
+net.on("build",()=>renderBuild());
+net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";net.catalog=m.catalog;fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_started",()=>net.requestState());net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error);M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
 showLobby();
-(async()=>{try{await net.loadCatalog();fillCatalog();log(`캐릭터 ${net.catalog.characters.length}명 / 지역 ${net.catalog.regions.length}곳 불러옴`)}catch(e){log("카탈로그 불러오기 실패: "+e.message)}})();
+(async()=>{try{await net.loadCatalog();renderBuild();fillCatalog();log(`현재 버전 ${net.build?.buildLabel||"확인됨"} · 캐릭터 ${net.catalog.characters.length}명 / 지역 ${net.catalog.regions.length}곳 불러옴`)}catch(e){log("카탈로그 불러오기 실패: "+e.message)}})();
 $('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성 "+r.code)}catch(e){log(e.message)}};$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value})}catch(e){log(e.message)}};$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=()=>net.search();$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
 setInterval(()=>{if(net.ws?.readyState===WebSocket.OPEN&&M)net.requestState()},2000);
 </script></body></html>
