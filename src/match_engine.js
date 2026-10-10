@@ -1065,6 +1065,44 @@ function awardGenericClause(match,p,clause,e,index,rewards,summary){
   if(/안전 획득/.test(clause)&&e.id==="E022"&&index===1)return award("material",3,"안전 보상 획득");
   return 0;
 }
+function handleCompositeEventReward(match,p,e,index,text,rewards,summary){
+  const add=(kind,n=1,label="보상 획득")=>{let got=0;for(let i=0;i<n;i++)got+=eventAwardGeneric(match,p,kind,1);if(got)summary.push(label);return got};
+  if(e.id==="E005"&&index===2){const n=Math.min(eventExtractCount(text,1),2);for(let i=0;i<n;i++)add(pick(["food","material","electronic"]),1,"트렁크 보상 획득");return true}
+  if(e.id==="E007"&&index===0){for(let i=0;i<2;i++)add(Math.random()<.5?"accessory":"magic",1,"장신구·마력재료 획득");return true}
+  if(e.id==="E008"&&index===2){add("material",1,"장신구 계열 일반재료 획득");return true}
+  if(e.id==="E011"&&index===1){const pool=["silver","crystal"];if(Math.random()<.34)add("accessory",1,"장신구 재료 획득");else eventAwardItem(match,p,pick(pool),1);return true}
+  if(e.id==="E017"&&index===1){add(Math.random()<.5?"accessory":"magic",1,"장신구/마력재료 획득");return true}
+  if(e.id==="E016"&&index===2){add("food",1,"식량 획득");add("medicine",1,"의약품 획득");return true}
+  if(e.id==="E025"&&index===0){add(Math.random()<.5?"accessory":"food",1,"분실물 보상 획득");return true}
+  if(e.id==="E025"&&index===2){for(let i=0;i<2;i++)add(Math.random()<.5?"accessory":"electronic",1,"분실물 보상 획득");return true}
+  if(e.id==="E026"&&index===0){add("food",1,"음식 획득");add("medicine",1,"약품 획득");return true}
+  if(e.id==="E026"&&index===1){if(Math.random()<.55)add("high_food",1,"고급 소모품 획득");else add("food",1,"소모품 획득");return true}
+  if(e.id==="E037"&&index===0){add("accessory",1,"장신구 재료 획득");eventAwardItem(match,p,"coffee",1);return true}
+  if(e.id==="E038"&&index===0){const n=Math.min(eventExtractCount(text,2),3);for(let i=0;i<n;i++){const r=Math.random();if(r<.34)eventAwardItem(match,p,"silver",1);else if(r<.67)eventAwardItem(match,p,"alloy",1);else add("accessory",1,"금고 보상 획득")}return true}
+  if(e.id==="E041"&&index===0){eventAwardItem(match,p,"chocolate",1);add("food",1,"케이크 대체 음식 획득");return true}
+  if(e.id==="E041"&&index===1){eventAwardItem(match,p,"cloth",1);add("accessory",1,"장신구 재료 획득");return true}
+  if(e.id==="E041"&&index===2){add("food",2,"음식 2개 획득");add("material",1,"재료 1개 획득");return true}
+  if(e.id==="E042"&&index===0){if(Math.random()<.5)eventAwardItem(match,p,"silver",1);else add("accessory",1,"장신구 재료 획득");return true}
+  if(e.id==="E044"&&index===0){if(Math.random()<.18)eventAwardItem(match,p,"mint_choco_fish",1);else add("food",1,"디저트 획득");return true}
+  if(e.id==="E045"&&index===1){add("food",3,"식재료 3개 획득");return true}
+  if(e.id==="E047"){add("food",2,"식재료 2개 획득");return true}
+  if(e.id==="E048"&&index===0){
+    const ownedMats=Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id));let left=2;
+    for(const[id,n]of ownedMats){const take=Math.min(left,n);if(take){consumeItem(p,id,take);left-=take}if(left<=0)break}
+    if(left===0)add("high_food",1,"고급요리 획득");else summary.push("변환 재료 부족");
+    return true
+  }
+  if(e.id==="E048"&&index===2){
+    if(Math.random()>=.20)add("high_food",1,"고급요리 획득");
+    else{const row=Object.entries(p.mat||{}).find(([id,n])=>n>0&&!isSpecialMaterial(id));if(row)consumeItem(p,row[0],1);summary.push("조리 실패")}
+    return true
+  }
+  if(e.id==="E061"&&index===0){for(let i=0;i<2;i++){const r=Math.random();if(r<.34)eventAwardItem(match,p,"mana_stone",1);else add(r<.67?"medicine":"food",1,"보급품 획득")}return true}
+  if(e.id==="E067"&&index===1){add("food",1,"회복 음료 획득");add("accessory",1,"장신구 재료 획득");return true}
+  if(e.id==="E069"&&index===2){eventAwardItem(match,p,"precision",1);add("accessory",1,"장신구 재료 획득");return true}
+  if(e.id==="E078"&&index===1){if(Math.random()<.5)eventAwardItem(match,p,"alloy",1);else add("high_material",2,"고급재료 2개 획득");return true}
+  return false;
+}
 function processEventRewardClauses(match,p,e,index,clauses,rewards,summary){
   for(const clause of clauses){
     if(/소비|실패 시|확률|판정|시간|소음|위험 없음|즉시 종료|지속시간|피발견률|탐색시간|행동속도|가중치|추천 지역|흔적|표시|공개|보정|성공률|함정 무효|판정률|상태이상|중독|독성 상태|공포|혼란|수면|HP\s*[+-]|SP\s*[+-]|포만도\s*\+/.test(clause)){
@@ -1157,7 +1195,8 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   }
 
   const clauses=eventRewardClauses(text),normalClauses=clauses.filter(x=>!/^실패 시/.test(x)&&!/소비/.test(x));
-  processEventRewardClauses(match,p,e,index,normalClauses,rewards,summary);
+  const compositeHandled=handleCompositeEventReward(match,p,e,index,text,rewards,summary);
+  if(!compositeHandled)processEventRewardClauses(match,p,e,index,normalClauses,rewards,summary);
   if(specialAttempted&&!specialSucceeded){
     const failClauses=clauses.filter(x=>/^실패 시/.test(x)).map(x=>x.replace(/^실패 시\s*/,""));
     processEventRewardClauses(match,p,e,index,failClauses,rewards,summary);
@@ -1166,22 +1205,6 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if(/희귀 약품 확률/.test(text)&&Math.random()<.35)eventAwardItem(match,p,"advanced_first_aid",1);
   if(/고급장신구 재료 확률/.test(text)&&Math.random()<.40)eventAwardGeneric(match,p,"accessory",1);
   if(/특수보상 확률 낮음/.test(text)&&Math.random()<.20)eventAwardGeneric(match,p,"high_reward",1);
-  if(e.id==="E005"&&index===2){
-    const count=Math.min(eventExtractCount(text,1),2),kinds=["food","material","electronic"];
-    for(let j=0;j<count;j++)eventAwardGeneric(match,p,pick(kinds),1);
-  }
-  if(e.id==="E016"&&index===2){eventAwardGeneric(match,p,"food",1);eventAwardGeneric(match,p,"medicine",1)}
-  if(e.id==="E025"&&index===2){for(let j=0;j<2;j++)eventAwardGeneric(match,p,Math.random()<.5?"accessory":"electronic",1)}
-  if(e.id==="E044"&&index===0&&!clauseExactRewards(text).length){if(Math.random()<.18)eventAwardItem(match,p,"mint_choco_fish",1);else eventAwardGeneric(match,p,"food",1)}
-  if(e.id==="E048"&&index===0){
-    const ownedMats=Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id));let left=2;
-    for(const[id,n]of ownedMats){const take=Math.min(left,n);if(take>0){consumeItem(p,id,take);left-=take}if(left<=0)break}
-    if(left===0)eventAwardGeneric(match,p,"high_food",1);
-  }
-  if(e.id==="E048"&&index===2){
-    if(Math.random()>=.20)eventAwardGeneric(match,p,"high_food",1);
-    else{const row=Object.entries(p.mat||{}).find(([id,n])=>n>0&&!isSpecialMaterial(id));if(row)consumeItem(p,row[0],1)}
-  }
 
   if(/다음.*제작시간 -50%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.5);
   if(/다음.*제작시간 -20%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.8);
