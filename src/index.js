@@ -1,4 +1,5 @@
 import { json, randomRoomCode, safeRoomCode } from "./protocol.js";
+import { CHARACTERS, REGIONS } from "./game_data.js";
 export { GameRoom } from "./room.js";
 
 const corsHeaders = {
@@ -24,7 +25,19 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
     if (url.pathname === "/api/health") {
-      return withCors(json({ ok: true, service: "masodo-survival-server", phase: "2A", protocolVersion: 2 }));
+      return withCors(json({ ok: true, service: "masodo-survival-server", phase: "2C", protocolVersion: 4 }));
+    }
+
+    if (url.pathname === "/api/catalog" && request.method === "GET") {
+      return withCors(json({
+        ok: true,
+        characters: CHARACTERS.map(c => ({
+          id: c.id, name: c.name, arch: c.arch, baseHp: c.baseHp, baseSp: c.baseSp,
+          baseAtk: c.baseAtk, baseDef: c.baseDef, preferredWeapon: c.preferredWeapon,
+          passive: c.passive, combat: c.combat, action: c.action
+        })),
+        regions: REGIONS
+      }));
     }
 
     if (url.pathname === "/api/room/create" && request.method === "POST") {
