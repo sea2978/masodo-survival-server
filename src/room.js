@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { MAX_HUMANS, json, parseJsonMessage, safeText, send } from "./protocol.js";
-import { ADJACENCY, CHARACTERS, REGIONS, createServerPlayer, isValidCharacter, isValidRegion } from "./game_data.js";
+import { ADJACENCY, CHARACTERS, REGIONS, createAIPlayer, createServerPlayer, isValidCharacter, isValidRegion } from "./game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
-import { beginServerAction, completeAction, initWorld, lootCorpse, publicPlayer, resolveEventChoice, updatePassiveTime } from "./match_engine.js";
+import { beginServerAction, completeAction, initWorld, lootCorpse, publicPlayer, resolveEventChoice, runAITick, updatePassiveTime } from "./match_engine.js";
 
 const ROOM_META_KEY="room_meta",MATCH_KEY="match_state";
 
@@ -28,7 +28,7 @@ export class GameRoom extends DurableObject{
   snapshot(match,sid,now=Date.now()){
     updatePassiveTime(match,now);
     const self=this.matchPlayerForSession(match,sid);
-    const others=match.players.filter(p=>p.sessionId!==sid).map(p=>({playerId:p.playerId,playerName:p.playerName,charId:p.charId,alive:p.alive,kills:p.kills}));
+    const others=match.players.filter(p=>p.sessionId!==sid).map(p=>({playerId:p.playerId,playerName:p.playerName,charId:p.charId,alive:p.alive,kills:p.kills,isAI:!!p.isAI}));
     const encounter=self?.encounter?(()=>{
       if(self.encounter.kind==="player"){const t=match.players.find(p=>p.playerId===self.encounter.targetId);return t?{kind:"player",targetId:t.playerId,name:t.playerName,charId:t.charId,hp:t.hp,maxHp:t.maxHp}:null}
       const w=match.wilds.find(x=>x.id===self.encounter.wildId);if(!w)return null;
@@ -36,6 +36,7 @@ export class GameRoom extends DurableObject{
     })():null;
     return{matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.elapsed||0,self:self?publicPlayer(match,self,now):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
       pendingEvent:self?.pendingEvent?match.eventCatalog.find(e=>e.id===self.pendingEvent)||null:null,
+      aiCount:match.players.filter(p=>p.isAI).length,
       corpses:(match.corpses||[]).filter(c=>c.region===self?.region&&c.expiresAt>now),
       craftable:self?Object.entries(ITEMS).filter(([id,it])=>it?.r&&Object.entries(it.r).every(([k,n])=>{
         const src=ITEMS[k];const count=src?.t==="m"?(self.mat[k]||0):src?.t==="c"?(self.con[k]||0):(self.eq||[]).filter(x=>x===k).length;return count>=n
@@ -45,6 +46,10 @@ export class GameRoom extends DurableObject{
   broadcastMatchState(match){for(const ws of this.sessions.keys())this.sendMatchState(ws,match)}
   async scheduleNextAlarm(match){
     const times=match.players.map(p=>p.pendingAction?.completeAt).filter(Number.isFinite);
+    if(match.phase==="playing"&&match.players.some(p=>p.isAI&&p.alive)){
+      if(!Number.isFinite(match.nextAiTickAt))match.nextAiTickAt=Date.now()+1000;
+      times.push(match.nextAiTickAt);
+    }
     if(times.length)await this.ctx.storage.setAlarm(Math.min(...times));
   }
   async completeDueActions(match,now=Date.now()){
@@ -59,7 +64,16 @@ export class GameRoom extends DurableObject{
     if(changed){match.updatedAt=now;await this.saveMatch(match);this.broadcastMatchState(match)}
     return changed;
   }
-  async alarm(){const m=await this.getMatch();if(!m||m.phase!=="playing")return;await this.completeDueActions(m,Date.now());await this.scheduleNextAlarm(m)}
+  async alarm(){
+    const m=await this.getMatch();if(!m||m.phase!=="playing")return;
+    const now=Date.now();await this.completeDueActions(m,now);
+    if((m.nextAiTickAt||0)<=now){
+      const changed=runAITick(m,now);
+      await this.saveMatch(m);
+      if(changed)this.broadcastMatchState(m);
+    }
+    await this.scheduleNextAlarm(m)
+  }
 
   async fetch(request){
     const url=new URL(request.url),path=url.pathname;
@@ -98,10 +112,17 @@ export class GameRoom extends DurableObject{
     if(msg.type==="set_start_region"){if(meta.phase!=="lobby"||!isValidRegion(msg.region)){send(ws,"error",{error:"invalid_region"});return}session.startRegion=msg.region;session.ready=false;ws.serializeAttachment(session);this.sessions.set(ws,session);await this.broadcastRoomState(meta);return}
     if(msg.type==="request_start"){
       const room=this.roomState(meta);if(meta.hostSessionId!==session.sessionId){send(ws,"error",{error:"host_only"});return}if(!room.allReady){send(ws,"error",{error:"not_all_ready"});return}if(meta.phase!=="lobby"){send(ws,"error",{error:"already_started"});return}
-      const match={matchId:crypto.randomUUID(),phase:"playing",createdAt:Date.now(),startedAt:Date.now(),updatedAt:Date.now(),players:this.joinedSessions().map((s,i)=>createServerPlayer(s,i))};
+      const humans=this.joinedSessions(),players=humans.map((s,i)=>createServerPlayer(s,i));
+      const profiles=["balanced","craft","aggro","safe"];
+      while(players.length<11){
+        const c=CHARACTERS[Math.floor(Math.random()*CHARACTERS.length)];
+        const r=REGIONS[Math.floor(Math.random()*REGIONS.length)];
+        players.push(createAIPlayer(players.length,c.id,r.id,profiles[Math.floor(Math.random()*profiles.length)]));
+      }
+      const match={matchId:crypto.randomUUID(),phase:"playing",createdAt:Date.now(),startedAt:Date.now(),updatedAt:Date.now(),players,nextAiTickAt:Date.now()+1000};
       for(const p of match.players){p.tempEffects=[];p.statusImmunity={};p.cdCUntil=0;p.cdAUntil=0;p.lastSatietyAt=match.startedAt;p.nextStatusTick=match.startedAt}
       match.wildTemplates=WILD_TEMPLATES;match.eventCatalog=ENCOUNTER_EVENTS;initWorld(match);
-      meta.phase="playing";meta.startedAt=match.startedAt;await Promise.all([this.saveMeta(meta),this.saveMatch(match)]);this.broadcast("match_started",{matchId:match.matchId,serverNow:Date.now()});this.broadcastMatchState(match);return
+      meta.phase="playing";meta.startedAt=match.startedAt;await Promise.all([this.saveMeta(meta),this.saveMatch(match)]);await this.scheduleNextAlarm(match);this.broadcast("match_started",{matchId:match.matchId,serverNow:Date.now(),competitors:match.players.length,aiCount:match.players.filter(p=>p.isAI).length});this.broadcastMatchState(match);return
     }
     if(msg.type==="request_state"){const m=await this.getMatch();if(!m){send(ws,"error",{error:"match_not_started"});return}await this.completeDueActions(m,Date.now());this.sendMatchState(ws,m);return}
     if(msg.type==="chat"){const text=safeText(msg.text,120,"");if(text)this.broadcast("chat",{from:session.sessionId,playerName:session.playerName,text,at:Date.now()});return}
