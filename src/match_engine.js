@@ -190,6 +190,7 @@ function craftItem(match,p,id){
   const it=item(id);if(!it||!canCraft(p,id))return {ok:false,error:"recipe_missing"};
   for(const[k,v]of Object.entries(it.r)){if(!consumeItem(p,k,v))return {ok:false,error:"recipe_race"};if(isSpecialMaterial(k)&&(p.mat[k]||0)<=0)markSpecialConsumed(match,k)}
   if(!addItem(p,id,1))return {ok:false,error:"inventory_full"};
+  if(it.t==="e"&&it.weaponType){match.craftStats??={};match.craftStats[it.weaponType]=(match.craftStats[it.weaponType]||0)+1}
   return {ok:true,itemId:id,itemName:it.n};
 }
 function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.until>now?s:null}
@@ -270,7 +271,7 @@ export function updatePassiveTime(match,now=Date.now()){
 export function initWorld(match){
   let seq=1;match.wilds=[];
   for(const t of WILD_TEMPLATES)for(const region of t.regions)match.wilds.push({id:"w"+seq++,templateId:t.id,region,hp:t.hp,alive:true,guardReady:t.skill==="guard"});
-  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.regionTraps={};match.noises=[];match.uniqueSpecials=initUniqueSpecials();
+  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.regionTraps={};match.noises=[];match.battleLog=[];match.craftStats={};match.uniqueSpecials=initUniqueSpecials();
 }
 function wildTemplate(w){return WILD_TEMPLATES.find(x=>x.id===w.templateId)}
 function playerById(match,id){return match.players.find(p=>p.playerId===id)}
@@ -464,7 +465,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   const crit=canSkillCrit&&Math.random()<clamp(.05+(skill?(sd.crit||0):0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,t,d,ctx,now);
-  t.hp-=d;wakeOnDamage(t,now);gainProf(p,1.5,match,now);
+  t.hp-=d;wakeOnDamage(t,now);recordBattle(match,p,t,now);gainProf(p,1.5,match,now);
 
   if(skill){
     for(const row of sd.statuses||[]){
@@ -566,17 +567,24 @@ function consumeEventChoiceCost(e,p,index){
 }
 function searchResult(match,p,now){
   p.sp=Math.max(0,p.sp-3);
-  const eventChance=Math.min(.12,.05+(match.eventPity[p.region]||0));
+  const mods=cleanupEventMods(p,now),regionBoost=mods.regionEventBoosts[p.region]?.bonus||0;
+  const eventChance=Math.min(.20,.05+(match.eventPity[p.region]||0)+regionBoost);
   if(Math.random()<eventChance){
     let pool=ENCOUNTER_EVENTS.filter(e=>e.region===p.region&&e.id!==match.lastEventId&&eventEligibleForPlayer(e,p));
     const normal=pool.filter(e=>e.condition!=="매우 낮은 확률"),rare=pool.filter(e=>e.condition==="매우 낮은 확률");
     if(rare.length&&Math.random()<.12)pool=rare;else if(normal.length)pool=normal;
-    if(pool.length){const e=pick(pool);match.lastEventId=e.id;match.eventPity[p.region]=0;p.pendingEvent=e.id;return {kind:"event",event:e}}
+    if(pool.length){
+      const specialBoost=mods.nextSpecialEventBoost||0;
+      const e=weightedPick(pool,x=>1+(mods.eventWeights[x.id]?.bonus||0)+(x.type?.includes("특수")?specialBoost:0));
+      mods.nextSpecialEventBoost=0;match.lastEventId=e.id;match.eventPity[p.region]=0;p.pendingEvent=e.id;return {kind:"event",event:e}
+    }
   } else match.eventPity[p.region]=(match.eventPity[p.region]||0)+.007;
   const ground=groundSpecialsInRegion(match,p.region);
   if(ground.length&&Math.random()<.35){const id=pick(ground);if(pickupGroundSpecial(match,p,id))return {kind:"special",itemId:id,itemName:item(id)?.n||id,source:"ground"}}
   const regional=regionSpecialCandidates(match,p.region);
-  if(regional.length&&Math.random()<.035){const id=pick(regional);if(grantSpecial(match,p,id))return {kind:"special",itemId:id,itemName:item(id)?.n||id,source:"search"}}
+  const specialChance=clamp(.035+(mods.regionSpecialBoosts[p.region]?.bonus||0)+(mods.nextSpecialChanceBonus||0),0,.95);
+  mods.nextSpecialChanceBonus=0;
+  if(regional.length&&Math.random()<specialChance){const id=pick(regional);if(grantSpecial(match,p,id))return {kind:"special",itemId:id,itemName:item(id)?.n||id,source:"search"}}
   const humans=match.players.filter(x=>x!==p&&x.alive&&x.region===p.region);
   if(humans.length){
     const t=pick(humans),detectChance=clamp(.70+detectionBonus(p,t,match,now)-detectionPenalty(t,match,now),.10,.95);
@@ -783,7 +791,7 @@ function regionName(id){
   return map[id]||id;
 }
 function recordPlayerTraceIntel(match,p,now){
-  const candidates=match.players.filter(x=>x!==p&&x.alive);
+  const candidates=match.players.filter(x=>x!==p&&x.alive&&!((ensureEventMods(x).traceHiddenUntil||0)>now));
   if(!candidates.length)return null;
   const target=pick(candidates),row={kind:"player_trace",playerId:target.playerId,name:target.playerName,region:target.region,regionName:regionName(target.region),at:now};
   pushIntel(ensureIntel(p).playerTraces,row);return row;
@@ -810,7 +818,7 @@ export function publicPlayer(match,p,now=Date.now()){
 }
 export function actionDuration(match,p,type,payload={},now=Date.now()){
   const fx=combinedFx(p,match,now);let sec=1;
-  if(type==="search")sec=Math.max(.8,1.5*(1+(fx.searchTime||0)));
+  if(type==="search"){const mods=cleanupEventMods(p,now);sec=mods.instantSearchRegion===p.region?.08:Math.max(.8,1.5*(1+(fx.searchTime||0)))}
   else if(type==="rest")sec=3;
   else if(type==="craft")sec=Math.max(.8,1.8*(1+(fx.craftTime||0))*(p.nextCraftTimeMult||1));
   else if(type==="use_item")sec=item(payload.id)?.useTime??1.2;
@@ -879,7 +887,7 @@ export function completeAction(match,p,now=Date.now()){
   p.pendingAction=null;
   const type=a.type,x=a.payload||{};let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
-  else if(type==="search")result={...result,...searchResult(match,p,now)};
+  else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};
   else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
   else if(type==="craft"){result={...result,...craftItem(match,p,x.id)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
@@ -890,6 +898,50 @@ export function completeAction(match,p,now=Date.now()){
   else if(type==="loot_corpse")result={...result,...lootCorpse(match,p,x.corpseId,x.kind,x.id,x.qty||1,!!x.replace,now)};
   match.corpses=(match.corpses||[]).filter(c=>c.expiresAt>now);
   match.updatedAt=now;updatePassiveTime(match,now);return result;
+}
+function ensureEventMods(p){
+  p.eventMods??={eventWeights:{},regionEventBoosts:{},regionSpecialBoosts:{},nextSpecialChanceBonus:0,nextSpecialEventBoost:0,instantSearchRegion:null,traceHiddenUntil:0,nextCraftFilter:null};
+  return p.eventMods;
+}
+function weightedPick(rows,weightFn){
+  let total=0;const weighted=rows.map(x=>{const w=Math.max(.001,weightFn(x));total+=w;return[x,w]});
+  let r=Math.random()*total;for(const[x,w]of weighted){r-=w;if(r<=0)return x}return rows[rows.length-1];
+}
+function cleanupEventMods(p,now){
+  const m=ensureEventMods(p);
+  for(const map of [m.eventWeights,m.regionEventBoosts,m.regionSpecialBoosts])for(const[k,v]of Object.entries(map))if(v?.until&&v.until<=now)delete map[k];
+  if((m.traceHiddenUntil||0)<=now)m.traceHiddenUntil=0;
+  return m;
+}
+function recordBattle(match,a,b,now){
+  match.battleLog??=[];
+  match.battleLog.unshift({at:now,region:a.region,aId:a.playerId,bId:b?.playerId||null});
+  match.battleLog=match.battleLog.filter(x=>x.at>now-120000).slice(0,40);
+}
+function gearTierRank(t){return t==="최종"?5:t==="준최종"?4:t==="희귀 시너지"?3:t==="희귀"?2:t==="고급"?1:0}
+function recordAdvancedEventIntel(match,p,text,now){
+  const intel=ensureIntel(p);
+  if(/무작위 플레이어 1명의 장비 등급 범위 확인/.test(text)){
+    const targets=match.players.filter(x=>x!==p&&x.alive&&!((ensureEventMods(x).traceHiddenUntil||0)>now));
+    const t=targets.length?pick(targets):null;if(t){
+      const tiers=(t.eq||[]).map(id=>item(id)?.tier||"일반"),max=tiers.sort((a,b)=>gearTierRank(b)-gearTierRank(a))[0]||"무장 없음";
+      pushIntel(intel.eventHints,{kind:"gear_grade",name:t.playerName,value:max,at:now});
+    }
+  }
+  if(/금속 장비 보유자 존재 여부 탐지/.test(text)){
+    const mgmt=new Set(["mgmt_lobby","mgmt_admin","mgmt_director","mgmt_cafeteria","mgmt_lab","mgmt_training"]);
+    const found=match.players.some(x=>x!==p&&x.alive&&mgmt.has(x.region)&&(x.eq||[]).some(id=>/철|강철|합금|금속/.test(item(id)?.n||"")));
+    pushIntel(intel.eventHints,{kind:"metal_holder",name:"관리국 금속 장비 탐지",value:found?"존재":"미탐지",at:now});
+  }
+  if(/최근.*전투.*층|최근 관리국 전투 흔적 공개/.test(text)){
+    const mgmt=new Set(["mgmt_lobby","mgmt_admin","mgmt_director","mgmt_cafeteria","mgmt_lab","mgmt_training"]);
+    const row=(match.battleLog||[]).find(x=>x.at>now-120000&&mgmt.has(x.region));
+    pushIntel(intel.eventHints,{kind:"battle_trace",name:"최근 관리국 전투",value:row?regionName(row.region):"최근 흔적 없음",at:now});
+  }
+  if(/현재 가장 많이 제작된 무기 태그 공개/.test(text)){
+    const entries=Object.entries(match.craftStats||{}).sort((a,b)=>b[1]-a[1]);
+    pushIntel(intel.eventHints,{kind:"craft_meta",name:"가장 많이 제작된 무기",value:entries[0]?.[0]||"기록 없음",at:now});
+  }
 }
 function eventGenericMaterialPool(){return Object.keys(ITEMS).filter(id=>ITEMS[id]?.t==="m"&&!isSpecialMaterial(id))}
 function eventConsumablePool(){return Object.keys(ITEMS).filter(id=>ITEMS[id]?.t==="c")}
@@ -987,7 +1039,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if(/공포·혼란 지속시간 -20%/.test(text))for(const id of["fear","confusion"]){const s=p.statuses?.[id];if(s&&s.until>now)s.until=now+(s.until-now)*.8}
   if(/피발견률 -5% 30초/.test(text))addTemp(p,{conceal:.05},30,now);
   if(/탐색시간 -5%/.test(text))addTemp(p,{searchTime:-.05},30,now);
-  if(/행동속도 \+4%/.test(text))addTemp(p,{prep:-.04,moveTime:-.04},30,now);
+  if(/행동속도 \+4%/.test(text))addTemp(p,{actionTime:-.04},30,now);
 
   const specials=eventSpecialCandidates(e,text);
   if(specials.length){
@@ -1024,6 +1076,30 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if(/다음.*제작시간 -20%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.8);
   if(/피발견률 \+10% 20초/.test(text))addTemp(p,{conceal:-.10},20,now);
   if(/다음.*피발견률 -5%/.test(text))addTemp(p,{conceal:.05},30,now);
+  const mods=cleanupEventMods(p,now);
+  let mmod;
+  if((mmod=text.match(/(\d+)초 동안 해당 이벤트 재등장 가중치 \+(\d+)%/))){mods.eventWeights[e.id]={bonus:+mmod[2]/100,until:now+(+mmod[1])*1000}}
+  if(/특수 이벤트 발견 \+1회 보정/.test(text))mods.nextSpecialEventBoost=Math.max(mods.nextSpecialEventBoost||0,.35);
+  if((mmod=text.match(/다음 특수재료 판정 \+(\d+)%/)))mods.nextSpecialChanceBonus=Math.max(mods.nextSpecialChanceBonus||0,+mmod[1]/100);
+  if(/특수재료 판정률 소폭 감소/.test(text))mods.nextSpecialChanceBonus=Math.min(mods.nextSpecialChanceBonus||0,-.15);
+  if(/특수재료 획득률 크게 상승|판정률 증가|특수재료 판정 상승/.test(text))mods.nextSpecialChanceBonus=Math.max(mods.nextSpecialChanceBonus||0,.25);
+  if((mmod=text.match(/(\d+)초간 간부 숙소 특수이벤트 \+(\d+)%/)))mods.regionEventBoosts.evil_quarters={bonus:+mmod[2]/100,until:now+(+mmod[1])*1000};
+  if((mmod=text.match(/(\d+)초간 악의조직 훈련장 특수이벤트 \+(\d+)%/)))mods.regionEventBoosts.evil_training={bonus:+mmod[2]/100,until:now+(+mmod[1])*1000};
+  if(/다음 온실 이벤트 특수재료 확률 \+30%/.test(text))mods.regionSpecialBoosts.estate={bonus:.30,until:now+60000};
+  if(/다음 마도 이벤트 가중치 \+/.test(text))mods.nextSpecialEventBoost=Math.max(mods.nextSpecialEventBoost||0,.20);
+  if(/무작위 외부 지역 하나의 이벤트 가중치/.test(text)){
+    const external=["city","estate","church","factory"],r=pick(external);mods.regionEventBoosts[r]={bonus:.25,until:now+60000};
+  }
+  if(/다음 행정실 탐색 1회 즉시 완료/.test(text))mods.instantSearchRegion="mgmt_admin";
+  if(/자신의 정보 흔적 감소|최근 관리국 흔적 제거|흔적을 남기지 않음/.test(text))mods.traceHiddenUntil=Math.max(mods.traceHiddenUntil||0,now+30000);
+  if(/25초간 상태이상 지속 -5%/.test(text))addTemp(p,{incomingStatusDuration:-.05},25,now);
+  if((mmod=text.match(/이후 SP회복 -(\d+)% (\d+)초/)))addTemp(p,{spRecovery:-(+mmod[1]/100)},+mmod[2],now);
+  if((mmod=text.match(/포만도 \+(\d+)/)))p.satiety=clamp((p.satiety??100)+(+mmod[1]),0,100);
+  if(/출혈 지속시간 50% 감소/.test(text)){const s=p.statuses?.bleed;if(s&&s.until>now)s.until=now+(s.until-now)*.5}
+  if((mmod=text.match(/(\d+)% 상태이상/))&&Math.random()<+mmod[1]/100)applyStatus(p,pick(["poison","bleed","slow","fear","confusion"]),1,null,null,now,null,match);
+  if((mmod=text.match(/(\d+)% 혼란(?!\s*\d)/))&&Math.random()<+mmod[1]/100)applyStatus(p,"confusion",1,5,null,now,null,match);
+  recordAdvancedEventIntel(match,p,text,now);
+
   if(/다른 플레이어.*흔적|최근.*플레이어 흔적|출입 흔적|최근.*방문 플레이어/.test(text)){
     const row=recordPlayerTraceIntel(match,p,now);summary.push(row?"플레이어 흔적 획득":"플레이어 흔적 없음");
   }
