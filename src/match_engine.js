@@ -133,7 +133,7 @@ function encounterTarget(match,p){
 }
 function profHit(p){
   const type=char(p).preferredWeapon,xp=p.proficiency?.[type]||0;
-  return xp>=115?.12:xp>=80?.10:xp>=55?.08:xp>=35?.06:xp>=20?.04:xp>=10?.02:0;
+  return xp>=115 ? .12 : xp>=80 ? .10 : xp>=55 ? .08 : xp>=35 ? .06 : xp>=20 ? .04 : xp>=10 ? .02 : 0;
 }
 function gainProf(p,n){
   const type=char(p).preferredWeapon;if(!type)return;
@@ -285,7 +285,8 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
 }
 export function validateAction(match,p,type,payload={},now=Date.now()){
   updatePassiveTime(match,now);
-  if(!p?.alive)return {ok:false,error:"player_not_active"};if(p.pendingAction)return {ok:false,error:"action_in_progress"};if(status(p,"sleep"))return {ok:false,error:"asleep"};
+  if(!p?.alive)return {ok:false,error:"player_not_active"};if(p.pendingAction)return {ok:false,error:"action_in_progress"};if(status(p,"sleep",now))return {ok:false,error:"asleep"};
+  if(p.pendingEvent)return {ok:false,error:"event_choice_required"};
   if(type!=="attack"&&type!=="skill"&&type!=="flee"&&p.encounter&&type!=="use_item")return {ok:false,error:"encounter_in_progress"};
   if(type==="move"){if(status(p,"bind"))return {ok:false,error:"bound"};if(!ADJACENCY[p.region]?.includes(payload.to))return {ok:false,error:"invalid_move"};const mv=movementProfile(p.region,payload.to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp<cost)return {ok:false,error:"not_enough_sp"};return {ok:true,meta:{...mv,spCost:cost}}}
   if(type==="search"&&p.sp<3)return {ok:false,error:"not_enough_sp"};
