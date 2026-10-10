@@ -80,6 +80,16 @@ export class MasodoNetworkAdapter {
   requestStart() { return this.send("request_start"); }
   requestState() { return this.send("request_state"); }
   move(to) { return this.send("command_move", { to }); }
+  search() { return this.send("command_search"); }
+  rest() { return this.send("command_rest"); }
+  craft(id) { return this.send("command_craft", { id }); }
+  useItem(id) { return this.send("command_use_item", { id }); }
+  attack() { return this.send("command_attack"); }
+  skill() { return this.send("command_skill"); }
+  flee() { return this.send("command_flee"); }
+  charAction() { return this.send("command_char_action"); }
+  eventChoice(index) { return this.send("event_choice", { index }); }
+  lootCorpse(corpseId, kind, id) { return this.send("loot_corpse", { corpseId, kind, id }); }
   chat(text) { return this.send("chat", { text }); }
   ping() { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send("ping"); }
 
