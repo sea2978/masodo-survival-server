@@ -105,7 +105,16 @@ export class GameRoom extends DurableObject{
     const msg=parseJsonMessage(message),session=this.sessions.get(ws)||ws.deserializeAttachment(),meta=await this.getMeta();
     if(!msg||!session||!meta){send(ws,"error",{error:"invalid_message"});return}
     if(msg.type==="hello"){
-      if(meta.phase!=="lobby"){send(ws,"error",{error:"match_already_started"});return}
+      if(meta.phase!=="lobby"){
+        const resume=safeText(msg.resumeSessionId,80,""),m=await this.getMatch(),p=resume?this.matchPlayerForSession(m,resume):null;
+        if(!m||!p){send(ws,"error",{error:"resume_required"});return}
+        for(const [other,s] of this.sessions.entries()){
+          if(other!==ws&&s?.sessionId===resume){this.sessions.delete(other);try{other.close(4002,"Session resumed elsewhere")}catch{}}
+        }
+        session.sessionId=resume;session.joined=true;session.playerName=p.playerName;session.charId=p.charId;session.startRegion=p.region;session.ready=true;session.joinedAt||=Date.now();
+        ws.serializeAttachment(session);this.sessions.set(ws,session);
+        send(ws,"hello_ok",{sessionId:resume,resumed:true,host:meta.hostSessionId===resume});this.sendMatchState(ws,m);return
+      }
       if(!session.joined&&this.connectedPlayers(meta).length>=MAX_HUMANS){send(ws,"error",{error:"room_full"});ws.close(4001,"Room full");return}
       session.joined=true;session.playerName=safeText(msg.playerName,20,"Player");session.charId=isValidCharacter(msg.charId)?msg.charId:"c01";session.startRegion=isValidRegion(msg.startRegion)?msg.startRegion:"city";session.ready=false;session.joinedAt||=Date.now();
       if(!meta.hostSessionId){meta.hostSessionId=session.sessionId;await this.saveMeta(meta)}
