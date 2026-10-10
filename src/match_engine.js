@@ -733,8 +733,41 @@ export function recommendedCrafts(p,limit=12){
     .sort((a,b)=>(Number(b.ready)-Number(a.ready))||(b.score-a.score)||((b.have/Math.max(1,b.need))-(a.have/Math.max(1,a.need))))
     .slice(0,limit)
 }
+function ensureIntel(p){
+  p.intel??={playerTraces:[],specialCandidates:[],materialHints:[],eventHints:[]};
+  for(const k of["playerTraces","specialCandidates","materialHints","eventHints"])p.intel[k]??=[];
+  return p.intel;
+}
+function pushIntel(list,row,max=6){
+  list.unshift(row);
+  if(list.length>max)list.length=max;
+}
+function regionName(id){
+  const map={city:"텅 빈 도심",estate:"저택",church:"교회",factory:"폐공장",mgmt_lobby:"관리국 로비",mgmt_admin:"관리국 행정실",mgmt_director:"관리국장실",mgmt_cafeteria:"관리국 식당",mgmt_lab:"관리국 연구실",mgmt_training:"관리국 훈련실",evil_reception:"악의 조직 접견실",evil_quarters:"악의 조직 숙소",evil_training:"악의 조직 훈련실"};
+  return map[id]||id;
+}
+function recordPlayerTraceIntel(match,p,now){
+  const candidates=match.players.filter(x=>x!==p&&x.alive);
+  if(!candidates.length)return null;
+  const target=pick(candidates),row={kind:"player_trace",playerId:target.playerId,name:target.playerName,region:target.region,regionName:regionName(target.region),at:now};
+  pushIntel(ensureIntel(p).playerTraces,row);return row;
+}
+function recordSpecialCandidateIntel(match,p,now){
+  const ids=[...groundSpecialsInRegion(match,p.region),...regionSpecialCandidates(match,p.region)];
+  const unique=[...new Set(ids)].slice(0,6),row={kind:"special_candidates",region:p.region,regionName:regionName(p.region),items:unique.map(id=>({id,name:item(id)?.n||id,state:specialState(match,id)?.state||"unknown"})),at:now};
+  pushIntel(ensureIntel(p).specialCandidates,row);return row;
+}
+function materialTargetRegions(ids){
+  const wanted=new Set(ids);return Object.entries(POOLS).filter(([,pool])=>pool.some(id=>wanted.has(id))).map(([region,pool])=>({region,regionName:regionName(region),hits:pool.filter(id=>wanted.has(id))})).sort((a,b)=>b.hits.length-a.hits.length).slice(0,5)
+}
+function recordMaterialHintIntel(p,now){
+  const rec=recommendedCrafts(p,4).find(x=>!x.ready&&x.missing?.length);
+  if(!rec)return null;
+  const ids=rec.missing.map(x=>x.id),row={kind:"material_hint",targetId:rec.id,targetName:rec.name,regions:materialTargetRegions(ids),at:now};
+  pushIntel(ensureIntel(p).materialHints,row);return row;
+}
 export function publicPlayer(match,p,now=Date.now()){
-  updatePassiveTime(match,now);
+  updatePassiveTime(match,now);ensureIntel(p);
   return {...p,maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
     inventory:{eq:(p.eq||[]).map(id=>({id,...item(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
@@ -953,7 +986,20 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if(/다음.*제작시간 -20%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.8);
   if(/피발견률 \+10% 20초/.test(text))addTemp(p,{conceal:-.10},20,now);
   if(/다음.*피발견률 -5%/.test(text))addTemp(p,{conceal:.05},30,now);
-  if(/다른 플레이어.*흔적|최근.*플레이어 흔적|출입 흔적/.test(text))summary.push("지역 정보 획득");
+  if(/다른 플레이어.*흔적|최근.*플레이어 흔적|출입 흔적|최근.*방문 플레이어/.test(text)){
+    const row=recordPlayerTraceIntel(match,p,now);summary.push(row?"플레이어 흔적 획득":"플레이어 흔적 없음");
+  }
+  if(/특수재료 후보 공개|특수재료 후보|특수 이벤트.*보정/.test(text)){
+    const row=recordSpecialCandidateIntel(match,p,now);summary.push(row?.items?.length?"특수재료 후보 확인":"특수재료 후보 없음");
+  }
+  if(/추천 지역 표시|재료 카테고리.*추천 지역/.test(text)){
+    const row=recordMaterialHintIntel(p,now);summary.push(row?.regions?.length?"추천 파밍 지역 확인":"추천 지역 정보 없음");
+  }
+  if(/다음 이벤트 종류 미리 확인/.test(text)){
+    const candidates=ENCOUNTER_EVENTS.filter(x=>x.region===p.region&&x.id!==e.id);
+    const next=candidates.length?pick(candidates):null;
+    if(next){pushIntel(ensureIntel(p).eventHints,{kind:"event_hint",region:p.region,eventId:next.id,name:next.name,type:next.type,at:now});summary.push("다음 이벤트 정보 획득")}
+  }
   if(/소음 큼|소음 중간|소음/.test(text)&&e.noise!=="없음")summary.push("소음 발생");
   if(!summary.length)summary.push("이벤트 효과 적용");
 
@@ -1008,6 +1054,8 @@ function aiBestHeal(p){
   return ids.filter(id=>item(id)?.heal).sort((a,b)=>(item(b)?.heal||0)-(item(a)?.heal||0))[0]||null
 }
 function aiChooseCraft(p){
+  const recommendedReady=recommendedCrafts(p,12).filter(x=>x.ready);
+  if(recommendedReady.length)return recommendedReady[0].id;
   const craftables=Object.keys(ITEMS).filter(id=>canCraft(p,id));
   if(!craftables.length)return null;
   const score=id=>{
@@ -1022,9 +1070,13 @@ function aiChooseCraft(p){
 function sameRegion(match,region){return match.players.filter(x=>x.alive&&x.region===region)}
 function aiMoveChoice(match,p){
   const opts=(ADJACENCY[p.region]||[]);if(!opts.length)return null;
+  const targetRec=recommendedCrafts(p,4).find(x=>!x.ready&&x.missing?.length);
+  const wanted=new Set(targetRec?.missing?.map(x=>x.id)||[]);
   let best=opts[0],bestScore=-Infinity;
   for(const r of opts){
     let s=Math.random()*.2,pool=POOLS[r]||[];
+    const wantedHits=pool.filter(id=>wanted.has(id)).length;
+    if(wantedHits)s+=wantedHits*(p.ai==="craft" ? .42 : .22);
     if(p.ai==="craft")s+=pool.filter(id=>item(id)?.t==="m").length*.04;
     if(p.ai==="safe")s-=sameRegion(match,r).length*.25;
     if(p.ai==="aggro")s+=sameRegion(match,r).length*.18;
