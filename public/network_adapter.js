@@ -8,6 +8,9 @@ export class MasodoNetworkAdapter {
     this.lastMatch = null;
     this.catalog = null;
     this.build = null;
+    this.connectOptions = null;
+    this.manualClose = false;
+    this.reconnectTimer = null;
   }
 
   on(type, fn) {
@@ -46,8 +49,14 @@ export class MasodoNetworkAdapter {
   }
 
   async connect(code, { playerName = "Player", charId = "c01", startRegion = "city" } = {}) {
-    this.close();
-    this.roomCode = String(code).trim().toUpperCase();
+    const roomCode = String(code).trim().toUpperCase();
+    const storageKey = `masodo-session-${roomCode}`;
+    const resumeSessionId = this.sessionId || sessionStorage.getItem(storageKey) || null;
+    if (this.ws) { const old=this.ws; this.ws=null; try { old.close(1000,"reconnect"); } catch {} }
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
+    this.manualClose = false;
+    this.roomCode = roomCode;
+    this.connectOptions = { playerName, charId, startRegion };
     const wsBase = this.baseUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
     const ws = new WebSocket(`${wsBase}/api/room/${encodeURIComponent(this.roomCode)}/ws`);
     this.ws = ws;
@@ -62,7 +71,10 @@ export class MasodoNetworkAdapter {
       if (event.data === "pong") { this.emit("pong", {}); return; }
       try {
         const msg = JSON.parse(event.data);
-        if (msg.sessionId) this.sessionId = msg.sessionId;
+        if (msg.sessionId && msg.type === "hello_ok") {
+          this.sessionId = msg.sessionId;
+          try { sessionStorage.setItem(storageKey, msg.sessionId); } catch {}
+        }
         if (msg.catalog) this.catalog = msg.catalog;
         if (msg.build) this.build = msg.build;
         if (msg.match) this.lastMatch = msg.match;
@@ -74,10 +86,18 @@ export class MasodoNetworkAdapter {
     });
 
     ws.addEventListener("close", (event) => {
+      if (this.ws !== ws) return;
+      this.ws = null;
       this.emit("close", { code: event.code, reason: event.reason });
+      if (!this.manualClose && this.roomCode && this.connectOptions) {
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          this.connect(this.roomCode, this.connectOptions).catch(error => this.emit("reconnect_error", { error:String(error?.message||error) }));
+        }, 1500);
+      }
     });
 
-    this.send("hello", { playerName, charId, startRegion });
+    this.send("hello", { playerName, charId, startRegion, resumeSessionId });
     return this;
   }
 
@@ -107,7 +127,9 @@ export class MasodoNetworkAdapter {
   ping() { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send("ping"); }
 
   close() {
-    try { this.ws?.close(1000, "client close"); } catch {}
-    this.ws = null;
+    this.manualClose = true;
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
+    const ws=this.ws;this.ws=null;
+    try { ws?.close(1000, "client close"); } catch {}
   }
 }
