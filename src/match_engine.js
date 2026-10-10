@@ -57,18 +57,18 @@ function combinedFx(p,match,now=Date.now()){
     const it=item(id);if(!it)continue;
     const named=NAMED_GEAR_FX[id];
     if(named)for(const[k,v]of Object.entries(named))if(typeof v==="number")out[k]=(out[k]||0)+v;
-    if(id==="synergy_01"){out.markHit=(out.markHit||0)+.05;out.trackingDuration=(out.trackingDuration||0)+.20}
-    if(id==="synergy_02"){out.conceal=(out.conceal||0)+.07;out.quietDamage=(out.quietDamage||0)+.04}
-    if(id==="synergy_03"){out.poisonChance=(out.poisonChance||0)+.06;out.poisonDamage=(out.poisonDamage||0)+.03}
-    if(id==="synergy_04"){out.moveSp=(out.moveSp||0)+1;out.moveHit=(out.moveHit||0)+.04}
-    if(id==="synergy_05"){out.damageTaken=(out.damageTaken||0)-.03;out.lowDef=(out.lowDef||0)+4}
-    if(id==="synergy_06"){out.consumeHeal=(out.consumeHeal||0)+.08;out.restHeal=(out.restHeal||0)+.05}
-    if(id==="synergy_07"){out.controlDuration=(out.controlDuration||0)+.06;out.statusChance=(out.statusChance||0)+.03}
-    if(id==="synergy_08"){out.prep=(out.prep||0)-.04;out.chain3=(out.chain3||0)+.03}
-    if(id==="synergy_09"){out.woundedDetect=(out.woundedDetect||0)+.08;out.redetectHit=(out.redetectHit||0)+.04}
-    if(id==="synergy_10"){out.poisonDurationTaken=(out.poisonDurationTaken||0)-.20}
-    if(id==="synergy_11"){out.fleePrep=(out.fleePrep||0)-.05}
-    if(id==="synergy_12"){out.skillSp=(out.skillSp||0)-.05;out.delayResist=(out.delayResist||0)+.10}
+    if(id==="aim_terminal"||id==="synergy_01"){out.markHit=(out.markHit||0)+.05;out.trackingDuration=(out.trackingDuration||0)+.20}
+    if(id==="camo_mask"||id==="synergy_02"){out.conceal=(out.conceal||0)+.07;out.quietDamage=(out.quietDamage||0)+.04}
+    if(id==="toxin_kit"||id==="synergy_03"){out.poisonChance=(out.poisonChance||0)+.06;out.poisonVsDamage=(out.poisonVsDamage||0)+.03}
+    if(id==="propulsion"||id==="synergy_04"){out.moveSp=(out.moveSp||0)+1;out.afterMoveHit=(out.afterMoveHit||0)+.04}
+    if(id==="plate"||id==="synergy_05"){out.damageTaken=(out.damageTaken||0)-.03;out.lowDef=(out.lowDef||0)+4}
+    if(id==="recovery"||id==="synergy_06"){out.consumeHeal=(out.consumeHeal||0)+.08;out.restHeal=(out.restHeal||0)+.05}
+    if(id==="spell_amp"||id==="synergy_07"){out.controlDuration=(out.controlDuration||0)+.06;out.statusChance=(out.statusChance||0)+.03}
+    if(id==="accel"||id==="synergy_08"){out.prep=(out.prep||0)-.04;out.thirdHit=(out.thirdHit||0)+.03}
+    if(id==="trace"||id==="synergy_09"){out.woundedDetect=(out.woundedDetect||0)+.08;out.redetectHit=(out.redetectHit||0)+.04}
+    if(id==="detox"||id==="synergy_10"){out.poisonDurationTaken=(out.poisonDurationTaken||0)-.20}
+    if(id==="evasion"||id==="synergy_11"){out.fleePrep=(out.fleePrep||0)-.05}
+    if(id==="focus"||id==="synergy_12"){out.skillSp=(out.skillSp||0)-.05;out.delayResist=(out.delayResist||0)+.10}
   }
   return out;
 }
@@ -215,6 +215,75 @@ function gainProf(p,n){
   const type=char(p).preferredWeapon;if(!type)return;
   p.proficiency[type]=(p.proficiency[type]||0)+n;
 }
+function detectionPenalty(target,match,now){
+  let pen=combinedFx(target,match,now).conceal||0;
+  if((target.eq||[]).includes("camo_mask"))pen+=.07;
+  if((target.detoxStealthUntil||0)>now)pen+=.03;
+  return pen;
+}
+function detectionBonus(seeker,target,match,now){
+  let add=(combinedFx(seeker,match,now).detect||0)+(seeker.nextDetectBonus||0);
+  if((seeker.eq||[]).includes("trace")&&target.hp<maxHp(target,match,now))add+=.08;
+  if(target.hp<maxHp(target,match,now))add+=combinedFx(seeker,match,now).woundedDetect||0;
+  return add;
+}
+function onTargetDetected(seeker,target,match,now){
+  const tid=target.playerId;
+  if((seeker.eq||[]).includes("aim_terminal")){
+    seeker.trackingMarks??={};
+    const dur=24*(1+(combinedFx(seeker,match,now).trackingDuration||0));
+    seeker.trackingMarks[tid]=now+dur*1000;
+  }
+  if((seeker.eq||[]).includes("trace")){
+    seeker.redetectReady=seeker.lastDetectedTarget===tid;
+    seeker.lastDetectedTarget=tid;
+  }
+  if((seeker.eq||[]).includes("detox")&&status(target,"poison",now))seeker.detoxStealthUntil=now+20000;
+}
+function triggerBleedAction(match,p,now){
+  const s=status(p,"bleed",now);if(!s||!p.alive)return 0;
+  const d=2*(s.stacks||1);p.hp-=d;
+  if(p.hp<=0)environmentDeath(match,p,now);
+  return d;
+}
+function attackContext(match,p,target,skill,now){
+  const fx=combinedFx(p,match,now),tid=target.playerId||target.id||null;
+  const quietReady=((p.eq||[]).includes("camo_mask")||fx.quietDamage)&&now-(p.lastAttackAt||0)>=8000;
+  let hitBonus=(p.nextHitBonus||0)+(skill?(fx.skillHit||0):0);
+  if((p.eq||[]).includes("aim_terminal")&&tid&&(p.trackingMarks?.[tid]||0)>now)hitBonus+=.05;
+  if((p.eq||[]).includes("propulsion")&&p.moveHitReady&&now-(p.lastMoveAt||0)<=8000)hitBonus+=.04;
+  if((p.eq||[]).includes("trace")&&p.redetectReady&&p.lastDetectedTarget===tid)hitBonus+=.04;
+  if(p.moveHitReady&&now-(p.lastMoveAt||0)<=8000)hitBonus+=fx.afterMoveHit||0;
+  const ctx={tid,quietReady,movedRecently:now-(p.lastMoveAt||0)<=8000,hitBonus,actionDamageBonus:p.nextDamageBonus||0,skillDamageBonus:skill?(p.nextSkillDamageBonus||0):0,actionCritBonus:p.nextCritBonus||0};
+  p.nextHitBonus=0;p.nextDamageBonus=0;if(skill)p.nextSkillDamageBonus=0;p.nextCritBonus=0;p.lastAttackAt=now;
+  if(p.moveHitReady)p.moveHitReady=false;if(p.redetectReady)p.redetectReady=false;
+  return ctx;
+}
+function modifyAttackDamage(match,p,target,d,ctx,now){
+  const fx=combinedFx(p,match,now);
+  p.attackChainTarget=p.attackChainTarget===ctx.tid?ctx.tid:ctx.tid;
+  if(p.attackChainTarget===ctx.tid)p.attackChainHits=(p.attackChainHits||0)+1;else p.attackChainHits=1;
+  if(p.namedChainTarget===ctx.tid)p.namedChainHits=(p.namedChainHits||0)+1;else{p.namedChainTarget=ctx.tid;p.namedChainHits=1}
+  let mult=1+(fx.damage||0)+(ctx.actionDamageBonus||0)+(ctx.skillDamageBonus||0);
+  if(ctx.quietReady&&fx.quietDamage)mult*=1+fx.quietDamage;
+  if(status(target,"poison",now)&&fx.poisonVsDamage)mult*=1+fx.poisonVsDamage;
+  const anyStatus=Object.values(target.statuses||{}).some(s=>s&&s.until>now);
+  if(anyStatus&&fx.statusTargetDamage)mult*=1+fx.statusTargetDamage;
+  if(ctx.movedRecently&&fx.afterMoveDamage)mult*=1+fx.afterMoveDamage;
+  if(p.hp/maxHp(p,match,now)<.4&&fx.lowHpDamage)mult*=1+fx.lowHpDamage;
+  if(fx.thirdHit&&p.namedChainHits%3===0)mult*=1+fx.thirdHit;
+  if(fx.chainPerHit)mult*=1+Math.min(fx.chainMax||fx.chainPerHit,Math.max(0,p.namedChainHits-1)*fx.chainPerHit);
+  if(fx.extraChance&&Math.random()<fx.extraChance)mult*=1+(fx.extraRatio||0);
+  return Math.max(1,Math.round(d*mult));
+}
+function applyOnHitStatuses(match,p,target,now){
+  const fx=combinedFx(p,match,now),one=p.nextStatusBonus||{};
+  const chance=(key,base)=>clamp(base+(one[key]||0)+(fx.statusChance||0),0,.95);
+  for(const[key,id]of [["poison","poison"],["fear","fear"],["slow","slow"],["confusion","confusion"],["bleed","bleed"],["sleep","sleep"],["bind","bind"]]){
+    const base=fx[key+"Chance"]||0;if(base&&Math.random()<chance(key,base))applyStatus(target,id,1,id==="poison"?8:id==="bleed"?10:id==="slow"?6:id==="bind"?2.5:id==="sleep"?3:5,p.playerId,now,p,match);
+  }
+  p.nextStatusBonus={};
+}
 function hitRoll(p,skill,bonus,match,now){
   let chance=.80+profHit(p)+bonus;
   if(status(p,"fear"))chance-=.08;if(skill&&status(p,"confusion"))chance-=.06;
@@ -319,7 +388,17 @@ function searchResult(match,p,now){
   const regional=regionSpecialCandidates(match,p.region);
   if(regional.length&&Math.random()<.035){const id=pick(regional);if(grantSpecial(match,p,id))return {kind:"special",itemId:id,itemName:item(id)?.n||id,source:"search"}}
   const humans=match.players.filter(x=>x!==p&&x.alive&&x.region===p.region);
-  if(humans.length&&Math.random()<.70){const t=pick(humans);p.encounter={kind:"player",targetId:t.playerId};return {kind:"player",target:{playerId:t.playerId,playerName:t.playerName,charId:t.charId,hp:t.hp,maxHp:t.maxHp}}}
+  if(humans.length){
+    const t=pick(humans),detectChance=clamp(.70+detectionBonus(p,t,match,now)-detectionPenalty(t,match,now),.10,.95);
+    if(Math.random()<detectChance){
+      p.nextDetectBonus=0;
+      const trap=match.regionTraps?.[p.region];
+      if(trap&&trap.until>now&&trap.ownerId===p.playerId){p.nextHitBonus=(p.nextHitBonus||0)+(trap.hitBonus||0);delete match.regionTraps[p.region]}
+      onTargetDetected(p,t,match,now);
+      p.encounter={kind:"player",targetId:t.playerId};
+      return {kind:"player",target:{playerId:t.playerId,playerName:t.playerName,charId:t.charId,hp:t.hp,maxHp:t.maxHp}};
+    }
+  }
   const wilds=match.wilds.filter(w=>w.alive&&w.region===p.region&&nowSec(match,now)>=wildTemplate(w).after);
   if(wilds.length&&Math.random()<.50){const w=pick(wilds),t=wildTemplate(w);p.encounter={kind:"wild",wildId:w.id};return {kind:"wild",target:{wildId:w.id,name:t.n,hp:w.hp,maxHp:t.hp,skillText:t.skillText}}}
   const corpse=match.corpses.find(c=>c.region===p.region&&c.expiresAt>now&&(c.eq.length||Object.keys(c.mat).length||Object.keys(c.con).length));
@@ -478,21 +557,22 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
 export function beginServerAction(match,p,type,payload={},now=Date.now()){
   const v=validateAction(match,p,type,payload,now);if(!v.ok)return v;
   let duration=actionDuration(match,p,type,payload,now),meta=v.meta||{};
-  if(type==="move"){duration=(meta.durationMs/1000)*(1+(combinedFx(p,match,now).moveTime||0))}
+  if(type==="move"){const slow=status(p,"slow",now)?.stacks||0;const slowMult=slow>=2?1.25:slow===1?1.15:1;duration=(meta.durationMs/1000)*slowMult*(1+(combinedFx(p,match,now).moveTime||0))}
+  if(type==="flee"){const slow=status(p,"slow",now)?.stacks||0;duration*=slow>=2?1.25:slow===1?1.15:1;if(status(p,"fear",now))duration*=1.10}
   p.pendingAction={type,payload,startedAt:now,completeAt:now+duration*1000,meta};
   return {ok:true,action:p.pendingAction};
 }
 export function completeAction(match,p,now=Date.now()){
   const a=p.pendingAction;if(!a||a.completeAt>now)return null;p.pendingAction=null;
   const type=a.type,x=a.payload||{};let result={ok:true,type};
-  if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.nextMoveFree=false;p.encounter=null;result.to=x.to}
+  if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search")result={...result,...searchResult(match,p,now)};
   else if(type==="rest"){const fx=combinedFx(p,match,now);p.hp=clamp(p.hp+5*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
   else if(type==="craft"){result={...result,...craftItem(match,p,x.id)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
   else if(type==="attack"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,false,now):attackWild(match,p,t.obj,false,now)):{ok:false,error:"target_lost"};p.encounter=null}
   else if(type==="skill"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,true,now):attackWild(match,p,t.obj,true,now)):{ok:false,error:"target_lost"};p.encounter=null}
-  else if(type==="flee"){result.success=Math.random()<.70;if(result.success)p.encounter=null}
+  else if(type==="flee"){result.success=Math.random()<.70;if(result.success){p.encounter=null;if((p.eq||[]).includes("evasion"))p.nextMoveFree=true}}
   else if(type==="char_action")result={...result,...charAction(match,p,now)};
   match.corpses=(match.corpses||[]).filter(c=>c.expiresAt>now);
   match.updatedAt=now;updatePassiveTime(match,now);return result;
