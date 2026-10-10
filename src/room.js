@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { MAX_HUMANS, json, parseJsonMessage, safeText, send } from "./protocol.js";
 import { ADJACENCY, CHARACTERS, REGIONS, createAIPlayer, createServerPlayer, isValidCharacter, isValidRegion } from "./game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
-import { beginServerAction, completeAction, initWorld, lootCorpse, publicPlayer, recommendedCrafts, resolveEventChoice, runAITick, updatePassiveTime } from "./match_engine.js";
+import { beginServerAction, completeAction, eventChoiceAvailability, initWorld, lootCorpse, publicPlayer, recommendedCrafts, resolveEventChoice, runAITick, updatePassiveTime } from "./match_engine.js";
 import { BUILD_LABEL, GAME_VERSION, PHASE, PROTOCOL_VERSION } from "./version.js";
 
 const ROOM_META_KEY="room_meta",MATCH_KEY="match_state";
@@ -36,7 +36,10 @@ export class GameRoom extends DurableObject{
       const t=(match.wildTemplates||[]).find(x=>x.id===w.templateId);return{kind:"wild",wildId:w.id,name:t?.n||w.templateId,hp:w.hp,maxHp:t?.hp||w.hp,skillText:t?.skillText||""}
     })():null;
     return{matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.elapsed||0,self:self?publicPlayer(match,self,now):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
-      pendingEvent:self?.pendingEvent?match.eventCatalog.find(e=>e.id===self.pendingEvent)||null:null,
+      pendingEvent:self?.pendingEvent?(()=>{
+        const e=match.eventCatalog.find(e=>e.id===self.pendingEvent);if(!e)return null;
+        return {...e,choices:(e.choices||[]).map((choice,index)=>({...choice,...eventChoiceAvailability(e,self,index)}))}
+      })():null,
       aiCount:match.players.filter(p=>p.isAI).length,
       corpses:(match.corpses||[]).filter(c=>c.region===self?.region&&c.expiresAt>now),
       recommendations:self?recommendedCrafts(self,12):[],
@@ -139,7 +142,7 @@ export class GameRoom extends DurableObject{
     }
     if(msg.type==="event_choice"){
       const m=await this.getMatch(),p=this.matchPlayerForSession(m,session.sessionId);if(!m||!p){send(ws,"error",{error:"match_not_playing"});return}
-      const r=resolveEventChoice(m,p,Number(msg.index),Date.now());if(!r.ok){send(ws,"error",{error:r.error});return}await this.saveMatch(m);send(ws,"event_result",{result:r});this.broadcastMatchState(m);return
+      const r=resolveEventChoice(m,p,Number(msg.index),Date.now());if(!r.ok){send(ws,"error",{error:r.error,reason:r.reason||""});return}await this.saveMatch(m);send(ws,"event_result",{result:r});this.broadcastMatchState(m);return
     }
     send(ws,"error",{error:"unknown_message_type",received:msg.type})
   }
