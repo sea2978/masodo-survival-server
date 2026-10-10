@@ -818,7 +818,7 @@ export function publicPlayer(match,p,now=Date.now()){
 }
 export function actionDuration(match,p,type,payload={},now=Date.now()){
   const fx=combinedFx(p,match,now);let sec=1;
-  if(type==="search"){const mods=cleanupEventMods(p,now);sec=mods.instantSearchRegion===p.region?.08:Math.max(.8,1.5*(1+(fx.searchTime||0)))}
+  if(type==="search"){const mods=cleanupEventMods(p,now);sec=mods.instantSearchRegion===p.region ? .08 : Math.max(.8,1.5*(1+(fx.searchTime||0)))}
   else if(type==="rest")sec=3;
   else if(type==="craft")sec=Math.max(.8,1.8*(1+(fx.craftTime||0))*(p.nextCraftTimeMult||1));
   else if(type==="use_item")sec=item(payload.id)?.useTime??1.2;
