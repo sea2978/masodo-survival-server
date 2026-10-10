@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "npm run test:engine && npm run test:catalog && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:phase2o && npm run test:simulation && npm run test:multi-sim",
+    "test": "npm run test:engine && npm run test:catalog && npm run test:full-audit && npm run test:phase2p-runtime && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:phase2o && npm run test:simulation && npm run test:multi-sim",
     "test:engine": "node tests/engine_smoke.mjs",
     "test:catalog": "node tests/catalog_smoke.mjs",
     "test:recommendations": "node tests/recommendation_smoke.mjs",
@@ -19,7 +19,9 @@
     "test:combat-concurrency": "node tests/combat_concurrency.mjs",
     "test:passive-audit": "node tests/passive_audit.mjs",
     "test:multi-sim": "node tests/multi_match_simulation.mjs",
-    "test:phase2o": "node tests/phase2o_parity.mjs"
+    "test:phase2o": "node tests/phase2o_parity.mjs",
+    "test:full-audit": "node tests/full_parity_audit.mjs",
+    "test:phase2p-runtime": "node tests/phase2p_runtime_audit.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
