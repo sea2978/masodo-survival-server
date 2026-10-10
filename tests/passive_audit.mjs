@@ -26,8 +26,9 @@ assert.ok(cdSec<48&&cdSec>39,"c14 cooldown-rate passive should reduce a 48s cool
 const prof=createServerPlayer({sessionId:"p",playerName:"Prof",charId:"c30",startRegion:"city"},3);
 const victim=createServerPlayer({sessionId:"v",playerName:"Victim",charId:"c01",startRegion:"city"},4);
 match.players.push(prof,victim);
+prof.eq.push("basic_terminal");
 prof.encounter={kind:"player",targetId:victim.playerId};
-const weapon=Object.keys(prof.proficiency)[0],before=prof.proficiency[weapon]||0;
+const weapon="단말",before=prof.proficiency[weapon]||0;
 Math.random=()=>0;
 const pAction=beginServerAction(match,prof,"attack",{},t0+100_000);
 completeAction(match,prof,pAction.action.completeAt+1);
