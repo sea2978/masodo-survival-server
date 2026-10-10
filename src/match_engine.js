@@ -784,7 +784,17 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   const tm=text.match(/시간 \+(\d+)초/);
   if(tm){advanceEventTime(match,+tm[1],now);summary.push("시간 +"+tm[1]+"초")}
 
+  // Resolve percentage-gated HP damage first and remember those text spans so they are not also applied unconditionally.
+  const probabilisticHpSpans=[];
+  for(const m of text.matchAll(/(\d+)%[^/]*?HP\s*-\s*(\d+)/g)){
+    probabilisticHpSpans.push([m.index,m.index+m[0].length]);
+    if(Math.random()<+m[1]/100){
+      const d=+m[2];p.hp=clamp(p.hp-d,0,maxHp(p,match,now));summary.push("확률 피해 HP -"+d);
+    }else summary.push("위험 판정 회피");
+  }
+  const overlapsProbHp=(idx,len)=>probabilisticHpSpans.some(([a,b])=>idx<b&&idx+len>a);
   for(const m of text.matchAll(/HP\s*([+-])\s*(\d+)/g)){
+    if(overlapsProbHp(m.index,m[0].length))continue;
     const n=+m[2]*(m[1]==="-"?-1:1);p.hp=clamp(p.hp+n,0,maxHp(p,match,now));summary.push("HP "+(n>=0?"+":"")+n);
   }
   for(const m of text.matchAll(/SP\s*([+-])\s*(\d+)/g)){
@@ -792,10 +802,18 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   }
   if(p.hp<=0)environmentDeath(match,p,now);
 
-  if(/독성 상태|중독/.test(text))applyStatus(p,"poison",1,8,null,now,null,match);
-  for(const[ko,id]of[["혼란","confusion"],["공포","fear"],["수면","sleep"]]){
-    const m=text.match(new RegExp(ko+"\\s*(\\d+)초"));if(m)applyStatus(p,id,1,+m[1],null,now,null,match);
+  if(/독성 상태|중독/.test(text)){
+    const pm=text.match(/(\d+)%[^/]*(?:독성 상태|중독)/);
+    if(!pm||Math.random()<+pm[1]/100)applyStatus(p,"poison",1,8,null,now,null,match);
   }
+  for(const[ko,id]of[["혼란","confusion"],["공포","fear"],["수면","sleep"]]){
+    const m=text.match(new RegExp(ko+"\\s*(\\d+)초"));
+    if(m){
+      const prefix=text.slice(Math.max(0,(m.index||0)-18),m.index||0),pm=prefix.match(/(\d+)%[^%]*$/);
+      if(!pm||Math.random()<+pm[1]/100)applyStatus(p,id,1,+m[1],null,now,null,match);
+    }
+  }
+
   if(/독\/출혈 지속시간 50% 감소/.test(text))for(const id of["poison","bleed"]){const s=p.statuses?.[id];if(s&&s.until>now)s.until=now+(s.until-now)*.5}
   if(/공포·혼란 지속시간 -20%/.test(text))for(const id of["fear","confusion"]){const s=p.statuses?.[id];if(s&&s.until>now)s.until=now+(s.until-now)*.8}
   if(/피발견률 -5% 30초/.test(text))addTemp(p,{conceal:.05},30,now);
@@ -814,19 +832,24 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   }
 
   const exact=Object.entries(ITEMS).filter(([id,it])=>!isSpecialMaterial(id)&&it?.n&&text.includes(it.n)).sort((a,b)=>b[1].n.length-a[1].n.length);
-  const used=new Set();
-  for(const[id,it]of exact){
+  const used=new Set(),alternative=/또는|중 하나/.test(text);
+  const exactToAward=alternative&&exact.length>1?[pick(exact)]:exact;
+  for(const[id,it]of exactToAward){
     if([...used].some(n=>n.includes(it.n)||it.n.includes(n)))continue;
     const count=eventExtractCount(text,1),got=eventAwardItem(match,p,id,Math.min(count,3));
     if(got){rewards.push(...Array(got).fill(id));summary.push(it.n+" 획득");used.add(it.n)}
   }
 
   const genericCount=eventExtractCount(text,1);
-  if(/일반재료|고급재료|재료 \d|재료 2|재료 3/.test(text)){eventAwardGeneric(match,p,"material",Math.min(genericCount,3));summary.push("재료 획득")}
+  if(/일반재료 또는 음식/.test(text)){
+    const kind=Math.random()<.5?"material":"food";eventAwardGeneric(match,p,kind,Math.min(genericCount,3));summary.push(kind==="material"?"재료 획득":"음식 획득");
+  }else{
+    if(/일반재료|고급재료|재료 \d|재료 2|재료 3/.test(text)){eventAwardGeneric(match,p,"material",Math.min(genericCount,3));summary.push("재료 획득")}
+    if(/음식|음료|디저트|식량/.test(text)&&!exact.length)eventAwardGeneric(match,p,"food",Math.min(genericCount,2));
+  }
   if(/금속·기계|금속계|강철|철/.test(text)&&!exact.length)eventAwardGeneric(match,p,"metal",1);
   if(/전자재료|전자부품|배터리|정밀부품|기계부품/.test(text)&&!exact.length)eventAwardGeneric(match,p,"electronic",1);
   if(/약품/.test(text)&&!exact.length)eventAwardGeneric(match,p,"medicine",Math.min(genericCount,2));
-  if(/음식|음료|디저트|식량/.test(text)&&!exact.length)eventAwardGeneric(match,p,"food",Math.min(genericCount,2));
 
   if(/다음.*제작시간 -50%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.5);
   if(/다음.*제작시간 -20%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.8);
