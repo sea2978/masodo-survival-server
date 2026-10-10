@@ -24,6 +24,18 @@ const SPECIAL_ROUTE_REGION={
   special_37:"evil_quarters",special_38:"city",special_39:"evil_training",special_40:"mgmt_lab",
   special_41:"city"
 };
+const SPECIAL_OWNER_CHAR={
+  special_01:"c01",special_02:"c02",special_03:"c03",special_04:"c04",special_05:"c05",special_06:"c06",
+  special_07:"c07",special_08:"c08",special_09:"c09",special_10:"c10",special_11:"c11",special_12:"c12",
+  special_13:"c13",special_14:"c14",special_15:"c15",special_16:"c16",special_17:"c17",special_18:"c18",
+  special_19:"c19",special_20:"c20",special_21:"c21",special_22:"c22",special_23:"c23",special_24:"c24",
+  special_25:"c25",special_26:"c26",special_27:"c27",
+  special_28:"c37",special_29:"c38",special_30:"c39",special_31:"c40",special_32:"c41",special_33:"c42",
+  special_34:"c43",special_35:"c44",special_36:"c45",special_37:"c46",special_38:"c47",special_39:"c48",
+  special_40:"c49",special_41:"c50"
+};
+function linkedSpecialForChar(charId){return Object.keys(SPECIAL_OWNER_CHAR).find(id=>SPECIAL_OWNER_CHAR[id]===charId)||null}
+
 function isSpecialMaterial(id){return /^special_\d{2}$/.test(id)&&!!item(id)}
 function initUniqueSpecials(){
   const out={};for(let i=1;i<=41;i++){const id="special_"+String(i).padStart(2,"0");out[id]={state:"unspawned",holderId:null,region:null}}return out
@@ -192,6 +204,8 @@ function awardStatusKill(match,victim,sourceId,now){
   victim.alive=false;victim.encounter=null;
   if(killer){
     killer.kills++;
+    const linked=linkedSpecialForChar(victim.charId);
+    if(linked&&specialState(match,linked)?.state==="unspawned")grantSpecial(match,killer,linked);
     const kfx=combinedFx(killer,match,now);
     if(kfx.killHeal)killer.hp=clamp(killer.hp+kfx.killHeal,0,maxHp(killer,match,now));
     if(kfx.killSp)recoverSp(killer,kfx.killSp,match,now);
@@ -344,6 +358,8 @@ function killPlayer(match,a,b,now){
   const fx=PASSIVE_FX[b.charId]||{};
   if(fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));b.statuses={};return {revived:true}}
   b.alive=false;b.encounter=null;a.kills++;
+  const linked=linkedSpecialForChar(b.charId);
+  if(linked&&specialState(match,linked)?.state==="unspawned"&&a.alive)grantSpecial(match,a,linked);
   createDeathCorpse(match,b,now);
   return {killed:true}
 }
