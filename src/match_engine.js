@@ -637,6 +637,72 @@ function charAction(match,p,now){
   }
   return {ok:true};
 }
+function normalizedFxText(it){
+  if(!it?.fx)return "";
+  if(typeof it.fx==="string")return it.fx.toLowerCase();
+  try{return JSON.stringify(it.fx).toLowerCase()}catch{return ""}
+}
+function characterGearTags(p){
+  const ch=char(p),tags=new Set([ch.preferredWeapon]);
+  const fx=PASSIVE_FX[p.charId]||{},sd=COMBAT_SKILL_DEFS[p.charId]||{},ad=ACTION_SKILL_DEFS[p.charId]||{};
+  if((fx.statusChance||fx.poisonChance||fx.fearChance||fx.sleepChance||fx.bindChance)||(sd.statuses?.length||sd.forcePoison||sd.randomControl))tags.add("상태");
+  if((fx.detect||fx.woundedDetect)||(ad.nextDetect||ad.tempFx?.detect))tags.add("탐지");
+  if(fx.conceal||ad.tempFx?.conceal)tags.add("은신");
+  if((fx.moveTime||fx.moveSp||fx.afterMoveHit||fx.afterMoveDamage)||(ad.nextMoveFree||ad.tempFx?.moveTime))tags.add("기동");
+  if((fx.heal||fx.restHeal)||sd.heal||sd.lifesteal||ad.heal)tags.add("회복");
+  if((fx.taken||fx.lowDef||fx.defFlat)||sd.tempGuard||ad.tempFx?.taken||ad.tempFx?.defFlat)tags.add("방어");
+  if((fx.crit||fx.prep||fx.damage)||sd.crit||(sd.mult??1)<1.1)tags.add("연타");
+  return tags
+}
+function recommendedGearScore(p,id,it){
+  if(!p||!it||it.t!=="e")return-999;
+  let s=0;const ch=char(p),tags=characterGearTags(p),fx=normalizedFxText(it);
+  if(it.weaponType===ch.preferredWeapon)s+=50;
+  else if(it.weaponType&&["검","단검","창","둔기","낫","권갑","활","총","투척무기","중량무기","특수무기","마도구","마법서"].includes(it.weaponType))s-=8;
+  if(it.tier==="최종")s+=20;else if(it.tier==="준최종")s+=15;else if(it.tier==="희귀 시너지")s+=12;else if(it.tier==="희귀")s+=7;else if(it.tier==="고급")s+=3;
+  if(tags.has("탐지")&&(fx.includes("tracking")||id==="aim_terminal"||id==="trace"))s+=16;
+  if(tags.has("은신")&&(fx.includes("stealth")||id==="camo_mask"||id==="evasion"))s+=16;
+  if(tags.has("상태")&&(fx.includes("poison")||fx.includes("control")||["spell_amp","toxin_kit","focus","detox"].includes(id)))s+=16;
+  if(tags.has("기동")&&(fx.includes("mobility")||["propulsion","evasion"].includes(id)))s+=16;
+  if(tags.has("회복")&&(fx.includes("sustain")||id==="recovery"))s+=16;
+  if(tags.has("방어")&&(fx.includes("bruiser")||id==="plate"||(it.def||0)>=20))s+=13;
+  if(tags.has("연타")&&(fx.includes("rapid")||id==="accel"))s+=13;
+  if((it.atk||0)>0)s+=Math.min(12,it.atk*.45);
+  if((it.def||0)>0)s+=Math.min(10,it.def*.22);
+  return s
+}
+function recommendedReason(p,id,it){
+  const ch=char(p),parts=[],tags=characterGearTags(p),fx=normalizedFxText(it);
+  if(it.weaponType===ch.preferredWeapon)parts.push("선호 "+ch.preferredWeapon);
+  if(tags.has("탐지")&&(fx.includes("tracking")||id==="aim_terminal"||id==="trace"))parts.push("탐지 시너지");
+  if(tags.has("은신")&&(fx.includes("stealth")||id==="camo_mask"||id==="evasion"))parts.push("은신 시너지");
+  if(tags.has("상태")&&(fx.includes("poison")||fx.includes("control")||["spell_amp","toxin_kit","focus","detox"].includes(id)))parts.push("상태이상 시너지");
+  if(tags.has("기동")&&(fx.includes("mobility")||["propulsion","evasion"].includes(id)))parts.push("기동 시너지");
+  if(tags.has("회복")&&(fx.includes("sustain")||id==="recovery"))parts.push("회복 시너지");
+  if(tags.has("방어")&&(fx.includes("bruiser")||id==="plate"))parts.push("방어 시너지");
+  if(tags.has("연타")&&(fx.includes("rapid")||id==="accel"))parts.push("공격 템포 시너지");
+  return parts.length?parts.join(" · "):"기본 능력치 효율"
+}
+function recipeProgress(p,it){
+  if(!it?.r)return{ready:false,have:0,need:0,missing:[]};
+  let have=0,need=0;const missing=[];
+  for(const[id,n]of Object.entries(it.r)){
+    const count=owned(p,id);need+=n;have+=Math.min(n,count);
+    if(count<n)missing.push({id,name:item(id)?.n||id,need:n-have+Math.min(n,count),have:count,missing:n-count});
+  }
+  return{ready:missing.length===0,have,need,missing};
+}
+export function recommendedCrafts(p,limit=12){
+  return Object.entries(ITEMS)
+    .filter(([,it])=>it?.t==="e"&&it.r)
+    .map(([id,it])=>{
+      const score=recommendedGearScore(p,id,it),progress=recipeProgress(p,it);
+      return{id,name:it.n,tier:it.tier||"",atk:it.atk||0,def:it.def||0,score,reason:recommendedReason(p,id,it),ready:progress.ready,have:progress.have,need:progress.need,missing:progress.missing}
+    })
+    .filter(x=>x.score>=18)
+    .sort((a,b)=>(Number(b.ready)-Number(a.ready))||(b.score-a.score)||((b.have/Math.max(1,b.need))-(a.have/Math.max(1,a.need))))
+    .slice(0,limit)
+}
 export function publicPlayer(match,p,now=Date.now()){
   updatePassiveTime(match,now);
   return {...p,maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
