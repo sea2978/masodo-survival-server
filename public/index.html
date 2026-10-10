@@ -53,7 +53,7 @@
         </div>
         <div class="row">
           <span>연결: <b id="gameStatus" class="good">연결됨</b></span>
-          <button id="leaveToLobby" type="button">로비 화면으로</button>
+          
         </div>
       </div>
     </div>
@@ -153,7 +153,6 @@ $('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingE
 $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{let rows=[];for(const id of c.eq||[])rows.push(`<button data-loot="${c.id}|eq|${id}">장비 ${id}</button>`);for(const[id,n]of Object.entries(c.mat||{}))rows.push(`<button data-loot="${c.id}|mat|${id}">재료 ${id} ×${n}</button>`);for(const[id,n]of Object.entries(c.con||{}))rows.push(`<button data-loot="${c.id}|con|${id}">소모품 ${id} ×${n}</button>`);return`<div class="card"><b>${c.name}의 시체</b><div class="row">${rows.join("")}</div></div>`}).join(""):'<span class="muted">없음</span>';$('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,k,id]=b.dataset.loot.split('|');net.lootCorpse(c,k,id)});
 }
 net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";net.catalog=m.catalog;fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_started",()=>net.requestState());net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error);M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
-$('#leaveToLobby').onclick=()=>showLobby();
 showLobby();
 $('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성 "+r.code)}catch(e){log(e.message)}};$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value})}catch(e){log(e.message)}};$('#char').onchange=()=>net.setCharacter($('#char').value);$('#startRegion').onchange=()=>net.setStartRegion($('#startRegion').value);$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=()=>net.search();$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
 setInterval(()=>{if(net.ws?.readyState===WebSocket.OPEN&&M)net.requestState()},2000);
