@@ -202,7 +202,7 @@ function awardStatusKill(match,victim,sourceId,now){
   const killer=match.players.find(x=>x.playerId===sourceId&&x!==victim&&x.alive);
   const fx=PASSIVE_FX[victim.charId]||{};
   if(fx.revive&&!victim.rev){victim.rev=true;victim.hp=Math.min(18,maxHp(victim,match,now));victim.statuses={};return {revived:true,killerId:killer?.playerId||null}}
-  victim.alive=false;victim.encounter=null;
+  victim.alive=false;victim.encounter=null;victim.pendingAction=null;
   if(killer){
     killer.kills++;
     const linked=linkedSpecialForChar(victim.charId);
@@ -334,7 +334,7 @@ function applyOnHitStatuses(match,p,target,now){
 }
 function hitRoll(p,skill,bonus,match,now){
   let chance=.80+profHit(p)+bonus;
-  if(status(p,"fear"))chance-=.08;if(skill&&status(p,"confusion"))chance-=.06;
+  if(status(p,"fear",now))chance-=.08;if(skill&&status(p,"confusion",now))chance-=.06;
   chance+=combinedFx(p,match,now).hit||0;
   return Math.random()<clamp(chance,.55,.95);
 }
@@ -354,12 +354,12 @@ function environmentDeath(match,p,now){
   if(!p.alive)return false;
   const fx=PASSIVE_FX[p.charId]||{};
   if(fx.revive&&!p.rev){p.rev=true;p.hp=Math.min(18,maxHp(p,match,now));p.statuses={};return false}
-  p.alive=false;p.encounter=null;createDeathCorpse(match,p,now);return true;
+  p.alive=false;p.encounter=null;p.pendingAction=null;createDeathCorpse(match,p,now);return true;
 }
 function killPlayer(match,a,b,now){
   const fx=PASSIVE_FX[b.charId]||{};
   if(fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));b.statuses={};return {revived:true}}
-  b.alive=false;b.encounter=null;a.kills++;
+  b.alive=false;b.encounter=null;b.pendingAction=null;a.kills++;
   const linked=linkedSpecialForChar(b.charId);
   if(linked&&specialState(match,linked)?.state==="unspawned"&&a.alive)grantSpecial(match,a,linked);
   createDeathCorpse(match,b,now);
@@ -469,7 +469,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     const fx=combinedFx(p,match,now);
     spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
-    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*1000;bonus+=sd.hit||0;
+    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*Math.max(.25,1-(fx.cdRate||0))*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
@@ -843,7 +843,9 @@ export function beginServerAction(match,p,type,payload={},now=Date.now()){
   return {ok:true,action:p.pendingAction};
 }
 export function completeAction(match,p,now=Date.now()){
-  const a=p.pendingAction;if(!a||a.completeAt>now)return null;p.pendingAction=null;
+  const a=p.pendingAction;if(!a||a.completeAt>now)return null;
+  if(!p.alive){p.pendingAction=null;return {ok:false,error:"player_not_active",type:a.type}}
+  p.pendingAction=null;
   const type=a.type,x=a.payload||{};let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search")result={...result,...searchResult(match,p,now)};
