@@ -90,6 +90,34 @@ function incomingMult(p,match,now=Date.now()){
   return Math.max(.25,m);
 }
 function addTemp(p,fx,seconds,now=Date.now()){(p.tempEffects??=[]).push({fx:{...fx},until:now+seconds*1000})}
+function scheduleDelayedFx(p,delaySeconds,fx,durationSeconds,now=Date.now()){
+  (p.delayedEffects??=[]).push({at:now+delaySeconds*1000,fx:{...fx},duration:durationSeconds});
+}
+function processDelayedEffects(p,now=Date.now()){
+  const remain=[];
+  for(const e of p.delayedEffects||[]){
+    if(e.at<=now)addTemp(p,e.fx,e.duration||10,now);
+    else remain.push(e);
+  }
+  p.delayedEffects=remain;
+}
+function foodRepeatMultiplier(p,id,it,now=Date.now()){
+  if(it?.kind!=="food")return 1;
+  if(p.lastFoodId===id&&now-(p.lastFoodAt||0)<=20000)p.foodRepeatCount=Math.min(2,(p.foodRepeatCount||0)+1);
+  else p.foodRepeatCount=0;
+  p.lastFoodId=id;p.lastFoodAt=now;
+  return p.foodRepeatCount===0 ? 1 : p.foodRepeatCount===1 ? .85 : .70;
+}
+function removeStatusStacks(p,id,n){
+  const s=p.statuses?.[id];if(!s)return 0;
+  const removed=Math.min(n,s.stacks||1);s.stacks=(s.stacks||1)-removed;
+  if(s.stacks<=0)delete p.statuses[id];
+  return removed;
+}
+function recoverSp(p,amount,match,now=Date.now()){
+  const mult=Math.max(.25,1+(combinedFx(p,match,now).spRecovery||0));
+  const gained=Math.max(0,amount)*mult;p.sp=clamp(p.sp+gained,0,p.maxSp);return gained;
+}
 function owned(p,id){
   const it=item(id);if(!it)return 0;
   if(it.t==="m")return p.mat?.[id]||0;
@@ -150,7 +178,7 @@ function applyStatusTicks(match,p,now){
 export function updatePassiveTime(match,now=Date.now()){
   for(const p of match.players){
     if(!p.alive)continue;
-    cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
+    processDelayedEffects(p,now);cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
     p.hp=Math.min(p.hp,maxHp(p,match,now));
   }
   match.elapsed=Math.floor(nowSec(match,now));
@@ -188,13 +216,22 @@ function wildDamage(a,w,match,now){
   const t=wildTemplate(w);let wa=t.atk;if(t.skill==="berserk"&&w.hp/t.hp<=.4)wa*=1.25;
   return Math.max(1,Math.round(wa*100/(100+def(a,match,now))*incomingMult(a,match,now)));
 }
+function createDeathCorpse(match,p,now){
+  dropSpecialsFromPlayer(match,p,p.region);
+  const corpse={id:"corpse_"+p.playerId+"_"+now,name:p.playerName,region:p.region,eq:[...p.eq],mat:Object.fromEntries(Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id))),con:{...p.con},expiresAt:now+75000};
+  match.corpses.push(corpse);p.eq=[];p.mat={};p.con={};return corpse;
+}
+function environmentDeath(match,p,now){
+  if(!p.alive)return false;
+  const fx=PASSIVE_FX[p.charId]||{};
+  if(fx.revive&&!p.rev){p.rev=true;p.hp=Math.min(18,maxHp(p,match,now));p.statuses={};return false}
+  p.alive=false;p.encounter=null;createDeathCorpse(match,p,now);return true;
+}
 function killPlayer(match,a,b,now){
   const fx=PASSIVE_FX[b.charId]||{};
   if(fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));b.statuses={};return {revived:true}}
   b.alive=false;b.encounter=null;a.kills++;
-  dropSpecialsFromPlayer(match,b,b.region);
-  const corpse={id:"corpse_"+b.playerId+"_"+now,name:b.playerName,region:b.region,eq:[...b.eq],mat:Object.fromEntries(Object.entries(b.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id))),con:{...b.con},expiresAt:now+75000};
-  match.corpses.push(corpse);b.eq=[];b.mat={};b.con={};
+  createDeathCorpse(match,b,now);
   return {killed:true}
 }
 function wildCounter(match,p,w,now){
@@ -280,15 +317,42 @@ function searchResult(match,p,now){
 }
 function useConsumable(match,p,id,now){
   const it=item(id);if(!it||it.t!=="c"||owned(p,id)<=0)return {ok:false,error:"item_missing"};
-  const inCombat=!!p.encounter,combat=inCombat?(it.combatEff??.75):1;
-  const healMult=(1+(combinedFx(p,match,now).consumeHeal||0))*combat;
-  if(it.heal)p.hp=clamp(p.hp+it.heal*healMult,0,maxHp(p,match,now));if(it.sp)p.sp=clamp(p.sp+it.sp*combat,0,p.maxSp);if(it.sat)p.satiety=clamp(p.satiety+it.sat,0,100);
-  if(id==="energy_drink")addTemp(p,{moveSp:1},25,now);else if(id==="coffee")addTemp(p,{searchTime:-.05},30,now);else if(id==="chocolate")addTemp(p,{moveTime:-.05},15,now);else if(id==="grilled_meat")addTemp(p,{maxHpFlat:8},30,now);
-  if(id==="antidote"&&p.statuses.poison){p.statuses.poison.stacks=Math.max(0,p.statuses.poison.stacks-2);p.statuses.poison.until=now+(p.statuses.poison.until-now)*.5;if(!p.statuses.poison.stacks)delete p.statuses.poison}
-  if(id==="bandage"&&p.statuses.bleed){p.statuses.bleed.stacks=Math.max(0,p.statuses.bleed.stacks-2);if(!p.statuses.bleed.stacks)delete p.statuses.bleed}
+  const inCombat=!!p.encounter,combat=inCombat?(it.combatEff??.75):1,repeat=foodRepeatMultiplier(p,id,it,now);
+  const fx=combinedFx(p,match,now),healMult=repeat*combat*(1+(fx.heal||0)+(fx.consumeHeal||0)),spMult=repeat*combat;
+  if(it.heal)p.hp=clamp(p.hp+it.heal*healMult,0,maxHp(p,match,now));
+  if(it.sp)recoverSp(p,it.sp*spMult,match,now);
+  if(it.sat)p.satiety=clamp(p.satiety+it.sat,0,100);
+
+  if(id==="energy_drink")addTemp(p,{moveSp:1},25,now);
+  else if(id==="coffee")addTemp(p,{searchTime:-.05},30,now);
+  else if(id==="strong_coffee"){addTemp(p,{actionTime:-.04},30,now);scheduleDelayedFx(p,30,{spRecovery:-.10},20,now)}
+  else if(id==="chocolate")addTemp(p,{moveTime:-.05},15,now);
+  else if(id==="grilled_meat")addTemp(p,{maxHpFlat:8},30,now);
+  else if(id==="warm_soup"){
+    for(const sid of["fear","confusion"]){const s=p.statuses?.[sid];if(s&&s.until>now)s.until=now+(s.until-now)*.8}
+  }else if(id==="antidote"){
+    removeStatusStacks(p,"poison",2);const s=p.statuses?.poison;if(s&&s.until>now)s.until=now+(s.until-now)*.5;
+  }else if(id==="bandage")removeStatusStacks(p,"bleed",2);
+
+  if(id==="mint_choco_fish"){
+    if(p.charId==="c49")p.satiety=100;
+    if(p.charId==="c13"){
+      consumeItem(p,id,1);environmentDeath(match,p,now);
+      return {ok:true,itemId:id,itemName:it.n,special:"하쿠 특수 반응",dead:!p.alive};
+    }
+  }
+  if(id==="carbonara_mint_fish"&&p.charId==="c49"){
+    p.hp=maxHp(p,match,now);p.sp=p.maxSp;p.satiety=100;consumeItem(p,id,1);
+    dropSpecialsFromPlayer(match,p,p.region);p.eq=[];
+    for(const mid of Object.keys(p.mat||{}))if(!isSpecialMaterial(mid))delete p.mat[mid];
+    p.con={};
+    if(inCombat)p.encounter=null;
+    return {ok:true,itemId:id,itemName:it.n,special:"아바돈 특수 반응"};
+  }
+
   consumeItem(p,id,1);
-  if(inCombat){const target=encounterTarget(match,p);if(target?.kind==="wild")wildCounter(match,p,target.obj,now);p.encounter=null}
-  return {ok:true,itemId:id,itemName:it.n};
+  if(inCombat){const target=encounterTarget(match,p);if(target?.kind==="wild"&&p.alive)wildCounter(match,p,target.obj,now);p.encounter=null}
+  return {ok:true,itemId:id,itemName:it.n,repeatMultiplier:repeat,combatMultiplier:combat};
 }
 function charAction(match,p,now){
   const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
@@ -321,7 +385,8 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
   else if(type==="skill")sec=Math.max(.65,1*(COMBAT_SKILL_DEFS[p.charId]?.prep||1));
   else if(type==="flee")sec=Math.max(.7,1.5*(1+(fx.fleePrep||0)));
   else if(type==="char_action")sec=ACTION_SKILL_DEFS[p.charId]?.time??.8;
-  if(status(p,"actionDelay"))sec*=1.25;
+  sec*=Math.max(.65,1+(combinedFx(p,match,now).actionTime||0));
+  if(status(p,"actionDelay",now))sec*=1.25;
   return sec;
 }
 export function validateAction(match,p,type,payload={},now=Date.now()){
@@ -361,7 +426,7 @@ export function completeAction(match,p,now=Date.now()){
   const type=a.type,x=a.payload||{};let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.nextMoveFree=false;p.encounter=null;result.to=x.to}
   else if(type==="search")result={...result,...searchResult(match,p,now)};
-  else if(type==="rest"){p.hp=clamp(p.hp+5*(1+(combinedFx(p,match,now).restHeal||0)),0,maxHp(p,match,now));p.sp=clamp(p.sp+12*(1+(combinedFx(p,match,now).restSp||0)),0,p.maxSp)}
+  else if(type==="rest"){const fx=combinedFx(p,match,now);p.hp=clamp(p.hp+5*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
   else if(type==="craft"){result={...result,...craftItem(match,p,x.id)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
   else if(type==="attack"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,false,now):attackWild(match,p,t.obj,false,now)):{ok:false,error:"target_lost"};p.encounter=null}
