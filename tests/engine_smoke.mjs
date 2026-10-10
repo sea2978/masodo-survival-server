@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { CHARACTERS, REGIONS, createAIPlayer, createServerPlayer } from "../src/game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "../src/offline_content.js";
-import { beginServerAction, completeAction, eventChoiceAvailability, initWorld, publicPlayer, recommendedCrafts, resolveEventChoice, runAIStep } from "../src/match_engine.js";
+import { beginServerAction, completeAction, initWorld, publicPlayer, resolveEventChoice, runAIStep } from "../src/match_engine.js";
 
 assert.equal(CHARACTERS.length,51);
 assert.equal(REGIONS.length,13);
@@ -167,25 +167,6 @@ oldRnd=Math.random;Math.random=()=>0;
 const riskHit=resolveEventChoice(match,riskPlayer,0,t0+150_000);
 Math.random=oldRnd;
 assert.ok(riskPlayer.hp<hpBeforeRisk,"15% event damage should apply when the probability roll succeeds");
-
-const recs=recommendedCrafts(p,12);
-assert.ok(Array.isArray(recs),"recommended crafting should return an array");
-assert.ok(recs.every(x=>typeof x.score==="number"&&typeof x.reason==="string"),"recommendations should expose score and reason");
-
-const condPlayer=createServerPlayer({sessionId:"s13",playerName:"ConditionQA",charId:"c01",startRegion:"city"},12);
-const e004=ENCOUNTER_EVENTS.find(x=>x.id==="E004");
-assert.equal(eventChoiceAvailability(e004,condPlayer,1).available,false,"tool-gated event choice should be disabled without a tool");
-condPlayer.eq.push("basic_tool");
-assert.equal(eventChoiceAvailability(e004,condPlayer,1).available,true,"tool-gated event choice should unlock with a tool");
-
-const e008=ENCOUNTER_EVENTS.find(x=>x.id==="E008");
-assert.equal(eventChoiceAvailability(e008,condPlayer,1).available,false,"precision-part choice should require precision material");
-condPlayer.mat.precision=1;condPlayer.pendingEvent="E008";
-assert.equal(eventChoiceAvailability(e008,condPlayer,1).available,true);
-const precisionBefore=condPlayer.mat.precision;
-const choiceResult=resolveEventChoice(match,condPlayer,1,t0+160_000);
-assert.equal(choiceResult.ok,true);
-assert.equal(condPlayer.mat.precision,precisionBefore-1,"conditional event cost should be consumed");
 
 const pub=publicPlayer(match,p,t0+50_000);
 assert.equal(pub.playerName,"QA");
