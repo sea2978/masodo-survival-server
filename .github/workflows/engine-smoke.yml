@@ -23,5 +23,9 @@ jobs:
         run: npm run test:event-e004
       - name: Event E008 precision condition
         run: npm run test:event-e008
+      - name: Information-event persistence
+        run: npm run test:intel
+      - name: Concurrent loot race
+        run: npm run test:concurrency
       - name: 15 minute simulation
         run: npm run test:simulation
