@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>마소도 온라인 알파 Phase 2B</title>
+<title>마소도 온라인 알파 Phase 2C</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#0b0e12;color:#e8ecf1;font-family:system-ui,sans-serif}.wrap{max-width:1180px;margin:auto;padding:16px}.panel{background:#151a21;border:1px solid #303844;border-radius:12px;padding:14px;margin-bottom:12px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}button,input,select{background:#0d1117;color:#eee;border:1px solid #46515f;border-radius:8px;padding:9px 11px;min-height:40px}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.good{color:#9bd69b}.bad{color:#ef9a9a}.muted{color:#9ca7b4}.host{color:#ffd66b}.stat{display:inline-block;margin-right:14px}.actions button{min-width:120px}.card{background:#0f141a;border:1px solid #2a333e;border-radius:9px;padding:10px;margin:7px 0}.enemy{border-color:#734b4b}.event{border-color:#6e6239}.invcols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.scroll{max-height:280px;overflow:auto}#log{height:220px;overflow:auto;background:#080b0f;padding:10px;white-space:pre-wrap;font-size:12px}@media(max-width:800px){.grid,.invcols{grid-template-columns:1fr}}
 #lobbyScreen,#gameScreen{min-height:100vh}
@@ -10,7 +10,7 @@
 <div class="wrap">
   <section id="lobbyScreen">
     <div class="panel">
-      <h1>마법소녀들의 도시 · 온라인 알파 Phase 2B</h1>
+      <h1>마법소녀들의 도시 · 온라인 알파 Phase 2C</h1>
       <p class="muted">방을 만들거나 참가한 뒤 캐릭터와 시작 지역을 선택하고 준비 상태를 맞춰주세요.</p>
 
       <h2>방 참가</h2>
@@ -22,10 +22,11 @@
 
       <h2>플레이어 설정</h2>
       <div class="row">
-        <select id="char"><option value="c01">c01 · 서노리</option></select>
-        <select id="startRegion"><option value="city">텅 빈 도심</option></select>
-        <button id="join">방 참여</button>
+        <select id="char"><option>캐릭터 목록 불러오는 중...</option></select>
+        <select id="startRegion"><option>지역 목록 불러오는 중...</option></select>
+        <button id="join" disabled>방 참여</button>
       </div>
+      <div id="charInfo" class="card muted">캐릭터 데이터를 불러오는 중입니다.</div>
 
       <div class="row">
         <button id="ready">Ready ON</button>
@@ -129,7 +130,25 @@ function showLobby(){ $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=tr
 function showGame(){ $('#lobbyScreen').hidden=true; $('#gameScreen').hidden=false; }
 const gameLog=x=>{const el=$('#gameLog');if(!el)return;el.textContent+=x+"\n";el.scrollTop=999999};
 const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
-function fillCatalog(){if(net.catalog?.characters?.length)$('#char').innerHTML=net.catalog.characters.map(c=>`<option value="${c.id}">${c.id} · ${c.name}</option>`).join("");if(net.catalog?.regions?.length)$('#startRegion').innerHTML=net.catalog.regions.map(r=>`<option value="${r.id}">${r.name}</option>`).join("")}
+function renderCharInfo(){
+  const c=(net.catalog?.characters||[]).find(x=>x.id===$('#char').value);
+  if(!c){$('#charInfo').textContent="캐릭터 정보 없음";return}
+  $('#charInfo').innerHTML=`<b>${c.name}</b> · ${c.arch||""}<br>HP ${c.baseHp} / SP ${c.baseSp} / ATK ${Number(c.baseAtk).toFixed(1)} / DEF ${Number(c.baseDef).toFixed(1)}<br><span class="muted">선호: ${c.preferredWeapon||"-"} · 패시브: ${c.passive||"-"} · 전투: ${c.combat||"-"} · 행동: ${c.action||"-"}</span>`;
+}
+function fillCatalog(){
+  if(net.catalog?.characters?.length){
+    const keep=$('#char').value;
+    $('#char').innerHTML=net.catalog.characters.map(c=>`<option value="${c.id}">${c.id} · ${c.name}</option>`).join("");
+    if(net.catalog.characters.some(c=>c.id===keep))$('#char').value=keep;
+  }
+  if(net.catalog?.regions?.length){
+    const keep=$('#startRegion').value;
+    $('#startRegion').innerHTML=net.catalog.regions.map(r=>`<option value="${r.id}">${r.name}</option>`).join("");
+    if(net.catalog.regions.some(r=>r.id===keep))$('#startRegion').value=keep;
+  }
+  $('#join').disabled=!(net.catalog?.characters?.length&&net.catalog?.regions?.length);
+  renderCharInfo();
+}
 function renderRoom(r){$('#roomState').innerHTML=`<p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${p.playerName} / ${p.charId} / ${rname(p.startRegion)}</div>`).join("")}
 function busy(){return!!M?.self?.pendingAction}
 function renderMatch(m){M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;
@@ -154,6 +173,7 @@ $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{let rows=[];for
 }
 net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";net.catalog=m.catalog;fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_started",()=>net.requestState());net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error);M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
 showLobby();
-$('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성 "+r.code)}catch(e){log(e.message)}};$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value})}catch(e){log(e.message)}};$('#char').onchange=()=>net.setCharacter($('#char').value);$('#startRegion').onchange=()=>net.setStartRegion($('#startRegion').value);$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=()=>net.search();$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
+(async()=>{try{await net.loadCatalog();fillCatalog();log(`캐릭터 ${net.catalog.characters.length}명 / 지역 ${net.catalog.regions.length}곳 불러옴`)}catch(e){log("카탈로그 불러오기 실패: "+e.message)}})();
+$('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성 "+r.code)}catch(e){log(e.message)}};$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value})}catch(e){log(e.message)}};$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=()=>net.search();$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
 setInterval(()=>{if(net.ws?.readyState===WebSocket.OPEN&&M)net.requestState()},2000);
 </script></body></html>
