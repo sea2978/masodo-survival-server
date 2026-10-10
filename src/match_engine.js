@@ -92,13 +92,14 @@ function maxHp(p,match,now=Date.now()){return Math.max(1,p.maxHp+(tempFx(p,match
 function equipmentAtk(p){return (p.eq||[]).reduce((s,id)=>s+(item(id)?.atk||0),0)}
 function equipmentDef(p){return (p.eq||[]).reduce((s,id)=>s+(item(id)?.def||0),0)}
 function atk(p,match,now=Date.now()){
-  let v=char(p).baseAtk+equipmentAtk(p);
-  if(p.charId==="c10")v+=Math.min(3,Math.floor(nowSec(match,now)/120)*.5);
+  let v=char(p).baseAtk+equipmentAtk(p),fx=combinedFx(p,match,now);
+  if(fx.timeAtk&&fx.timeAtkEvery)v+=Math.min(fx.timeAtkCap??Infinity,Math.floor(nowSec(match,now)/fx.timeAtkEvery)*fx.timeAtk);
   return v;
 }
 function def(p,match,now=Date.now()){
   let v=char(p).baseDef+equipmentDef(p);
   const fx=combinedFx(p,match,now);
+  v+=fx.defFlat||0;
   if(p.hp/maxHp(p,match,now)<.5)v+=fx.lowDef||0;
   return Math.max(0,v);
 }
@@ -258,9 +259,10 @@ function profHit(p){
   const type=char(p).preferredWeapon,xp=p.proficiency?.[type]||0;
   return xp>=115 ? .12 : xp>=80 ? .10 : xp>=55 ? .08 : xp>=35 ? .06 : xp>=20 ? .04 : xp>=10 ? .02 : 0;
 }
-function gainProf(p,n){
+function gainProf(p,n,match,now=Date.now()){
   const type=char(p).preferredWeapon;if(!type)return;
-  p.proficiency[type]=(p.proficiency[type]||0)+n;
+  const mult=Math.max(.25,1+(combinedFx(p,match,now).profGain||0));
+  p.proficiency[type]=(p.proficiency[type]||0)+n*mult;
 }
 function detectionPenalty(target,match,now){
   let pen=combinedFx(target,match,now).conceal||0;
@@ -409,13 +411,13 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     const fx=combinedFx(p,match,now);
     spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
-    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*1000;bonus+=sd.hit||0;
+    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*Math.max(.25,1-(fx.cdRate||0))*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!hitRoll(p,skill,bonus,match,now)){
-    gainProf(p,.5);p.attackChainTarget=t.playerId;p.attackChainHits=0;
+    gainProf(p,.5,match,now);p.attackChainTarget=t.playerId;p.attackChainHits=0;
     if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
     const bleedDamage=triggerBleedAction(match,p,now);
     return {ok:true,hit:false,damage:0,bleedDamage};
@@ -431,7 +433,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   const crit=canSkillCrit&&Math.random()<clamp(.05+(skill?(sd.crit||0):0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,t,d,ctx,now);
-  t.hp-=d;wakeOnDamage(t,now);gainProf(p,1.5);
+  t.hp-=d;wakeOnDamage(t,now);gainProf(p,1.5,match,now);
 
   if(skill){
     for(const row of sd.statuses||[]){
@@ -473,7 +475,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!hitRoll(p,skill,bonus,match,now)){
-    gainProf(p,.5);p.attackChainTarget=w.id;p.attackChainHits=0;
+    gainProf(p,.5,match,now);p.attackChainTarget=w.id;p.attackChainHits=0;
     if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
     const bleedDamage=triggerBleedAction(match,p,now);
     return {ok:true,hit:false,damage:0,counter:wildCounter(match,p,w,now),bleedDamage};
@@ -488,7 +490,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,w,d,ctx,now);
   if(t.skill==="guard"&&w.guardReady){w.guardReady=false;d=Math.max(1,Math.round(d*.8))}
-  w.hp-=d;gainProf(p,1.5);
+  w.hp-=d;gainProf(p,1.5,match,now);
 
   let drop=null,extra=[],killed=false;
   if(w.hp<=0){
@@ -560,7 +562,10 @@ function searchResult(match,p,now){
   if(wilds.length&&Math.random()<.50){const w=pick(wilds),t=wildTemplate(w);p.encounter={kind:"wild",wildId:w.id};return {kind:"wild",target:{wildId:w.id,name:t.n,hp:w.hp,maxHp:t.hp,skillText:t.skillText}}}
   const corpse=match.corpses.find(c=>c.region===p.region&&c.expiresAt>now&&(c.eq.length||Object.keys(c.mat).length||Object.keys(c.con).length));
   if(corpse&&Math.random()<.08)return {kind:"corpse",corpse};
-  const pool=POOLS[p.region]||[];if(pool.length&&Math.random()<.90){const id=pick(pool);if(addItem(p,id))return {kind:"item",itemId:id,itemName:item(id)?.n||id}}
+  const pool=POOLS[p.region]||[],fx=combinedFx(p,match,now);
+  const itemChance=clamp(.90+(fx.searchLoot||0)+(p.nextSearchLootBonus||0),.20,.99);
+  p.nextSearchLootBonus=0;
+  if(pool.length&&Math.random()<itemChance){const id=pick(pool);if(addItem(p,id))return {kind:"item",itemId:id,itemName:item(id)?.n||id}}
   return {kind:"nothing"};
 }
 function useConsumable(match,p,id,now){
@@ -1133,11 +1138,12 @@ function aiLootChoice(match,p,now){
     const kinds=Object.keys(p.con||{}).filter(k=>(p.con[k]||0)>0);
     if((p.con[id]||0)>0||kinds.length<3)return{corpseId:corpse.id,kind:"con",id,qty:n,replace:false}
   }
-  const best=[...(corpse.eq||[])].sort((a,b)=>lootEquipScore(b)-lootEquipScore(a))[0];
+  const gearValue=id=>lootEquipScore(id)+Math.max(0,recommendedGearScore(p,id,item(id))*.35);
+  const best=[...(corpse.eq||[])].sort((a,b)=>gearValue(b)-gearValue(a))[0];
   if(best){
     if(p.eq.length<3)return{corpseId:corpse.id,kind:"eq",id:best,qty:1,replace:false};
-    const worst=Math.min(...p.eq.map(lootEquipScore));
-    if(lootEquipScore(best)>worst+2)return{corpseId:corpse.id,kind:"eq",id:best,qty:1,replace:true};
+    const worst=Math.min(...p.eq.map(gearValue));
+    if(gearValue(best)>worst+2)return{corpseId:corpse.id,kind:"eq",id:best,qty:1,replace:true};
   }
   return null;
 }
