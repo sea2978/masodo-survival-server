@@ -104,12 +104,9 @@ function combinedFx(p,match,now=Date.now()){
     if(id==="toxin_kit"||id==="synergy_03"){out.poisonChance=(out.poisonChance||0)+.06;out.poisonVsDamage=(out.poisonVsDamage||0)+.03}
     if(id==="propulsion"||id==="synergy_04"){out.moveSp=(out.moveSp||0)+1}
     if(id==="plate"||id==="synergy_05"){out.lowDef=(out.lowDef||0)+4}
-    if(id==="recovery"||id==="synergy_06"){out.consumeHeal=(out.consumeHeal||0)+.08;out.restHeal=(out.restHeal||0)+.05}
-    if(id==="spell_amp"||id==="synergy_07"){out.controlDuration=(out.controlDuration||0)+.06;out.statusChance=(out.statusChance||0)+.03}
-    if(id==="accel"||id==="synergy_08"){out.prep=(out.prep||0)-.04;out.thirdHit=(out.thirdHit||0)+.03}
-    if(id==="detox"||id==="synergy_10"){out.poisonDurationTaken=(out.poisonDurationTaken||0)-.20}
-    if(id==="evasion"||id==="synergy_11"){out.fleePrep=(out.fleePrep||0)-.05}
-    if(id==="focus"||id==="synergy_12"){out.skillSp=(out.skillSp||0)-.05;out.delayResist=(out.delayResist||0)+.10}
+    if(id==="spell_amp"||id==="synergy_07"){out.statusChance=(out.statusChance||0)+.03}
+    if(id==="accel"||id==="synergy_08"){out.thirdHit=(out.thirdHit||0)+.03}
+    if(id==="focus"||id==="synergy_12"){out.delayResist=(out.delayResist||0)+.10}
   }
   return out;
 }
@@ -203,10 +200,11 @@ function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),so
   if(id==="actionDelay"&&targetFx.delayResist&&Math.random()<targetFx.delayResist)return false;
   let dur=duration??defn.duration;
   if(source&&match&&["slow","bind","sleep","fear","confusion","silence","actionDelay"].includes(id)){
-    dur*=1+(combinedFx(source,match,now).controlDuration||0)+(combinedFx(source,match,now).statusDuration||0);
+    if((source.eq||[]).includes("spell_amp"))dur*=1.06;
+    dur*=1+(combinedFx(source,match,now).statusDuration||0);
   }
   if(targetFx.incomingStatusDuration)dur*=Math.max(.5,1+targetFx.incomingStatusDuration);
-  if(id==="poison"&&targetFx.poisonDurationTaken)dur*=Math.max(.5,1+targetFx.poisonDurationTaken);
+  if(id==="poison"&&(p.eq||[]).includes("detox"))dur*=.80;
   const old=p.statuses[id];
   if(id==="bind"&&old?.until>now){
     old.until=Math.min(now+3500,old.until+1000);
@@ -281,13 +279,18 @@ function encounterTarget(match,p){
   if(e.kind==="player"){const t=playerById(match,e.targetId);return t?.alive&&t.region===p.region?{kind:"player",obj:t}:null}
   const w=match.wilds.find(x=>x.id===e.wildId);return w?.alive&&w.region===p.region?{kind:"wild",obj:w}:null
 }
+function activeWeaponType(p){
+  let best=null,bestAtk=-1;
+  for(const id of p.eq||[]){const it=item(id);if(!it?.weaponType)continue;const score=it.atk||0;if(score>bestAtk){best=it;bestAtk=score}}
+  return best?.weaponType||"맨손";
+}
 function profHit(p){
-  const type=char(p).preferredWeapon,xp=p.proficiency?.[type]||0;
-  return xp>=115 ? .12 : xp>=80 ? .10 : xp>=55 ? .08 : xp>=35 ? .06 : xp>=20 ? .04 : xp>=10 ? .02 : 0;
+  const xp=p.proficiency?.[activeWeaponType(p)]||0;
+  return xp>=160 ? .14 : xp>=115 ? .12 : xp>=80 ? .10 : xp>=55 ? .08 : xp>=35 ? .06 : xp>=20 ? .04 : xp>=10 ? .02 : 0;
 }
 function gainProf(p,n,match,now=Date.now()){
-  const type=char(p).preferredWeapon;if(!type)return;
-  const mult=Math.max(.25,1+(combinedFx(p,match,now).profGain||0));
+  if(!p.alive||n<=0)return;
+  const type=activeWeaponType(p),mult=Math.max(.25,1+(PASSIVE_FX[p.charId]?.profGain||0)+(tempFx(p,match,now).profGain||0));
   p.proficiency[type]=(p.proficiency[type]||0)+n*mult;
 }
 function detectionPenalty(target,match,now){
@@ -396,6 +399,7 @@ function wildCounter(match,p,w,now){
   if(!p.alive||!w.alive)return 0;
   const t=wildTemplate(w),d=wildDamage(p,w,match,now);p.hp-=d;wakeOnDamage(p,now);
   if(t.skill==="bite_bleed"&&Math.random()<.20)applyStatus(p,"bleed",1,10,w.id,now,null,match);
+  else if(t.skill==="harass"&&Math.random()<.25)p.nextHitBonus=(p.nextHitBonus||0)-.06;
   else if(t.skill==="scan_delay"&&Math.random()<.20)applyStatus(p,"actionDelay",1,3,w.id,now,null,match);
   else if(t.skill==="emp"&&Math.random()<.20)applyStatus(p,"silence",1,3,w.id,now,null,match);
   else if(t.skill==="toxic"&&Math.random()<.30)applyStatus(p,"poison",1,8,w.id,now,null,match);
@@ -436,7 +440,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
     const fx=combinedFx(p,match,now);
-    spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    spCost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus")?.95:1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
     p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
@@ -494,7 +498,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
     const fx=combinedFx(p,match,now);
-    spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    spCost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus")?.95:1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
     p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
@@ -598,7 +602,7 @@ function searchResult(match,p,now){
 function useConsumable(match,p,id,now){
   const it=item(id);if(!it||it.t!=="c"||owned(p,id)<=0)return {ok:false,error:"item_missing"};
   const inCombat=!!p.encounter,combat=inCombat?(it.combatEff??.75):1,repeat=foodRepeatMultiplier(p,id,it,now);
-  const fx=combinedFx(p,match,now),healMult=repeat*combat*(1+(fx.heal||0)+(fx.consumeHeal||0)),spMult=repeat*combat;
+  const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.08:1,healMult=repeat*combat*recoveryMult*(1+(fx.heal||0)),spMult=repeat*combat;
   if(it.heal)p.hp=clamp(p.hp+it.heal*healMult,0,maxHp(p,match,now));
   if(it.sp)recoverSp(p,it.sp*spMult,match,now);
   if(it.sat)p.satiety=clamp(p.satiety+it.sat,0,100);
@@ -810,9 +814,9 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
   else if(type==="rest")sec=3;
   else if(type==="craft")sec=Math.max(.8,1.8*(1+(fx.craftTime||0))*(p.nextCraftTimeMult||1));
   else if(type==="use_item")sec=item(payload.id)?.useTime??1.2;
-  else if(type==="attack")sec=Math.max(.65,1.15*(1+(fx.prep||0)));
+  else if(type==="attack")sec=Math.max(.65,1.15*((p.eq||[]).includes("accel")?.96:1)*(1+(fx.prep||0)));
   else if(type==="skill")sec=Math.max(.65,1*(COMBAT_SKILL_DEFS[p.charId]?.prep||1));
-  else if(type==="flee")sec=Math.max(.7,1.5*(1+(fx.fleePrep||0)));
+  else if(type==="flee")sec=Math.max(.7,1.5*((p.eq||[]).includes("evasion")?.95:1)*(1+(fx.fleePrep||0)));
   else if(type==="char_action")sec=ACTION_SKILL_DEFS[p.charId]?.time??.8;
   else if(type==="loot_corpse"){
     const qty=Math.max(1,Math.floor(payload.qty||1));
@@ -849,7 +853,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(["attack","skill","flee"].includes(type)&&!encounterTarget(match,p))return {ok:false,error:"no_encounter"};
   if(type==="skill"){
     const sd=COMBAT_SKILL_DEFS[p.charId]||{sp:12,cd:55};
-    const fx=combinedFx(p,match,now),cost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    const fx=combinedFx(p,match,now),cost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus")?.95:1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
     if(p.sp<cost)return {ok:false,error:"not_enough_sp"};
@@ -864,7 +868,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
 export function beginServerAction(match,p,type,payload={},now=Date.now()){
   const v=validateAction(match,p,type,payload,now);if(!v.ok)return v;
   let duration=actionDuration(match,p,type,payload,now),meta=v.meta||{};
-  if(type==="move"){const slow=status(p,"slow",now)?.stacks||0;const slowMult=slow>=2?1.25:slow===1?1.15:1;duration=(meta.durationMs/1000)*slowMult*(1+(combinedFx(p,match,now).moveTime||0))}
+  if(type==="move"){const slow=status(p,"slow",now)?.stacks||0,fx=combinedFx(p,match,now);const slowMult=slow>=2?1.25:slow===1?1.15:1;duration=(meta.durationMs/1000)*slowMult*(1+(fx.moveTime||0))*Math.max(.65,1+(fx.actionTime||0));if(status(p,"actionDelay",now))duration*=1.25}
   if(type==="flee"){const slow=status(p,"slow",now)?.stacks||0;duration*=slow>=2?1.25:slow===1?1.15:1;if(status(p,"fear",now))duration*=1.10}
   p.pendingAction={type,payload,startedAt:now,completeAt:now+duration*1000,meta};
   return {ok:true,action:p.pendingAction};
@@ -876,7 +880,7 @@ export function completeAction(match,p,now=Date.now()){
   const type=a.type,x=a.payload||{};let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search")result={...result,...searchResult(match,p,now)};
-  else if(type==="rest"){const fx=combinedFx(p,match,now);p.hp=clamp(p.hp+5*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
+  else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
   else if(type==="craft"){result={...result,...craftItem(match,p,x.id)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
   else if(type==="attack"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,false,now):attackWild(match,p,t.obj,false,now)):{ok:false,error:"target_lost"};p.encounter=null}
