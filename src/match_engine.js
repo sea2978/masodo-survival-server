@@ -353,3 +353,133 @@ export function lootCorpse(match,p,corpseId,kind,id,now=Date.now()){
   if(kind==="eq"){const ix=c.eq.indexOf(id);if(ix<0)return {ok:false,error:"loot_missing"};addItem(p,id);c.eq.splice(ix,1);return {ok:true,n:1}}
   return {ok:false,error:"invalid_loot"};
 }
+
+
+function aiHpRatio(match,p,now){return p.hp/Math.max(1,maxHp(p,match,now))}
+function aiSpRatio(p){return p.sp/Math.max(1,p.maxSp)}
+function aiHasBadStatus(p,now){return ["poison","bleed","fear","confusion","slow"].some(id=>status(p,id,now))}
+function aiBestHeal(p){
+  const ids=Object.keys(p.con||{}).filter(id=>(p.con[id]||0)>0);
+  if((p.statuses?.poison?.stacks||0)>0&&ids.includes("antidote"))return"antidote";
+  if((p.statuses?.bleed?.stacks||0)>0&&ids.includes("bandage"))return"bandage";
+  return ids.filter(id=>item(id)?.heal).sort((a,b)=>(item(b)?.heal||0)-(item(a)?.heal||0))[0]||null
+}
+function aiChooseCraft(p){
+  const craftables=Object.keys(ITEMS).filter(id=>canCraft(p,id));
+  if(!craftables.length)return null;
+  const score=id=>{
+    const it=item(id);let s=(it?.atk||0)+(it?.def||0)*.8;
+    if(it?.t==="c")s=(it.heal||0)*.6+(it.sp||0)*.3;
+    if(it?.t==="m")s=.1;
+    if(it?.tier==="최종")s+=50;else if(it?.tier==="준최종")s+=28;else if(it?.tier==="희귀 시너지")s+=18;else if(it?.tier==="희귀")s+=10;
+    return s
+  };
+  return craftables.sort((x,y)=>score(y)-score(x))[0]
+}
+function sameRegion(match,region){return match.players.filter(x=>x.alive&&x.region===region)}
+function aiMoveChoice(match,p){
+  const opts=(ADJACENCY[p.region]||[]);if(!opts.length)return null;
+  let best=opts[0],bestScore=-Infinity;
+  for(const r of opts){
+    let s=Math.random()*.2,pool=POOLS[r]||[];
+    if(p.ai==="craft")s+=pool.filter(id=>item(id)?.t==="m").length*.04;
+    if(p.ai==="safe")s-=sameRegion(match,r).length*.25;
+    if(p.ai==="aggro")s+=sameRegion(match,r).length*.18;
+    if(r==="city")s+=.05;
+    if(s>bestScore){bestScore=s;best=r}
+  }
+  return best
+}
+function aiSkillUtility(match,p,target,now){
+  const d=COMBAT_SKILL_DEFS[p.charId]||{},cost=Math.max(0,(d.sp??12)-(p.nextSkillSpDiscount||0));
+  if((p.cdCUntil||0)>now||p.sp<cost||status(p,"silence",now)||status(p,"sleep",now))return-99;
+  let score=.35,mult=d.multMax??d.mult??1.08;
+  if(mult>=1.3)score+=.35;
+  if(d.statuses?.length||d.forcePoison||d.randomControl||d.randomStatus||d.doubleRandomStatus)score+=.35;
+  if(d.heal&&aiHpRatio(match,p,now)<.60)score+=.50;
+  if(d.lifesteal&&aiHpRatio(match,p,now)<.60)score+=.45;
+  if(d.drainSp&&target.kind==="player"&&aiSpRatio(target.obj)>.35)score+=.20;
+  if(target.kind==="player"&&target.obj.hp/Math.max(1,maxHp(target.obj,match,now))<.35)score+=.55;
+  if(target.kind==="wild"&&target.obj.hp/Math.max(1,wildTemplate(target.obj).hp)<.35)score+=.30;
+  if(aiSpRatio(p)<.25)score-=.55;
+  if(p.ai==="aggro")score+=.25;
+  if(p.ai==="safe"&&aiSpRatio(p)<.45)score-=.20;
+  return score
+}
+function aiShouldAvoidFight(match,p,target,now){
+  if(target.kind==="wild")return aiHpRatio(match,p,now)<.22&&target.obj.hp/Math.max(1,wildTemplate(target.obj).hp)>.45;
+  const t=target.obj,ownPower=atk(p,match,now)+def(p,match,now)*.7+(p.hp/maxHp(p,match,now)*100)*.12;
+  const foePower=atk(t,match,now)+def(t,match,now)*.7+(t.hp/maxHp(t,match,now)*100)*.12;
+  let threshold=p.ai==="aggro"?.62:p.ai==="safe"?.92:.78;
+  if(aiHpRatio(match,p,now)<.28)threshold+=.25;
+  return ownPower<foePower*threshold
+}
+function aiResolveEncounter(match,p,target,now){
+  if(!p.alive||!target)return;
+  if(aiShouldAvoidFight(match,p,target,now)){p.encounter=null;return}
+  const skillScore=aiSkillUtility(match,p,target,now),useSkill=target.kind==="player"?(skillScore>.85||(skillScore>.45&&Math.random()<.45)):(skillScore>.90||(skillScore>.50&&Math.random()<.35));
+  if(target.kind==="player")attackPlayer(match,p,target.obj,useSkill,now);
+  else attackWild(match,p,target.obj,useSkill,now);
+  p.encounter=null;
+}
+function aiActionUtility(match,p,now){
+  if((p.cdAUntil||0)>now||p.encounter||status(p,"sleep",now))return 0;
+  const d=ACTION_SKILL_DEFS[p.charId]||{};let score=.10;
+  if(d.heal)score+=Math.max(0,1-aiHpRatio(match,p,now))*(d.heal/8);
+  if(d.sp)score+=Math.max(0,1-aiSpRatio(p))*(d.sp/10);
+  if((d.cleanse||d.cleanseAny||d.cleanseSpecific)&&aiHasBadStatus(p,now))score+=1.2;
+  if(d.material||d.randomMetal||d.consumable)score+=p.ai==="craft"?.65:.22;
+  if(d.nextDetect||d.tempFx?.detect)score+=p.ai==="aggro"?.55:.25;
+  if(d.nextMoveFree||d.tempFx?.moveTime||d.tempFx?.moveSp)score+=aiSpRatio(p)<.35?.65:.20;
+  if(d.reduceCombatCd&&(p.cdCUntil||0)>now+10000)score+=.65;
+  if(d.selfDamage&&aiHpRatio(match,p,now)<.35)score-=1.5;
+  return score
+}
+function aiShouldUseAction(match,p,now){const u=aiActionUtility(match,p,now);return u>1.05||(u>.55&&Math.random()<.40)}
+function aiLootCorpse(match,p,now){
+  const c=(match.corpses||[]).find(c=>c.region===p.region&&c.expiresAt>now&&(c.eq.length||Object.keys(c.mat).length||Object.keys(c.con).length));
+  if(!c)return false;
+  for(const[id,n]of Object.entries(c.mat||{})){p.mat[id]=(p.mat[id]||0)+n;delete c.mat[id]}
+  const consumables=Object.entries(c.con||{}).sort((a,b)=>(item(b[0])?.heal||0)-(item(a[0])?.heal||0));
+  for(const[id,n]of consumables){if(addItem(p,id,n))delete c.con[id]}
+  for(const id of [...c.eq]){
+    const candidate=item(id),candidateScore=(candidate?.atk||0)+(candidate?.def||0);
+    if(p.eq.length<3){addItem(p,id);c.eq.splice(c.eq.indexOf(id),1);continue}
+    let wi=0,ws=Infinity;for(let i=0;i<p.eq.length;i++){const q=item(p.eq[i]),s=(q?.atk||0)+(q?.def||0);if(s<ws){ws=s;wi=i}}
+    if(candidateScore>ws){p.eq.splice(wi,1,id);c.eq.splice(c.eq.indexOf(id),1)}
+  }
+  return true
+}
+export function runAIStep(match,p,now=Date.now()){
+  if(!p?.isAI||!p.alive||p.pendingAction||status(p,"sleep",now))return false;
+  if(status(p,"actionDelay",now)&&Math.random()<.25)return false;
+  if(p.pendingEvent){const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(e?.choices?.length)resolveEventChoice(match,p,Math.floor(Math.random()*e.choices.length),now);else p.pendingEvent=null;return true}
+  if(p.encounter){aiResolveEncounter(match,p,encounterTarget(match,p),now);return true}
+  if((match.corpses||[]).some(c=>c.region===p.region&&c.expiresAt>now)&&Math.random()<(p.ai==="craft"?.28:.16)){if(aiLootCorpse(match,p,now))return true}
+  const heal=aiBestHeal(p);if(heal&&(aiHpRatio(match,p,now)<.48||aiHasBadStatus(p,now))){useConsumable(match,p,heal,now);return true}
+  if(aiShouldUseAction(match,p,now)){const r=charAction(match,p,now);if(r.ok)return true}
+  const craftId=aiChooseCraft(p);if(craftId&&((p.ai==="craft"&&Math.random()<.65)||Math.random()<.18)){if(craftItem(p,craftId).ok)return true}
+  const crowded=sameRegion(match,p.region).length-1;
+  if(!status(p,"bind",now)&&p.ai==="safe"&&crowded>0&&aiHpRatio(match,p,now)<.65){
+    const to=aiMoveChoice(match,p);if(to){const mv=movementProfile(p.region,to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp>=cost){p.region=to;p.sp-=cost;p.nextMoveFree=false;return true}}
+  }
+  let searchChance=.58;if(p.ai==="aggro")searchChance=.76;if(p.ai==="craft")searchChance=.68;if(p.ai==="safe"&&aiHpRatio(match,p,now)<.45)searchChance=.38;
+  if(p.sp>=3&&Math.random()<searchChance){
+    const result=searchResult(match,p,now);
+    if(result.kind==="player"||result.kind==="wild")aiResolveEncounter(match,p,encounterTarget(match,p),now);
+    else if(result.kind==="event"&&p.pendingEvent){const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(e?.choices?.length)resolveEventChoice(match,p,Math.floor(Math.random()*e.choices.length),now)}
+    return true
+  }
+  if(!status(p,"bind",now)){const to=aiMoveChoice(match,p);if(to){const mv=movementProfile(p.region,to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp>=cost){p.region=to;p.sp-=cost;p.nextMoveFree=false;return true}}}
+  return false
+}
+export function runAITick(match,now=Date.now()){
+  updatePassiveTime(match,now);let changed=false;
+  for(const p of match.players){
+    if(!p.isAI||!p.alive)continue;
+    if(Math.random()<.34)changed=runAIStep(match,p,now)||changed;
+  }
+  match.nextAiTickAt=now+1000;
+  if(changed)match.updatedAt=now;
+  return changed
+}
