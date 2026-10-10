@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node tests/engine_smoke.mjs && node tests/catalog_smoke.mjs && node tests/match_simulation.mjs"
+    "test": "npm run test:engine && npm run test:catalog && npm run test:recommendations && npm run test:simulation",
+    "test:engine": "node tests/engine_smoke.mjs",
+    "test:catalog": "node tests/catalog_smoke.mjs",
+    "test:recommendations": "node tests/recommendation_conditions.mjs",
+    "test:simulation": "node tests/match_simulation.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
