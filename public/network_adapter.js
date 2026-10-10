@@ -19,6 +19,15 @@ export class MasodoNetworkAdapter {
     for (const fn of this.listeners.get(type) || []) fn(payload);
   }
 
+  async loadCatalog() {
+    const res = await fetch(`${this.baseUrl}/api/catalog`, { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || "catalog_load_failed");
+    this.catalog = { characters: data.characters || [], regions: data.regions || [] };
+    this.emit("catalog", this.catalog);
+    return this.catalog;
+  }
+
   async createRoom() {
     const res = await fetch(`${this.baseUrl}/api/room/create`, { method: "POST" });
     const data = await res.json();
