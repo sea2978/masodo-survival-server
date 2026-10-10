@@ -877,7 +877,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   const choice=e.choices?.[index];if(!choice)return {ok:false,error:"invalid_choice"};
   const availability=eventChoiceAvailability(e,p,index);if(!availability.available)return {ok:false,error:"event_choice_unavailable",reason:availability.reason};
   consumeEventChoiceCost(e,p,index);
-  p.pendingEvent=null;const text=choice.result||"",rewards=[],summary=[];
+  p.pendingEvent=null;const text=choice.result||"",rewardText=text.split("/").filter(part=>!/소비/.test(part)).join(" / "),rewards=[],summary=[];
 
   const tm=text.match(/시간 \+(\d+)초/);
   if(tm){advanceEventTime(match,+tm[1],now);summary.push("시간 +"+tm[1]+"초")}
@@ -929,12 +929,8 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
     }else{eventAwardGeneric(match,p,"material",1);summary.push("특수재료 판정 실패")}
   }
 
-  const exact=Object.entries(ITEMS).filter(([id,it])=>{
-    if(isSpecialMaterial(id)||!it?.n||!text.includes(it.n))return false;
-    const pos=text.indexOf(it.n),tail=text.slice(pos,pos+it.n.length+12);
-    return !/소비/.test(tail);
-  }).sort((a,b)=>b[1].n.length-a[1].n.length);
-  const used=new Set(),alternative=/또는|중 하나/.test(text);
+  const exact=Object.entries(ITEMS).filter(([id,it])=>!isSpecialMaterial(id)&&it?.n&&rewardText.includes(it.n)).sort((a,b)=>b[1].n.length-a[1].n.length);
+  const used=new Set(),alternative=/또는|중 하나/.test(rewardText);
   const exactToAward=alternative&&exact.length>1?[pick(exact)]:exact;
   for(const[id,it]of exactToAward){
     if([...used].some(n=>n.includes(it.n)||it.n.includes(n)))continue;
@@ -943,15 +939,15 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   }
 
   const genericCount=eventExtractCount(text,1);
-  if(/일반재료 또는 음식/.test(text)){
+  if(/일반재료 또는 음식/.test(rewardText)){
     const kind=Math.random()<.5?"material":"food";eventAwardGeneric(match,p,kind,Math.min(genericCount,3));summary.push(kind==="material"?"재료 획득":"음식 획득");
   }else{
-    if(/일반재료|고급재료|재료 \d|재료 2|재료 3/.test(text)){eventAwardGeneric(match,p,"material",Math.min(genericCount,3));summary.push("재료 획득")}
-    if(/음식|음료|디저트|식량/.test(text)&&!exact.length)eventAwardGeneric(match,p,"food",Math.min(genericCount,2));
+    if(/일반재료|고급재료|재료 \d|재료 2|재료 3/.test(rewardText)){eventAwardGeneric(match,p,"material",Math.min(genericCount,3));summary.push("재료 획득")}
+    if(/음식|음료|디저트|식량/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"food",Math.min(genericCount,2));
   }
-  if(/금속·기계|금속계|강철|철/.test(text)&&!exact.length)eventAwardGeneric(match,p,"metal",1);
-  if(/전자재료|전자부품|배터리|정밀부품|기계부품/.test(text)&&!exact.length)eventAwardGeneric(match,p,"electronic",1);
-  if(/약품/.test(text)&&!exact.length)eventAwardGeneric(match,p,"medicine",Math.min(genericCount,2));
+  if(/금속·기계|금속계|강철|철/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"metal",1);
+  if(/전자재료|전자부품|배터리|정밀부품|기계부품/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"electronic",1);
+  if(/약품/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"medicine",Math.min(genericCount,2));
 
   if(/다음.*제작시간 -50%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.5);
   if(/다음.*제작시간 -20%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.8);
