@@ -958,42 +958,89 @@ function aiActionUtility(match,p,now){
   return score
 }
 function aiShouldUseAction(match,p,now){const u=aiActionUtility(match,p,now);return u>1.05||(u>.55&&Math.random()<.40)}
-function aiLootCorpse(match,p,now){
-  const c=(match.corpses||[]).find(c=>c.region===p.region&&c.expiresAt>now&&(c.eq.length||Object.keys(c.mat).length||Object.keys(c.con).length));
-  if(!c)return false;
-  for(const[id,n]of Object.entries(c.mat||{})){p.mat[id]=(p.mat[id]||0)+n;delete c.mat[id]}
-  const consumables=Object.entries(c.con||{}).sort((a,b)=>(item(b[0])?.heal||0)-(item(a[0])?.heal||0));
-  for(const[id,n]of consumables){if(addItem(p,id,n))delete c.con[id]}
-  for(const id of [...c.eq]){
-    const candidate=item(id),candidateScore=(candidate?.atk||0)+(candidate?.def||0);
-    if(p.eq.length<3){addItem(p,id);c.eq.splice(c.eq.indexOf(id),1);continue}
-    let wi=0,ws=Infinity;for(let i=0;i<p.eq.length;i++){const q=item(p.eq[i]),s=(q?.atk||0)+(q?.def||0);if(s<ws){ws=s;wi=i}}
-    if(candidateScore>ws){p.eq.splice(wi,1,id);c.eq.splice(c.eq.indexOf(id),1)}
+function aiLootChoice(match,p,now){
+  const corpse=(match.corpses||[]).find(c=>c.region===p.region&&c.expiresAt>now&&(c.eq.length||Object.keys(c.mat).length||Object.keys(c.con).length));
+  if(!corpse)return null;
+  const mats=Object.entries(corpse.mat||{}).filter(([,n])=>n>0);
+  if(mats.length){const[id,n]=mats[0];return{corpseId:corpse.id,kind:"mat",id,qty:n,replace:false}}
+  const consumables=Object.entries(corpse.con||{}).filter(([,n])=>n>0).sort((a,b)=>(item(b[0])?.heal||0)-(item(a[0])?.heal||0));
+  for(const[id,n]of consumables){
+    const kinds=Object.keys(p.con||{}).filter(k=>(p.con[k]||0)>0);
+    if((p.con[id]||0)>0||kinds.length<3)return{corpseId:corpse.id,kind:"con",id,qty:n,replace:false}
   }
-  return true
+  const best=[...(corpse.eq||[])].sort((a,b)=>lootEquipScore(b)-lootEquipScore(a))[0];
+  if(best){
+    if(p.eq.length<3)return{corpseId:corpse.id,kind:"eq",id:best,qty:1,replace:false};
+    const worst=Math.min(...p.eq.map(lootEquipScore));
+    if(lootEquipScore(best)>worst+2)return{corpseId:corpse.id,kind:"eq",id:best,qty:1,replace:true};
+  }
+  return null;
+}
+function aiQueue(match,p,type,payload,now){
+  const r=beginServerAction(match,p,type,payload||{},now);
+  return !!r.ok;
+}
+function aiChooseEncounterCommand(match,p,target,now){
+  if(!target)return null;
+  if(aiShouldAvoidFight(match,p,target,now))return{type:"flee",payload:{}};
+  const skillScore=aiSkillUtility(match,p,target,now);
+  const useSkill=target.kind==="player"?(skillScore>.85||(skillScore>.45&&Math.random()<.45)):(skillScore>.90||(skillScore>.50&&Math.random()<.35));
+  return{type:useSkill?"skill":"attack",payload:{}};
 }
 export function runAIStep(match,p,now=Date.now()){
   if(!p?.isAI||!p.alive||p.pendingAction||status(p,"sleep",now))return false;
   if(status(p,"actionDelay",now)&&Math.random()<.25)return false;
-  if(p.pendingEvent){const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(e?.choices?.length)resolveEventChoice(match,p,Math.floor(Math.random()*e.choices.length),now);else p.pendingEvent=null;return true}
-  if(p.encounter){aiResolveEncounter(match,p,encounterTarget(match,p),now);return true}
-  if((match.corpses||[]).some(c=>c.region===p.region&&c.expiresAt>now)&&Math.random()<(p.ai==="craft" ? .28 : .16)){if(aiLootCorpse(match,p,now))return true}
-  const heal=aiBestHeal(p);if(heal&&(aiHpRatio(match,p,now)<.48||aiHasBadStatus(p,now))){useConsumable(match,p,heal,now);return true}
-  if(aiShouldUseAction(match,p,now)){const r=charAction(match,p,now);if(r.ok)return true}
-  const craftId=aiChooseCraft(p);if(craftId&&((p.ai==="craft"&&Math.random()<.65)||Math.random()<.18)){if(craftItem(match,p,craftId).ok)return true}
+
+  if(p.pendingEvent){
+    const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);
+    if(e?.choices?.length)resolveEventChoice(match,p,Math.floor(Math.random()*e.choices.length),now);
+    else p.pendingEvent=null;
+    return true;
+  }
+
+  if(p.encounter){
+    const cmd=aiChooseEncounterCommand(match,p,encounterTarget(match,p),now);
+    return cmd?aiQueue(match,p,cmd.type,cmd.payload,now):false;
+  }
+
+  if((match.corpses||[]).some(c=>c.region===p.region&&c.expiresAt>now)&&Math.random()<(p.ai==="craft" ? .28 : .16)){
+    const loot=aiLootChoice(match,p,now);
+    if(loot&&aiQueue(match,p,"loot_corpse",loot,now))return true;
+  }
+
+  const heal=aiBestHeal(p);
+  if(heal&&(aiHpRatio(match,p,now)<.48||aiHasBadStatus(p,now))){
+    if(aiQueue(match,p,"use_item",{id:heal},now))return true;
+  }
+
+  if(aiShouldUseAction(match,p,now)){
+    if(aiQueue(match,p,"char_action",{},now))return true;
+  }
+
+  const craftId=aiChooseCraft(p);
+  if(craftId&&((p.ai==="craft"&&Math.random()<.65)||Math.random()<.18)){
+    if(aiQueue(match,p,"craft",{id:craftId},now))return true;
+  }
+
   const crowded=sameRegion(match,p.region).length-1;
   if(!status(p,"bind",now)&&p.ai==="safe"&&crowded>0&&aiHpRatio(match,p,now)<.65){
-    const to=aiMoveChoice(match,p);if(to){const mv=movementProfile(p.region,to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp>=cost){p.region=to;p.sp-=cost;p.nextMoveFree=false;return true}}
+    const to=aiMoveChoice(match,p);
+    if(to&&aiQueue(match,p,"move",{to},now))return true;
   }
-  let searchChance=.58;if(p.ai==="aggro")searchChance=.76;if(p.ai==="craft")searchChance=.68;if(p.ai==="safe"&&aiHpRatio(match,p,now)<.45)searchChance=.38;
+
+  let searchChance=.58;
+  if(p.ai==="aggro")searchChance=.76;
+  if(p.ai==="craft")searchChance=.68;
+  if(p.ai==="safe"&&aiHpRatio(match,p,now)<.45)searchChance=.38;
   if(p.sp>=3&&Math.random()<searchChance){
-    const result=searchResult(match,p,now);
-    if(result.kind==="player"||result.kind==="wild")aiResolveEncounter(match,p,encounterTarget(match,p),now);
-    else if(result.kind==="event"&&p.pendingEvent){const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(e?.choices?.length)resolveEventChoice(match,p,Math.floor(Math.random()*e.choices.length),now)}
-    return true
+    if(aiQueue(match,p,"search",{},now))return true;
   }
-  if(!status(p,"bind",now)){const to=aiMoveChoice(match,p);if(to){const mv=movementProfile(p.region,to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp>=cost){p.region=to;p.sp-=cost;p.nextMoveFree=false;return true}}}
-  return false
+
+  if(!status(p,"bind",now)){
+    const to=aiMoveChoice(match,p);
+    if(to&&aiQueue(match,p,"move",{to},now))return true;
+  }
+  return false;
 }
 export function runAITick(match,now=Date.now()){
   updatePassiveTime(match,now);let changed=false;
