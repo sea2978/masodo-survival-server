@@ -653,6 +653,10 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
   else if(type==="skill")sec=Math.max(.65,1*(COMBAT_SKILL_DEFS[p.charId]?.prep||1));
   else if(type==="flee")sec=Math.max(.7,1.5*(1+(fx.fleePrep||0)));
   else if(type==="char_action")sec=ACTION_SKILL_DEFS[p.charId]?.time??.8;
+  else if(type==="loot_corpse"){
+    const qty=Math.max(1,Math.floor(payload.qty||1));
+    sec=payload.kind==="eq"?1.2:payload.kind==="con" ? .9:Math.min(1.5,.65+.12*Math.max(0,qty-1));
+  }
   sec*=Math.max(.65,1+(combinedFx(p,match,now).actionTime||0));
   if(status(p,"actionDelay",now))sec*=1.25;
   return sec;
@@ -666,6 +670,21 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(type==="search"&&p.sp<3)return {ok:false,error:"not_enough_sp"};
   if(type==="craft"&&!canCraft(p,payload.id))return {ok:false,error:"cannot_craft"};
   if(type==="use_item"&&owned(p,payload.id)<=0)return {ok:false,error:"item_missing"};
+  if(type==="loot_corpse"){
+    const corpse=match.corpses.find(x=>x.id===payload.corpseId&&x.region===p.region&&x.expiresAt>now);
+    if(!corpse)return {ok:false,error:"corpse_missing"};
+    if(!["mat","con","eq"].includes(payload.kind)||!item(payload.id))return {ok:false,error:"invalid_loot"};
+    if(payload.kind==="mat"&&(corpse.mat?.[payload.id]||0)<=0)return {ok:false,error:"loot_missing"};
+    if(payload.kind==="con"){
+      if((corpse.con?.[payload.id]||0)<=0)return {ok:false,error:"loot_missing"};
+      const kinds=Object.keys(p.con||{}).filter(k=>(p.con[k]||0)>0);
+      if((p.con[payload.id]||0)<=0&&kinds.length>=3)return {ok:false,error:"inventory_full"};
+    }
+    if(payload.kind==="eq"){
+      if(!corpse.eq?.includes(payload.id))return {ok:false,error:"loot_missing"};
+      if((p.eq||[]).length>=3&&!payload.replace)return {ok:false,error:"equipment_full"};
+    }
+  }
   if(["attack","skill","flee"].includes(type)&&!encounterTarget(match,p))return {ok:false,error:"no_encounter"};
   if(type==="skill"){
     const sd=COMBAT_SKILL_DEFS[p.charId]||{sp:12,cd:55};
@@ -701,6 +720,7 @@ export function completeAction(match,p,now=Date.now()){
   else if(type==="skill"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,true,now):attackWild(match,p,t.obj,true,now)):{ok:false,error:"target_lost"};p.encounter=null}
   else if(type==="flee"){result.success=Math.random()<.70;if(result.success){p.encounter=null;if((p.eq||[]).includes("evasion"))p.nextMoveFree=true}}
   else if(type==="char_action")result={...result,...charAction(match,p,now)};
+  else if(type==="loot_corpse")result={...result,...lootCorpse(match,p,x.corpseId,x.kind,x.id,x.qty||1,!!x.replace,now)};
   match.corpses=(match.corpses||[]).filter(c=>c.expiresAt>now);
   match.updatedAt=now;updatePassiveTime(match,now);return result;
 }
@@ -818,11 +838,41 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
 
   return {ok:true,eventId:e.id,choiceIndex:index,text,rewards,summary:summary.join(" · "),elapsed:match.elapsed};
 }
-export function lootCorpse(match,p,corpseId,kind,id,now=Date.now()){
-  const c=match.corpses.find(x=>x.id===corpseId&&x.region===p.region&&x.expiresAt>now);if(!c)return {ok:false,error:"corpse_missing"};
-  if(kind==="mat"){const n=c.mat[id]||0;if(!n)return {ok:false,error:"loot_missing"};p.mat[id]=(p.mat[id]||0)+n;delete c.mat[id];return {ok:true,n}}
-  if(kind==="con"){const n=c.con[id]||0;if(!n||!addItem(p,id,n))return {ok:false,error:"inventory_full"};delete c.con[id];return {ok:true,n}}
-  if(kind==="eq"){const ix=c.eq.indexOf(id);if(ix<0)return {ok:false,error:"loot_missing"};addItem(p,id);c.eq.splice(ix,1);return {ok:true,n:1}}
+function lootEquipScore(id){const it=item(id);return (it?.atk||0)+(it?.def||0)*.8+(it?.tier==="최종"?30:it?.tier==="준최종"?20:it?.tier==="희귀 시너지"?14:it?.tier==="희귀"?8:0)}
+function removeCorpseIfEmpty(match,corpse){
+  if(!corpse)return false;
+  const empty=!corpse.eq.length&&!Object.values(corpse.mat||{}).some(n=>n>0)&&!Object.values(corpse.con||{}).some(n=>n>0);
+  if(!empty)return false;
+  const i=match.corpses.indexOf(corpse);if(i>=0)match.corpses.splice(i,1);return true;
+}
+export function lootCorpse(match,p,corpseId,kind,id,qty=1,replace=false,now=Date.now()){
+  const corpse=match.corpses.find(x=>x.id===corpseId&&x.region===p.region&&x.expiresAt>now);
+  if(!corpse)return {ok:false,error:"corpse_missing"};
+  const it=item(id);if(!it)return {ok:false,error:"invalid_loot"};
+  qty=Math.max(1,Math.floor(qty||1));
+  if(kind==="mat"){
+    const have=corpse.mat[id]||0;if(have<=0)return {ok:false,error:"loot_missing"};
+    const n=Math.min(qty,have);p.mat[id]=(p.mat[id]||0)+n;corpse.mat[id]-=n;if(corpse.mat[id]<=0)delete corpse.mat[id];
+    removeCorpseIfEmpty(match,corpse);return {ok:true,n,itemId:id};
+  }
+  if(kind==="con"){
+    const have=corpse.con[id]||0;if(have<=0)return {ok:false,error:"loot_missing"};
+    const kinds=Object.keys(p.con||{}).filter(k=>(p.con[k]||0)>0);
+    if((p.con[id]||0)<=0&&kinds.length>=3)return {ok:false,error:"inventory_full"};
+    const n=Math.min(qty,have);p.con[id]=(p.con[id]||0)+n;corpse.con[id]-=n;if(corpse.con[id]<=0)delete corpse.con[id];
+    removeCorpseIfEmpty(match,corpse);return {ok:true,n,itemId:id};
+  }
+  if(kind==="eq"){
+    const ix=corpse.eq.indexOf(id);if(ix<0)return {ok:false,error:"loot_missing"};
+    if(p.eq.length>=3){
+      if(!replace)return {ok:false,error:"equipment_full"};
+      let worst=0,worstScore=Infinity;
+      for(let i=0;i<p.eq.length;i++){const score=lootEquipScore(p.eq[i]);if(score<worstScore){worstScore=score;worst=i}}
+      const old=p.eq[worst];p.eq.splice(worst,1,id);corpse.eq.splice(ix,1,old);
+      return {ok:true,n:1,itemId:id,replaced:old};
+    }
+    p.eq.push(id);corpse.eq.splice(ix,1);removeCorpseIfEmpty(match,corpse);return {ok:true,n:1,itemId:id};
+  }
   return {ok:false,error:"invalid_loot"};
 }
 
