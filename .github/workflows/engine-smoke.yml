@@ -21,6 +21,18 @@ jobs:
         run: npm run test:full-audit
       - name: Runtime parity audit
         run: npm run test:phase2p-runtime
+      - name: All 51 combat skills
+        run: npm run test:all-combat
+      - name: All 51 additional actions
+        run: npm run test:all-actions
+      - name: All 17 consumables
+        run: npm run test:all-consumables
+      - name: All 234 event choices
+        run: npm run test:all-events
+      - name: Client server static audit
+        run: npm run test:static-audit
+      - name: Craft preflight audit
+        run: npm run test:craft-preflight
       - name: Recommendations
         run: npm run test:recommendations
       - name: Event E004 tool condition
