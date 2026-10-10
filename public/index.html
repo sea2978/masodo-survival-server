@@ -123,6 +123,10 @@
           <div id="gameLog" class="scroll" style="height:220px;background:#080b0f;padding:10px;white-space:pre-wrap;font-size:12px"></div>
         </div>
         <div class="panel">
+          <h2>획득 정보</h2>
+          <div id="intel"></div>
+        </div>
+        <div class="panel">
           <h2>다른 생존자</h2>
           <div id="others"></div>
         </div>
@@ -185,6 +189,13 @@ $('#recommended').innerHTML=m.recommendations?.length?m.recommendations.map(it=>
 }).join(""):'<span class="muted">현재 캐릭터에 대한 추천 제작품이 없습니다.</span>';
 $('#recommended').querySelectorAll('[data-rec-craft]').forEach(b=>b.onclick=()=>net.craft(b.dataset.recCraft));
 $('#craft').innerHTML=m.craftable?.length?m.craftable.map(it=>`<div class="card"><b>${it.name}</b> <span class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</span> <button data-craft="${it.id}" ${(busy()||inEncounter||inEvent)?'disabled':''}>제작</button></div>`).join(""):'<span class="muted">현재 제작 가능 항목 없음</span>';$('#craft').querySelectorAll('[data-craft]').forEach(b=>b.onclick=()=>net.craft(b.dataset.craft));
+const intel=p.intel||{};
+const intelRows=[];
+for(const x of intel.playerTraces||[])intelRows.push(`<div class="card"><b>플레이어 흔적</b><div>${x.name||'생존자'} · ${x.regionName||rname(x.region)}</div></div>`);
+for(const x of intel.specialCandidates||[])intelRows.push(`<div class="card"><b>특수재료 후보 · ${x.regionName||rname(x.region)}</b><div class="muted">${(x.items||[]).map(v=>v.name+' ['+v.state+']').join(' · ')||'후보 없음'}</div></div>`);
+for(const x of intel.materialHints||[])intelRows.push(`<div class="card"><b>추천 파밍 · ${x.targetName||''}</b><div class="muted">${(x.regions||[]).map(v=>v.regionName||rname(v.region)).join(' → ')||'지역 정보 없음'}</div></div>`);
+for(const x of intel.eventHints||[])intelRows.push(`<div class="card"><b>이벤트 정보</b><div>${x.name||x.eventId} · ${x.type||''}</div></div>`);
+$('#intel').innerHTML=intelRows.length?intelRows.slice(0,10).join(''):'<span class="muted">아직 획득한 정보가 없습니다.</span>';
 $('#others').innerHTML=m.others.map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${o.playerName} / ${o.charId} / 처치 ${o.kills}</div>`).join("");
 $('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.encounter.name}</b><div>HP ${Math.max(0,Math.round(m.encounter.hp))}/${m.encounter.maxHp}</div><div class="muted">${m.encounter.skillText||''}</div></div>`:"";
 $('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingEvent.name}</b><p>${m.pendingEvent.type}</p>${m.pendingEvent.choices.map((c,i)=>`<button data-event="${i}" ${c.available===false?'disabled':''}>${c.label}${c.available===false?' · 사용 불가':''}</button><div class="muted">${c.result}${c.available===false&&c.reason?' · '+c.reason:''}</div>`).join("")}</div>`:"";$('#eventBox').querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>net.eventChoice(Number(b.dataset.event)));
