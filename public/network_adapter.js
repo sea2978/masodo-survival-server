@@ -5,6 +5,8 @@ export class MasodoNetworkAdapter {
     this.listeners = new Map();
     this.roomCode = null;
     this.sessionId = null;
+    this.lastMatch = null;
+    this.catalog = null;
   }
 
   on(type, fn) {
@@ -31,7 +33,7 @@ export class MasodoNetworkAdapter {
     return data;
   }
 
-  async connect(code, { playerName = "Player", charId = "c01" } = {}) {
+  async connect(code, { playerName = "Player", charId = "c01", startRegion = "city" } = {}) {
     this.close();
     this.roomCode = String(code).trim().toUpperCase();
     const wsBase = this.baseUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
@@ -49,12 +51,20 @@ export class MasodoNetworkAdapter {
       try {
         const msg = JSON.parse(event.data);
         if (msg.sessionId) this.sessionId = msg.sessionId;
+        if (msg.catalog) this.catalog = msg.catalog;
+        if (msg.match) this.lastMatch = msg.match;
         this.emit(msg.type || "message", msg);
         this.emit("*", msg);
-      } catch { this.emit("raw", event.data); }
+      } catch {
+        this.emit("raw", event.data);
+      }
     });
-    ws.addEventListener("close", (event) => this.emit("close", { code: event.code, reason: event.reason }));
-    this.send("hello", { playerName, charId });
+
+    ws.addEventListener("close", (event) => {
+      this.emit("close", { code: event.code, reason: event.reason });
+    });
+
+    this.send("hello", { playerName, charId, startRegion });
     return this;
   }
 
@@ -66,8 +76,15 @@ export class MasodoNetworkAdapter {
 
   setReady(ready) { return this.send("set_ready", { ready: !!ready }); }
   setCharacter(charId) { return this.send("set_character", { charId }); }
+  setStartRegion(region) { return this.send("set_start_region", { region }); }
   requestStart() { return this.send("request_start"); }
+  requestState() { return this.send("request_state"); }
+  move(to) { return this.send("command_move", { to }); }
   chat(text) { return this.send("chat", { text }); }
   ping() { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send("ping"); }
-  close() { try { this.ws?.close(1000, "client close"); } catch {} this.ws = null; }
+
+  close() {
+    try { this.ws?.close(1000, "client close"); } catch {}
+    this.ws = null;
+  }
 }
