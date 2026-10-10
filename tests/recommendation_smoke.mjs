@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { createServerPlayer } from "../src/game_data.js";
+import { initWorld, recommendedCrafts } from "../src/match_engine.js";
+const t0=1_700_210_000_000;
+const p=createServerPlayer({sessionId:"rec",playerName:"RecQA",charId:"c01",startRegion:"city"},0);
+const match={matchId:"rec",phase:"playing",createdAt:t0,startedAt:t0,updatedAt:t0,players:[p],eventPity:{},lastEventId:null,corpses:[],worldLog:[]};
+initWorld(match);
+const recs=recommendedCrafts(p,12);
+assert.ok(Array.isArray(recs));
+assert.ok(recs.length>0,"at least one recommendation should be generated");
+assert.ok(recs.every(x=>Number.isFinite(x.score)&&typeof x.reason==="string"&&Array.isArray(x.missing)));
+console.log("recommendation smoke ok",{recommendations:recs.length,first:recs[0]?.name});
