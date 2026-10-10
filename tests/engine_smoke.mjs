@@ -50,6 +50,9 @@ match.players.push(ai);
 const oldRandom=Math.random;
 Math.random=()=>0;
 assert.equal(runAIStep(match,ai,t0+30_000),true);
+assert.ok(ai.pendingAction,"AI should queue a timed server action instead of mutating instantly");
+const aiAction=ai.pendingAction;
+completeAction(match,ai,aiAction.completeAt+1);
 Math.random=oldRandom;
 
 const specialRecipe=Object.entries(ITEMS).find(([,it])=>it?.r&&Object.keys(it.r).some(k=>/^special_\d{2}$/.test(k)));
@@ -148,6 +151,22 @@ assert.equal(looter.mat.iron||0,0,"loot should not transfer before action comple
 completeAction(match,looter,r.action.completeAt+1);
 assert.equal(looter.mat.iron,3,"loot should transfer after the timed action");
 assert.equal(match.corpses.some(x=>x.id==="corpse_test"),false,"empty corpse should be removed");
+
+const riskPlayer=createServerPlayer({sessionId:"s12",playerName:"RiskQA",charId:"c01",startRegion:"city"},11);
+match.players.push(riskPlayer);
+riskPlayer.pendingEvent="E001";
+const hpBeforeRisk=riskPlayer.hp;
+oldRnd=Math.random;Math.random=()=>0.99;
+const riskSafe=resolveEventChoice(match,riskPlayer,0,t0+140_000);
+Math.random=oldRnd;
+assert.equal(riskSafe.ok,true);
+assert.equal(riskPlayer.hp,hpBeforeRisk,"15% event damage must not be applied unconditionally");
+
+riskPlayer.pendingEvent="E001";
+oldRnd=Math.random;Math.random=()=>0;
+const riskHit=resolveEventChoice(match,riskPlayer,0,t0+150_000);
+Math.random=oldRnd;
+assert.ok(riskPlayer.hp<hpBeforeRisk,"15% event damage should apply when the probability roll succeeds");
 
 const pub=publicPlayer(match,p,t0+50_000);
 assert.equal(pub.playerName,"QA");
