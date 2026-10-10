@@ -19,7 +19,9 @@ jobs:
         run: npm run test:catalog
       - name: Recommendations
         run: npm run test:recommendations
-      - name: Event conditions
-        run: npm run test:event-conditions
+      - name: Event E004 tool condition
+        run: npm run test:event-e004
+      - name: Event E008 precision condition
+        run: npm run test:event-e008
       - name: 15 minute simulation
         run: npm run test:simulation
