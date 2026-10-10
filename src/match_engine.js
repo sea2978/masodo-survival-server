@@ -443,7 +443,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
     const fx=combinedFx(p,match,now);
-    spCost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus")?.95:1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    spCost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus") ? .95 : 1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
     p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
@@ -501,7 +501,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
     const fx=combinedFx(p,match,now);
-    spCost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus")?.95:1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    spCost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus") ? .95 : 1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
     p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
@@ -831,9 +831,9 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
   else if(type==="rest")sec=3;
   else if(type==="craft")sec=Math.max(.8,1.8*(1+(fx.craftTime||0))*(p.nextCraftTimeMult||1));
   else if(type==="use_item")sec=item(payload.id)?.useTime??1.2;
-  else if(type==="attack")sec=Math.max(.65,1.15*((p.eq||[]).includes("accel")?.96:1)*(1+(fx.prep||0)));
+  else if(type==="attack")sec=Math.max(.65,1.15*((p.eq||[]).includes("accel") ? .96 : 1)*(1+(fx.prep||0)));
   else if(type==="skill")sec=Math.max(.65,1*(COMBAT_SKILL_DEFS[p.charId]?.prep||1));
-  else if(type==="flee")sec=Math.max(.7,1.5*((p.eq||[]).includes("evasion")?.95:1)*(1+(fx.fleePrep||0)));
+  else if(type==="flee")sec=Math.max(.7,1.5*((p.eq||[]).includes("evasion") ? .95 : 1)*(1+(fx.fleePrep||0)));
   else if(type==="char_action")sec=ACTION_SKILL_DEFS[p.charId]?.time??.8;
   else if(type==="loot_corpse"){
     const qty=Math.max(1,Math.floor(payload.qty||1));
@@ -870,7 +870,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(["attack","skill","flee"].includes(type)&&!encounterTarget(match,p))return {ok:false,error:"no_encounter"};
   if(type==="skill"){
     const sd=COMBAT_SKILL_DEFS[p.charId]||{sp:12,cd:55};
-    const fx=combinedFx(p,match,now),cost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus")?.95:1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    const fx=combinedFx(p,match,now),cost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus") ? .95 : 1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
     if(p.sp<cost)return {ok:false,error:"not_enough_sp"};
