@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { MAX_HUMANS, json, parseJsonMessage, safeText, send } from "./protocol.js";
 import { ADJACENCY, CHARACTERS, REGIONS, createServerPlayer, isValidCharacter, isValidRegion } from "./game_data.js";
-import { ITEMS } from "./offline_content.js";
+import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
 import { beginServerAction, completeAction, initWorld, lootCorpse, publicPlayer, resolveEventChoice, updatePassiveTime } from "./match_engine.js";
 
 const ROOM_META_KEY="room_meta",MATCH_KEY="match_state";
@@ -100,7 +100,7 @@ export class GameRoom extends DurableObject{
       const room=this.roomState(meta);if(meta.hostSessionId!==session.sessionId){send(ws,"error",{error:"host_only"});return}if(!room.allReady){send(ws,"error",{error:"not_all_ready"});return}if(meta.phase!=="lobby"){send(ws,"error",{error:"already_started"});return}
       const match={matchId:crypto.randomUUID(),phase:"playing",createdAt:Date.now(),startedAt:Date.now(),updatedAt:Date.now(),players:this.joinedSessions().map((s,i)=>createServerPlayer(s,i))};
       for(const p of match.players){p.tempEffects=[];p.statusImmunity={};p.cdCUntil=0;p.cdAUntil=0;p.lastSatietyAt=match.startedAt;p.nextStatusTick=match.startedAt}
-      const {WILD_TEMPLATES,ENCOUNTER_EVENTS}=await import("./offline_content.js");match.wildTemplates=WILD_TEMPLATES;match.eventCatalog=ENCOUNTER_EVENTS;initWorld(match);
+      match.wildTemplates=WILD_TEMPLATES;match.eventCatalog=ENCOUNTER_EVENTS;initWorld(match);
       meta.phase="playing";meta.startedAt=match.startedAt;await Promise.all([this.saveMeta(meta),this.saveMatch(match)]);this.broadcast("match_started",{matchId:match.matchId,serverNow:Date.now()});this.broadcastMatchState(match);return
     }
     if(msg.type==="request_state"){const m=await this.getMatch();if(!m){send(ws,"error",{error:"match_not_started"});return}await this.completeDueActions(m,Date.now());this.sendMatchState(ws,m);return}
