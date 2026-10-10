@@ -94,6 +94,38 @@ for(let i=0;i<3;i++){
 assert.equal(eater.foodRepeatCount,2);
 assert.ok(eater.hp<40+36,"repeat food healing should be reduced on repeated use");
 
+const healer=createServerPlayer({sessionId:"s6",playerName:"Healer",charId:"c13",startRegion:"city"},5);
+const dummy=createAIPlayer(6,"c02","city","balanced");
+healer.hp=30;healer.encounter={kind:"player",targetId:dummy.playerId};match.players.push(healer,dummy);
+let oldRnd=Math.random;Math.random=()=>0.999;
+r=beginServerAction(match,healer,"skill",{},t0+90_000);
+assert.equal(r.ok,true);
+completeAction(match,healer,r.action.completeAt+1);
+Math.random=oldRnd;
+assert.ok(healer.hp>=50,"c13 combat heal should apply even when the skill misses");
+
+const sleeper=createAIPlayer(7,"c03","city","balanced");
+const striker=createServerPlayer({sessionId:"s8",playerName:"Striker",charId:"c38",startRegion:"city"},7);
+sleeper.statuses.sleep={stacks:1,until:t0+200_000,sourceId:null};
+striker.encounter={kind:"player",targetId:sleeper.playerId};match.players.push(sleeper,striker);
+oldRnd=Math.random;Math.random=()=>0;
+r=beginServerAction(match,striker,"attack",{},t0+100_000);
+assert.equal(r.ok,true);
+completeAction(match,striker,r.action.completeAt+1);
+Math.random=oldRnd;
+assert.equal(sleeper.statuses.sleep,undefined,"damage should wake sleeping targets");
+assert.ok((sleeper.statusImmunity.sleep||0)>t0+100_000,"woken target should gain sleep immunity");
+
+const poisonKiller=createServerPlayer({sessionId:"s9",playerName:"Poisoner",charId:"c17",startRegion:"city"},8);
+const poisonVictim=createAIPlayer(9,"c01","city","balanced");
+poisonVictim.hp=1;poisonVictim.statuses.poison={stacks:1,until:t0+300_000,sourceId:poisonKiller.playerId};poisonVictim.nextStatusTick=t0+110_000;
+match.players.push(poisonKiller,poisonVictim);
+const beforeKills=poisonKiller.kills;
+publicPlayer(match,poisonVictim,t0+112_100);
+assert.equal(poisonVictim.alive,false,"poison tick should kill low-HP victim");
+assert.equal(poisonKiller.kills,beforeKills+1,"status death should credit the source player");
+assert.ok(match.corpses.some(x=>x.name==="서노리"),"status death should create a corpse");
+
 const pub=publicPlayer(match,p,t0+50_000);
 assert.equal(pub.playerName,"QA");
 assert.ok(pub.inventory);
