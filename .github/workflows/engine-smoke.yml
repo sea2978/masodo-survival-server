@@ -27,5 +27,11 @@ jobs:
         run: npm run test:intel
       - name: Concurrent loot race
         run: npm run test:concurrency
+      - name: Simultaneous combat race
+        run: npm run test:combat-concurrency
+      - name: Passive and gear modifier audit
+        run: npm run test:passive-audit
       - name: 15 minute simulation
         run: npm run test:simulation
+      - name: 12 match long-run simulation
+        run: npm run test:multi-sim
