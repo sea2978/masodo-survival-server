@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>마소도 Cloudflare 멀티플레이 Phase 1</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#101318;color:#eee;max-width:900px;margin:0 auto;padding:24px}
+.panel{background:#181d24;border:1px solid #333b46;border-radius:10px;padding:16px;margin:12px 0}.row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+input,button{background:#0f1318;color:#eee;border:1px solid #46515f;border-radius:6px;padding:9px}button{cursor:pointer}.good{color:#9bd69b}.bad{color:#ef9a9a}
+#log{height:260px;overflow:auto;background:#0b0e12;padding:10px;white-space:pre-wrap}code{color:#acd0ff}a{color:#acd0ff}
+</style>
+</head>
+<body>
+<h1>마소도 Cloudflare 멀티플레이 Phase 1</h1>
+<p>방 생성/참가, 최대 10명, 캐릭터 선택, Ready, WebSocket 상태 동기화 테스트용 페이지입니다.</p>
+<div class="panel">
+  <div class="row">
+    <button id="create">방 생성</button>
+    <input id="room" placeholder="방 코드" maxlength="6">
+    <input id="name" placeholder="플레이어 이름" value="Player">
+    <input id="char" placeholder="캐릭터 코드" value="c01">
+    <button id="join">접속</button>
+  </div>
+  <div class="row">
+    <button id="ready">Ready ON</button><button id="unready">Ready OFF</button><button id="start">시작 요청</button>
+    <a href="/offline.html">0.6.4 오프라인 빌드 열기</a>
+  </div>
+  <p>상태: <b id="status">미접속</b></p><div id="roomState"></div>
+</div>
+<div class="panel"><b>로그</b><div id="log"></div></div>
+<script type="module">
+import { MasodoNetworkAdapter } from "./network_adapter.js";
+const net=new MasodoNetworkAdapter(location.origin), $=s=>document.querySelector(s);
+const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};
+net.on("*",m=>log(JSON.stringify(m)));
+net.on("connected",()=>{$('#status').textContent="WebSocket 연결됨";$('#status').className="good"});
+net.on("room_state",m=>{const r=m.room;$('#roomState').innerHTML=`<p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.playerName} / ${p.charId}</div>`).join("")});
+net.on("close",()=>{$('#status').textContent="연결 종료";$('#status').className="bad"});
+$('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성: "+r.code)}catch(e){log("생성 실패: "+e.message)}};
+$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value});$('#status').textContent="접속 중..."}catch(e){log("접속 실패: "+e.message)}};
+$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();
+</script>
+</body></html>
