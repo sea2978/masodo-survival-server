@@ -21,7 +21,7 @@ export class GameRoom extends DurableObject{
   connectedPlayers(meta){return this.joinedSessions().map(s=>({sessionId:s.sessionId,playerName:s.playerName,charId:s.charId,startRegion:s.startRegion||"city",ready:!!s.ready,joinedAt:s.joinedAt,host:meta.hostSessionId===s.sessionId}))}
   roomState(meta){
     const players=this.connectedPlayers(meta);
-    return{code:meta.code,phase:meta.phase||"lobby",createdAt:meta.createdAt,maxHumans:MAX_HUMANS,players,humanCount:players.length,allReady:players.length>=2&&players.every(p=>p.ready),hostSessionId:meta.hostSessionId||null,protocolVersion:PROTOCOL_VERSION,serverVersion:GAME_VERSION,buildLabel:BUILD_LABEL,phaseLabel:PHASE}
+    return{code:meta.code,phase:meta.phase||"lobby",createdAt:meta.createdAt,maxHumans:MAX_HUMANS,players,humanCount:players.length,allReady:players.length>=1&&players.every(p=>p.ready),hostSessionId:meta.hostSessionId||null,protocolVersion:PROTOCOL_VERSION,serverVersion:GAME_VERSION,buildLabel:BUILD_LABEL,phaseLabel:PHASE}
   }
   broadcast(type,payload={}){for(const ws of this.sessions.keys())send(ws,type,payload)}
   async broadcastRoomState(meta){this.broadcast("room_state",{room:this.roomState(meta)})}
