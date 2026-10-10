@@ -60,6 +60,34 @@ function regionSpecialCandidates(match,region){return Object.entries(SPECIAL_ROU
 function findItemIdByExactName(name){return Object.keys(ITEMS).find(id=>ITEMS[id]?.n===name)||null}
 
 
+function noiseSpec(level){
+  if(level==="높음"||level==="큼")return{level:"높음",detect:.12,duration:20};
+  if(level==="중간")return{level:"중간",detect:.06,duration:12};
+  if(level==="낮음")return{level:"낮음",detect:.03,duration:7};
+  return null;
+}
+function recordNoise(match,p,level,source,now=Date.now()){
+  const spec=noiseSpec(level);if(!spec)return null;
+  match.noises??=[];
+  const row={id:"noise_"+p.playerId+"_"+now,playerId:p.playerId,playerName:p.playerName,region:p.region,level:spec.level,detect:spec.detect,source,createdAt:now,expiresAt:now+spec.duration*1000};
+  match.noises.push(row);
+  match.noises=match.noises.filter(x=>x.expiresAt>now).slice(-40);
+  return row;
+}
+function eventNoiseLevel(ev,text){
+  if(/소음 없음/.test(text))return null;
+  if(/소음 큼/.test(text))return"높음";
+  if(/소음 중간/.test(text))return"중간";
+  if(/소음 낮음/.test(text))return"낮음";
+  return ["높음","중간","낮음"].includes(ev?.noise)?ev.noise:null;
+}
+function activeNoiseFor(match,p,now=Date.now()){
+  return (match.noises||[]).filter(x=>x.playerId===p.playerId&&x.region===p.region&&x.expiresAt>now).sort((a,b)=>b.detect-a.detect)[0]||null;
+}
+function nearbyNoiseFor(match,p,now=Date.now()){
+  const adjacent=new Set(ADJACENCY[p.region]||[]);
+  return (match.noises||[]).filter(x=>x.playerId!==p.playerId&&x.expiresAt>now&&(x.region===p.region||adjacent.has(x.region))).sort((a,b)=>b.createdAt-a.createdAt).slice(0,6).map(x=>({...x,regionName:regionName(x.region)}));
+}
 function tempFx(p,match,now=Date.now()){
   const out={};
   p.tempEffects=(p.tempEffects||[]).filter(e=>e?.until>now);
@@ -238,12 +266,13 @@ export function updatePassiveTime(match,now=Date.now()){
     processDelayedEffects(p,now);cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
     p.hp=Math.min(p.hp,maxHp(p,match,now));
   }
+  match.noises=(match.noises||[]).filter(x=>x.expiresAt>now);
   match.elapsed=Math.floor(nowSec(match,now));
 }
 export function initWorld(match){
   let seq=1;match.wilds=[];
   for(const t of WILD_TEMPLATES)for(const region of t.regions)match.wilds.push({id:"w"+seq++,templateId:t.id,region,hp:t.hp,alive:true,guardReady:t.skill==="guard"});
-  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.regionTraps={};match.uniqueSpecials=initUniqueSpecials();
+  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.regionTraps={};match.noises=[];match.uniqueSpecials=initUniqueSpecials();
 }
 function wildTemplate(w){return WILD_TEMPLATES.find(x=>x.id===w.templateId)}
 function playerById(match,id){return match.players.find(p=>p.playerId===id)}
@@ -269,6 +298,7 @@ function detectionPenalty(target,match,now){
 }
 function detectionBonus(seeker,target,match,now){
   let add=(combinedFx(seeker,match,now).detect||0)+(seeker.nextDetectBonus||0);
+  add+=activeNoiseFor(match,target,now)?.detect||0;
   if((seeker.eq||[]).includes("trace")&&target.hp<maxHp(target,match,now))add+=.08;
   if(target.hp<maxHp(target,match,now))add+=combinedFx(seeker,match,now).woundedDetect||0;
   return add;
@@ -770,7 +800,7 @@ function recordMaterialHintIntel(p,now){
 }
 export function publicPlayer(match,p,now=Date.now()){
   updatePassiveTime(match,now);ensureIntel(p);
-  return {...p,maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
+  return {...p,nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
     inventory:{eq:(p.eq||[]).map(id=>({id,...item(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
 }
@@ -1004,7 +1034,8 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
     const next=candidates.length?pick(candidates):null;
     if(next){pushIntel(ensureIntel(p).eventHints,{kind:"event_hint",region:p.region,eventId:next.id,name:next.name,type:next.type,at:now});summary.push("다음 이벤트 정보 획득")}
   }
-  if(/소음 큼|소음 중간|소음/.test(text)&&e.noise!=="없음")summary.push("소음 발생");
+  const noiseLevel=eventNoiseLevel(e,text);
+  if(noiseLevel){recordNoise(match,p,noiseLevel,e.id,now);summary.push("소음 "+noiseLevel+" 발생")}
   if(!summary.length)summary.push("이벤트 효과 적용");
 
   return {ok:true,eventId:e.id,choiceIndex:index,text,rewards,summary:summary.join(" · "),elapsed:match.elapsed};
