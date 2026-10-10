@@ -19,11 +19,11 @@ export function movementProfile(from,to){
 export function createServerPlayer(session,index){
   const c=CHARACTER_BY_ID.get(session.charId)||CHARACTERS[0],region=isValidRegion(session.startRegion)?session.startRegion:"city",proficiency={};
   if(c.preferredWeapon)proficiency[c.preferredWeapon]=c.startProf||0;
-  return{playerId:`p${index+1}`,sessionId:session.sessionId,playerName:session.playerName,charId:c.id,region,maxHp:c.baseHp,maxSp:c.baseSp,hp:c.baseHp,sp:c.baseSp,satiety:100,alive:true,kills:0,eq:[],mat:{},con:{},statuses:{},proficiency,encounter:null,pendingAction:null,rev:false,isAI:false,ai:null};
+  return{playerId:`p${index+1}`,sessionId:session.sessionId,playerName:session.playerName,charId:c.id,region,maxHp:c.baseHp,maxSp:c.baseSp,hp:c.baseHp,sp:c.baseSp,satiety:100,alive:true,kills:0,eq:[],mat:{},con:{},statuses:{},proficiency,encounter:null,pendingAction:null,rev:false,isAI:false,ai:null,lastFoodId:null,lastFoodAt:0,foodRepeatCount:0,delayedEffects:[]};
 }
 
 export function createAIPlayer(index,charId,region,profile="balanced"){
   const c=CHARACTER_BY_ID.get(charId)||CHARACTERS[0],proficiency={};
   if(c.preferredWeapon)proficiency[c.preferredWeapon]=c.startProf||0;
-  return{playerId:`p${index+1}`,sessionId:null,playerName:c.name,charId:c.id,region:isValidRegion(region)?region:"city",maxHp:c.baseHp,maxSp:c.baseSp,hp:c.baseHp,sp:c.baseSp,satiety:100,alive:true,kills:0,eq:[],mat:{},con:{},statuses:{},proficiency,encounter:null,pendingAction:null,rev:false,isAI:true,ai:profile};
+  return{playerId:`p${index+1}`,sessionId:null,playerName:c.name,charId:c.id,region:isValidRegion(region)?region:"city",maxHp:c.baseHp,maxSp:c.baseSp,hp:c.baseHp,sp:c.baseSp,satiety:100,alive:true,kills:0,eq:[],mat:{},con:{},statuses:{},proficiency,encounter:null,pendingAction:null,rev:false,isAI:true,ai:profile,lastFoodId:null,lastFoodAt:0,foodRepeatCount:0,delayedEffects:[]};
 }
