@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { MAX_HUMANS, json, parseJsonMessage, safeText, send } from "./protocol.js";
 import { ADJACENCY, CHARACTERS, REGIONS, createAIPlayer, createServerPlayer, isValidCharacter, isValidRegion } from "./game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
-import { beginServerAction, completeAction, initWorld, lootCorpse, publicPlayer, resolveEventChoice, runAITick, updatePassiveTime } from "./match_engine.js";
+import { beginServerAction, completeAction, initWorld, lootCorpse, publicPlayer, recommendedCrafts, resolveEventChoice, runAITick, updatePassiveTime } from "./match_engine.js";
 import { BUILD_LABEL, GAME_VERSION, PHASE, PROTOCOL_VERSION } from "./version.js";
 
 const ROOM_META_KEY="room_meta",MATCH_KEY="match_state";
@@ -39,6 +39,7 @@ export class GameRoom extends DurableObject{
       pendingEvent:self?.pendingEvent?match.eventCatalog.find(e=>e.id===self.pendingEvent)||null:null,
       aiCount:match.players.filter(p=>p.isAI).length,
       corpses:(match.corpses||[]).filter(c=>c.region===self?.region&&c.expiresAt>now),
+      recommendations:self?recommendedCrafts(self,12):[],
       craftable:self?Object.entries(ITEMS).filter(([id,it])=>it?.r&&Object.entries(it.r).every(([k,n])=>{
         const src=ITEMS[k];const count=src?.t==="m"?(self.mat[k]||0):src?.t==="c"?(self.con[k]||0):(self.eq||[]).filter(x=>x===k).length;return count>=n
       })).slice(0,80).map(([id,it])=>({id,name:it.n,t:it.t,tier:it.tier||"",atk:it.atk||0,def:it.def||0,r:it.r})):[]}
