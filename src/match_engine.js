@@ -1014,7 +1014,9 @@ function eventRewardClauses(text){
   return (text||"").split("/").map(x=>x.trim()).filter(Boolean);
 }
 function clauseExactRewards(clause){
-  return Object.entries(ITEMS).filter(([id,it])=>!isSpecialMaterial(id)&&it?.n&&clause.includes(it.n)).sort((a,b)=>b[1].n.length-a[1].n.length);
+  const rows=Object.entries(ITEMS).filter(([id,it])=>!isSpecialMaterial(id)&&it?.n&&clause.includes(it.n));
+  if(/수프/.test(clause)&&!rows.some(([id])=>id==="warm_soup")&&ITEMS.warm_soup)rows.push(["warm_soup",ITEMS.warm_soup]);
+  return rows.sort((a,b)=>b[1].n.length-a[1].n.length);
 }
 function awardExactClause(match,p,clause,rewards,summary){
   let exact=clauseExactRewards(clause);if(!exact.length)return 0;
@@ -1156,6 +1158,12 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if(/희귀 약품 확률/.test(text)&&Math.random()<.35)eventAwardItem(match,p,"advanced_first_aid",1);
   if(/고급장신구 재료 확률/.test(text)&&Math.random()<.40)eventAwardGeneric(match,p,"accessory",1);
   if(/특수보상 확률 낮음/.test(text)&&Math.random()<.20)eventAwardGeneric(match,p,"high_reward",1);
+  if(e.id==="E005"&&index===2){
+    const count=Math.min(eventExtractCount(text,1),2),kinds=["food","material","electronic"];
+    for(let j=0;j<count;j++)eventAwardGeneric(match,p,pick(kinds),1);
+  }
+  if(e.id==="E016"&&index===2){eventAwardGeneric(match,p,"food",1);eventAwardGeneric(match,p,"medicine",1)}
+  if(e.id==="E025"&&index===2){for(let j=0;j<2;j++)eventAwardGeneric(match,p,Math.random()<.5?"accessory":"electronic",1)}
   if(e.id==="E044"&&index===0&&!clauseExactRewards(text).length){if(Math.random()<.18)eventAwardItem(match,p,"mint_choco_fish",1);else eventAwardGeneric(match,p,"food",1)}
   if(e.id==="E048"&&index===0){
     const ownedMats=Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id));let left=2;
