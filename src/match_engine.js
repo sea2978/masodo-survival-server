@@ -261,8 +261,7 @@ function attackContext(match,p,target,skill,now){
 }
 function modifyAttackDamage(match,p,target,d,ctx,now){
   const fx=combinedFx(p,match,now);
-  p.attackChainTarget=p.attackChainTarget===ctx.tid?ctx.tid:ctx.tid;
-  if(p.attackChainTarget===ctx.tid)p.attackChainHits=(p.attackChainHits||0)+1;else p.attackChainHits=1;
+  if(p.attackChainTarget===ctx.tid)p.attackChainHits=(p.attackChainHits||0)+1;else{p.attackChainTarget=ctx.tid;p.attackChainHits=1}
   if(p.namedChainTarget===ctx.tid)p.namedChainHits=(p.namedChainHits||0)+1;else{p.namedChainTarget=ctx.tid;p.namedChainHits=1}
   let mult=1+(fx.damage||0)+(ctx.actionDamageBonus||0)+(ctx.skillDamageBonus||0);
   if(ctx.quietReady&&fx.quietDamage)mult*=1+fx.quietDamage;
@@ -331,50 +330,96 @@ function wildCounter(match,p,w,now){
 }
 function attackPlayer(match,p,t,skill=false,now=Date.now()){
   const sd=COMBAT_SKILL_DEFS[p.charId]||{mult:1.08,sp:12,cd:55};
-  let spCost=0,bonus=0,mult=1;
+  const ctx=attackContext(match,p,t,skill,now);
+  let spCost=0,bonus=ctx.hitBonus,mult=1;
   if(skill){
-    if(status(p,"silence"))return {ok:false,error:"silenced"};
+    if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
-    {const fx=combinedFx(p,match,now);spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));}if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
-    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*1000;bonus=sd.hit||0;
+    const fx=combinedFx(p,match,now);
+    spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
+    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
-  if(!hitRoll(p,skill,bonus,match,now)){gainProf(p,.5);return {ok:true,hit:false,damage:0}}
-  let d=baseDamage(p,t,match,now)*mult*(1+(combinedFx(p,match,now).skillDamage||0));
-  let crit=Math.random()<clamp(.05+(sd.crit||0)+(combinedFx(p,match,now).crit||0),0,.5);if(crit)d*=1.4;
-  d=Math.max(1,Math.round(d));t.hp-=d;gainProf(p,1.5);
-  if(skill){
-    for(const row of sd.statuses||[]){const[id,chance,dur,stacks=1]=row;if(Math.random()<chance)applyStatus(t,id,stacks,dur||5,p.playerId,now)}
-    if(sd.forcePoison)applyStatus(t,"poison",sd.forcePoison,8,p.playerId,now);
-    if(sd.randomStatus&&Math.random()<.35)applyStatus(t,pick(["poison","bleed","slow"]),1,6,p.playerId,now);
-    if(sd.doubleRandomStatus)for(const id of pick([["poison","bleed"],["poison","slow"],["bleed","slow"]]))if(Math.random()<.5)applyStatus(t,id,1,6,p.playerId,now);
-    if(sd.randomControl&&Math.random()<sd.randomControl)applyStatus(t,pick(["slow","bind","fear","confusion","silence"]),1,5,p.playerId,now);
-    if(sd.heal)p.hp=clamp(p.hp+sd.heal,0,maxHp(p,match,now));if(sd.restoreSp)p.sp=clamp(p.sp+sd.restoreSp,0,p.maxSp);
-    if(sd.drainSp)t.sp=Math.max(0,t.sp-sd.drainSp);if(sd.lifesteal)p.hp=clamp(p.hp+d*sd.lifesteal,0,maxHp(p,match,now));
-    if(sd.freeMove)p.nextMoveFree=true;if(sd.tempGuard){p.tempGuardUntil=now+(sd.tempGuardDuration||8)*1000;p.tempGuardRate=sd.tempGuard}
+  if(!hitRoll(p,skill,bonus,match,now)){
+    gainProf(p,.5);p.attackChainTarget=t.playerId;p.attackChainHits=0;const bleedDamage=triggerBleedAction(match,p,now);
+    return {ok:true,hit:false,damage:0,bleedDamage};
   }
+
+  let d=baseDamage(p,t,match,now)*mult;
+  const fx=combinedFx(p,match,now);
+  if(skill)d*=1+(fx.skillDamage||0);
+  let crit=Math.random()<clamp(.05+(sd.crit||0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
+  if(crit)d*=1.4;
+  d=modifyAttackDamage(match,p,t,d,ctx,now);
+  t.hp-=d;gainProf(p,1.5);
+
+  if(skill){
+    for(const row of sd.statuses||[]){
+      const[id,chance,dur,stacks=1]=row;
+      const finalChance=clamp(chance+(fx.statusChance||0),0,.95);
+      if(Math.random()<finalChance)applyStatus(t,id,stacks,dur||5,p.playerId,now,p,match);
+    }
+    if(sd.forcePoison)applyStatus(t,"poison",sd.forcePoison,8,p.playerId,now,p,match);
+    if(sd.randomStatus&&Math.random()<.35)applyStatus(t,pick(["poison","bleed","slow"]),1,6,p.playerId,now,p,match);
+    if(sd.doubleRandomStatus)for(const id of pick([["poison","bleed"],["poison","slow"],["bleed","slow"]]))if(Math.random()<.5)applyStatus(t,id,1,6,p.playerId,now,p,match);
+    if(sd.randomControl&&Math.random()<sd.randomControl)applyStatus(t,pick(["slow","bind","fear","confusion","silence"]),1,5,p.playerId,now,p,match);
+    if(sd.heal)p.hp=clamp(p.hp+sd.heal*(1+(fx.heal||0)),0,maxHp(p,match,now));
+    if(sd.restoreSp)recoverSp(p,sd.restoreSp,match,now);
+    if(sd.drainSp)t.sp=Math.max(0,t.sp-sd.drainSp);
+    if(sd.lifesteal)p.hp=clamp(p.hp+d*sd.lifesteal,0,maxHp(p,match,now));
+    if(sd.freeMove)p.nextMoveFree=true;
+    if(sd.tempGuard){p.tempGuardUntil=now+(sd.tempGuardDuration||8)*1000;p.tempGuardRate=sd.tempGuard}
+  }
+
+  applyOnHitStatuses(match,p,t,now);
   const death=t.hp<=0?killPlayer(match,p,t,now):null;
-  return {ok:true,hit:true,crit,damage:d,death};
+  if(death?.killed){
+    const kfx=combinedFx(p,match,now);
+    if(kfx.killHeal)p.hp=clamp(p.hp+kfx.killHeal,0,maxHp(p,match,now));
+    if(kfx.killSp)recoverSp(p,kfx.killSp,match,now);
+  }
+  const bleedDamage=triggerBleedAction(match,p,now);
+  return {ok:true,hit:true,crit,damage:d,death,bleedDamage};
 }
 function attackWild(match,p,w,skill=false,now=Date.now()){
   const t=wildTemplate(w),sd=COMBAT_SKILL_DEFS[p.charId]||{mult:1.08,sp:12,cd:55};
-  let spCost=0,bonus=0,mult=1;
+  const ctx=attackContext(match,p,w,skill,now);
+  let spCost=0,bonus=ctx.hitBonus,mult=1;
   if(skill){
-    if(status(p,"silence"))return {ok:false,error:"silenced"};if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
-    spCost=Math.max(0,(sd.sp??12)-(p.nextSkillSpDiscount||0));if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
-    p.sp-=spCost;p.cdCUntil=now+(sd.cd??55)*1000;bonus=sd.hit||0;mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
+    if(status(p,"silence",now))return {ok:false,error:"silenced"};
+    if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
+    const fx=combinedFx(p,match,now);
+    spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
+    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*1000;bonus+=sd.hit||0;
+    mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
+    if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
   }
-  if(!hitRoll(p,skill,bonus,match,now)){gainProf(p,.5);return {ok:true,hit:false,damage:0,counter:wildCounter(match,p,w,now)}}
+  if(!hitRoll(p,skill,bonus,match,now)){
+    gainProf(p,.5);p.attackChainTarget=w.id;p.attackChainHits=0;const bleedDamage=triggerBleedAction(match,p,now);
+    return {ok:true,hit:false,damage:0,counter:wildCounter(match,p,w,now),bleedDamage};
+  }
+  const fx=combinedFx(p,match,now);
   let d=Math.max(1,Math.round(atk(p,match,now)*100/(100+t.def)*mult));
-  const crit=Math.random()<clamp(.05+(sd.crit||0)+(combinedFx(p,match,now).crit||0),0,.5);if(crit)d=Math.round(d*1.4);
+  if(skill)d*=1+(fx.skillDamage||0);
+  const crit=Math.random()<clamp(.05+(sd.crit||0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
+  if(crit)d*=1.4;
+  d=modifyAttackDamage(match,p,w,d,ctx,now);
   if(t.skill==="guard"&&w.guardReady){w.guardReady=false;d=Math.max(1,Math.round(d*.8))}
   w.hp-=d;gainProf(p,1.5);
   let drop=null,extra=[];
-  if(w.hp<=0){w.alive=false;w.hp=0;drop=pick(t.drop);addItem(p,drop);if(t.skill==="supply_cache")for(let i=0;i<2;i++){const x=pick(t.drop);if(addItem(p,x))extra.push(x)}}
+  if(w.hp<=0){
+    w.alive=false;w.hp=0;drop=pick(t.drop);addItem(p,drop);
+    if(t.skill==="supply_cache")for(let i=0;i<2;i++){const x=pick(t.drop);if(addItem(p,x))extra.push(x)}
+    if(fx.killHeal)p.hp=clamp(p.hp+fx.killHeal,0,maxHp(p,match,now));
+    if(fx.killSp)recoverSp(p,fx.killSp,match,now);
+  }
+  const bleedDamage=triggerBleedAction(match,p,now);
   const counter=w.alive&&p.alive?wildCounter(match,p,w,now):0;
-  return {ok:true,hit:true,crit,damage:d,killed:!w.alive,drop,extra,counter};
+  return {ok:true,hit:true,crit,damage:d,killed:!w.alive,drop,extra,counter,bleedDamage};
 }
 function searchResult(match,p,now){
   p.sp=Math.max(0,p.sp-3);
