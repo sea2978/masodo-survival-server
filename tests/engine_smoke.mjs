@@ -34,6 +34,13 @@ assert.equal(r.ok,true);
 const crafted=completeAction(match,p,r.action.completeAt+1);
 assert.equal(crafted.ok,true);
 
+p.encounter={kind:"wild",wildId:match.wilds[0].id};
+assert.equal(beginServerAction(match,p,"search",{},t0+20_000).error,"encounter_in_progress");
+p.encounter=null;
+p.pendingEvent=ENCOUNTER_EVENTS[0].id;
+assert.equal(beginServerAction(match,p,"search",{},t0+20_100).error,"event_choice_required");
+p.pendingEvent=null;
+
 const pub=publicPlayer(match,p,t0+20_000);
 assert.equal(pub.playerName,"QA");
 assert.ok(pub.inventory);
