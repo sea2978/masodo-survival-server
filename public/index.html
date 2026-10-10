@@ -73,7 +73,7 @@
               <span class="stat">ATK <b id="atk">-</b></span>
               <span class="stat">DEF <b id="def">-</b></span>
             </p>
-            <p>생존 <b id="alive">-</b>명 · 경과 <b id="elapsed">0</b>초 · 스킬 CD <b id="cdc">0</b> · 행동 CD <b id="cda">0</b></p>
+            <p>생존 <b id="alive">-</b>명 · AI <b id="aiCount">-</b>명 · 경과 <b id="elapsed">0</b>초 · 스킬 CD <b id="cdc">0</b> · 행동 CD <b id="cda">0</b></p>
             <div id="pending" class="muted">행동 없음</div>
             <div class="row actions">
               <button id="search">탐색</button>
@@ -152,7 +152,7 @@ function fillCatalog(){
 function renderRoom(r){$('#roomState').innerHTML=`<p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${p.playerName} / ${p.charId} / ${rname(p.startRegion)}</div>`).join("")}
 function busy(){return!!M?.self?.pendingAction}
 function renderMatch(m){M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;
-$('#pname').textContent=p.playerName;$('#pchar').textContent=p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
+$('#pname').textContent=p.playerName;$('#pchar').textContent=p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
 $('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
 $('#search').disabled=dis||inEncounter||inEvent;
@@ -166,7 +166,7 @@ $('#eq').innerHTML=p.inventory.eq.length?p.inventory.eq.map(it=>`<div class="car
 $('#mat').innerHTML=p.inventory.mat.length?p.inventory.mat.map(it=>`<div>${it.name} ×${it.count}</div>`).join(""):'<span class="muted">없음</span>';
 $('#con').innerHTML=p.inventory.con.length?p.inventory.con.map(it=>`<div class="card"><b>${it.n} ×${it.count}</b><button data-use="${it.id}" ${(busy()||inEvent)?'disabled':''}>사용</button></div>`).join(""):'<span class="muted">없음</span>';$('#con').querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.use));
 $('#craft').innerHTML=m.craftable?.length?m.craftable.map(it=>`<div class="card"><b>${it.name}</b> <span class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</span> <button data-craft="${it.id}" ${(busy()||inEncounter||inEvent)?'disabled':''}>제작</button></div>`).join(""):'<span class="muted">현재 제작 가능 항목 없음</span>';$('#craft').querySelectorAll('[data-craft]').forEach(b=>b.onclick=()=>net.craft(b.dataset.craft));
-$('#others').innerHTML=m.others.map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.playerName} / ${o.charId} / 처치 ${o.kills}</div>`).join("");
+$('#others').innerHTML=m.others.map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${o.playerName} / ${o.charId} / 처치 ${o.kills}</div>`).join("");
 $('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.encounter.name}</b><div>HP ${Math.max(0,Math.round(m.encounter.hp))}/${m.encounter.maxHp}</div><div class="muted">${m.encounter.skillText||''}</div></div>`:"";
 $('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingEvent.name}</b><p>${m.pendingEvent.type}</p>${m.pendingEvent.choices.map((c,i)=>`<button data-event="${i}">${c.label}</button><div class="muted">${c.result}</div>`).join("")}</div>`:"";$('#eventBox').querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>net.eventChoice(Number(b.dataset.event)));
 $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{let rows=[];for(const id of c.eq||[])rows.push(`<button data-loot="${c.id}|eq|${id}">장비 ${id}</button>`);for(const[id,n]of Object.entries(c.mat||{}))rows.push(`<button data-loot="${c.id}|mat|${id}">재료 ${id} ×${n}</button>`);for(const[id,n]of Object.entries(c.con||{}))rows.push(`<button data-loot="${c.id}|con|${id}">소모품 ${id} ×${n}</button>`);return`<div class="card"><b>${c.name}의 시체</b><div class="row">${rows.join("")}</div></div>`}).join(""):'<span class="muted">없음</span>';$('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,k,id]=b.dataset.loot.split('|');net.lootCorpse(c,k,id)});
