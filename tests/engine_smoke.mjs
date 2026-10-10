@@ -69,6 +69,31 @@ assert.equal(r.ok,true);
 completeAction(match,p,r.action.completeAt+1);
 for(const id of Object.keys(specialCraftItem.r).filter(k=>/^special_\d{2}$/.test(k)))assert.equal(match.uniqueSpecials[id].state,"consumed");
 
+const support=createServerPlayer({sessionId:"s3",playerName:"Support",charId:"c07",startRegion:"city"},2);
+support.sp=10;match.players.push(support);
+r=beginServerAction(match,support,"char_action",{},t0+60_000);
+assert.equal(r.ok,true);
+completeAction(match,support,r.action.completeAt+1);
+assert.ok(support.sp>10,"c07 additional action should restore SP rather than spend it");
+
+const haku=createServerPlayer({sessionId:"s4",playerName:"Haku",charId:"c13",startRegion:"city"},3);
+haku.con.mint_choco_fish=1;match.players.push(haku);
+r=beginServerAction(match,haku,"use_item",{id:"mint_choco_fish"},t0+70_000);
+assert.equal(r.ok,true);
+completeAction(match,haku,r.action.completeAt+1);
+assert.equal(haku.alive,false,"Haku mint-choco reaction should be fatal");
+assert.ok(match.corpses.some(x=>x.playerId===undefined&&x.name==="Haku")||match.corpses.some(x=>x.name==="Haku"));
+
+const eater=createServerPlayer({sessionId:"s5",playerName:"Eater",charId:"c01",startRegion:"city"},4);
+eater.hp=40;eater.con.sandwich=3;match.players.push(eater);
+for(let i=0;i<3;i++){
+  r=beginServerAction(match,eater,"use_item",{id:"sandwich"},t0+80_000+i*3000);
+  assert.equal(r.ok,true);
+  completeAction(match,eater,r.action.completeAt+1);
+}
+assert.equal(eater.foodRepeatCount,2);
+assert.ok(eater.hp<40+36,"repeat food healing should be reduced on repeated use");
+
 const pub=publicPlayer(match,p,t0+50_000);
 assert.equal(pub.playerName,"QA");
 assert.ok(pub.inventory);
