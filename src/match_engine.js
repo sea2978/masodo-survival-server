@@ -410,7 +410,7 @@ function aiShouldAvoidFight(match,p,target,now){
   if(target.kind==="wild")return aiHpRatio(match,p,now)<.22&&target.obj.hp/Math.max(1,wildTemplate(target.obj).hp)>.45;
   const t=target.obj,ownPower=atk(p,match,now)+def(p,match,now)*.7+(p.hp/maxHp(p,match,now)*100)*.12;
   const foePower=atk(t,match,now)+def(t,match,now)*.7+(t.hp/maxHp(t,match,now)*100)*.12;
-  let threshold=p.ai==="aggro"?.62:p.ai==="safe"?.92:.78;
+  let threshold=p.ai==="aggro" ? .62 : p.ai==="safe" ? .92 : .78;
   if(aiHpRatio(match,p,now)<.28)threshold+=.25;
   return ownPower<foePower*threshold
 }
@@ -428,9 +428,9 @@ function aiActionUtility(match,p,now){
   if(d.heal)score+=Math.max(0,1-aiHpRatio(match,p,now))*(d.heal/8);
   if(d.sp)score+=Math.max(0,1-aiSpRatio(p))*(d.sp/10);
   if((d.cleanse||d.cleanseAny||d.cleanseSpecific)&&aiHasBadStatus(p,now))score+=1.2;
-  if(d.material||d.randomMetal||d.consumable)score+=p.ai==="craft"?.65:.22;
-  if(d.nextDetect||d.tempFx?.detect)score+=p.ai==="aggro"?.55:.25;
-  if(d.nextMoveFree||d.tempFx?.moveTime||d.tempFx?.moveSp)score+=aiSpRatio(p)<.35?.65:.20;
+  if(d.material||d.randomMetal||d.consumable)score+=p.ai==="craft" ? .65 : .22;
+  if(d.nextDetect||d.tempFx?.detect)score+=p.ai==="aggro" ? .55 : .25;
+  if(d.nextMoveFree||d.tempFx?.moveTime||d.tempFx?.moveSp)score+=aiSpRatio(p)<.35 ? .65 : .20;
   if(d.reduceCombatCd&&(p.cdCUntil||0)>now+10000)score+=.65;
   if(d.selfDamage&&aiHpRatio(match,p,now)<.35)score-=1.5;
   return score
@@ -455,7 +455,7 @@ export function runAIStep(match,p,now=Date.now()){
   if(status(p,"actionDelay",now)&&Math.random()<.25)return false;
   if(p.pendingEvent){const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(e?.choices?.length)resolveEventChoice(match,p,Math.floor(Math.random()*e.choices.length),now);else p.pendingEvent=null;return true}
   if(p.encounter){aiResolveEncounter(match,p,encounterTarget(match,p),now);return true}
-  if((match.corpses||[]).some(c=>c.region===p.region&&c.expiresAt>now)&&Math.random()<(p.ai==="craft"?.28:.16)){if(aiLootCorpse(match,p,now))return true}
+  if((match.corpses||[]).some(c=>c.region===p.region&&c.expiresAt>now)&&Math.random()<(p.ai==="craft" ? .28 : .16)){if(aiLootCorpse(match,p,now))return true}
   const heal=aiBestHeal(p);if(heal&&(aiHpRatio(match,p,now)<.48||aiHasBadStatus(p,now))){useConsumable(match,p,heal,now);return true}
   if(aiShouldUseAction(match,p,now)){const r=charAction(match,p,now);if(r.ok)return true}
   const craftId=aiChooseCraft(p);if(craftId&&((p.ai==="craft"&&Math.random()<.65)||Math.random()<.18)){if(craftItem(p,craftId).ok)return true}
