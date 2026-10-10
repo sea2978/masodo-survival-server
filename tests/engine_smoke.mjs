@@ -138,6 +138,17 @@ assert.equal(eventPlayer.pendingEvent,null);
 assert.ok((match.timeOffsetMs||0)>=beforeOffset+1000,"event time cost should advance virtual match time");
 assert.ok(typeof er.summary==="string"&&er.summary.length>0);
 
+const looter=createServerPlayer({sessionId:"s11",playerName:"Looter",charId:"c01",startRegion:"city"},10);
+match.players.push(looter);
+match.corpses.push({id:"corpse_test",name:"LootTarget",region:"city",eq:[],mat:{iron:3},con:{},expiresAt:t0+400_000});
+r=beginServerAction(match,looter,"loot_corpse",{corpseId:"corpse_test",kind:"mat",id:"iron",qty:3},t0+130_000);
+assert.equal(r.ok,true);
+assert.ok(r.action.completeAt>r.action.startedAt,"corpse loot must take server time");
+assert.equal(looter.mat.iron||0,0,"loot should not transfer before action completes");
+completeAction(match,looter,r.action.completeAt+1);
+assert.equal(looter.mat.iron,3,"loot should transfer after the timed action");
+assert.equal(match.corpses.some(x=>x.id==="corpse_test"),false,"empty corpse should be removed");
+
 const pub=publicPlayer(match,p,t0+50_000);
 assert.equal(pub.playerName,"QA");
 assert.ok(pub.inventory);
