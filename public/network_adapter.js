@@ -7,6 +7,7 @@ export class MasodoNetworkAdapter {
     this.sessionId = null;
     this.lastMatch = null;
     this.catalog = null;
+    this.build = null;
   }
 
   on(type, fn) {
@@ -24,7 +25,9 @@ export class MasodoNetworkAdapter {
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || "catalog_load_failed");
     this.catalog = { characters: data.characters || [], regions: data.regions || [] };
+    this.build = { version:data.version, buildLabel:data.buildLabel, phase:data.phase, protocolVersion:data.protocolVersion };
     this.emit("catalog", this.catalog);
+    this.emit("build", this.build);
     return this.catalog;
   }
 
@@ -61,6 +64,7 @@ export class MasodoNetworkAdapter {
         const msg = JSON.parse(event.data);
         if (msg.sessionId) this.sessionId = msg.sessionId;
         if (msg.catalog) this.catalog = msg.catalog;
+        if (msg.build) this.build = msg.build;
         if (msg.match) this.lastMatch = msg.match;
         this.emit(msg.type || "message", msg);
         this.emit("*", msg);
