@@ -98,7 +98,7 @@ export class MasodoNetworkAdapter {
   flee() { return this.send("command_flee"); }
   charAction() { return this.send("command_char_action"); }
   eventChoice(index) { return this.send("event_choice", { index }); }
-  lootCorpse(corpseId, kind, id) { return this.send("loot_corpse", { corpseId, kind, id }); }
+  lootCorpse(corpseId, kind, id, qty = 1, replace = false) { return this.send("command_loot_corpse", { corpseId, kind, id, qty, replace }); }
   chat(text) { return this.send("chat", { text }); }
   ping() { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send("ping"); }
 
