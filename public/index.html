@@ -195,6 +195,7 @@ for(const x of intel.playerTraces||[])intelRows.push(`<div class="card"><b>플�
 for(const x of intel.specialCandidates||[])intelRows.push(`<div class="card"><b>특수재료 후보 · ${x.regionName||rname(x.region)}</b><div class="muted">${(x.items||[]).map(v=>v.name+' ['+v.state+']').join(' · ')||'후보 없음'}</div></div>`);
 for(const x of intel.materialHints||[])intelRows.push(`<div class="card"><b>추천 파밍 · ${x.targetName||''}</b><div class="muted">${(x.regions||[]).map(v=>v.regionName||rname(v.region)).join(' → ')||'지역 정보 없음'}</div></div>`);
 for(const x of intel.eventHints||[])intelRows.push(`<div class="card"><b>이벤트 정보</b><div>${x.name||x.eventId} · ${x.type||''}</div></div>`);
+for(const x of p.nearbyNoise||[])intelRows.push(`<div class="card"><b>소음 감지 · ${x.level}</b><div>${x.regionName||rname(x.region)}에서 활동 흔적</div><div class="muted">${x.source||'원인 불명'} · 잠시 동안 발견되기 쉬움</div></div>`);
 $('#intel').innerHTML=intelRows.length?intelRows.slice(0,10).join(''):'<span class="muted">아직 획득한 정보가 없습니다.</span>';
 $('#others').innerHTML=m.others.map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${o.playerName} / ${o.charId} / 처치 ${o.kills}</div>`).join("");
 $('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.encounter.name}</b><div>HP ${Math.max(0,Math.round(m.encounter.hp))}/${m.encounter.maxHp}</div><div class="muted">${m.encounter.skillText||''}</div></div>`:"";
