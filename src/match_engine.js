@@ -186,8 +186,16 @@ function consumeItem(p,id,n=1){
   return true
 }
 function canCraft(p,id){const r=item(id)?.r;return !!r&&Object.entries(r).every(([k,v])=>owned(p,k)>=v)}
+function canReceiveCraftOutput(p,id){
+  const it=item(id);if(!it)return false;
+  if(it.t!=="c")return true;
+  if((p.con?.[id]||0)>0)return true;
+  return Object.keys(p.con||{}).filter(k=>(p.con[k]||0)>0).length<3;
+}
+
 function craftItem(match,p,id){
   const it=item(id);if(!it||!canCraft(p,id))return {ok:false,error:"recipe_missing"};
+  if(!canReceiveCraftOutput(p,id))return {ok:false,error:"inventory_full"};
   for(const[k,v]of Object.entries(it.r)){if(!consumeItem(p,k,v))return {ok:false,error:"recipe_race"};if(isSpecialMaterial(k)&&(p.mat[k]||0)<=0)markSpecialConsumed(match,k)}
   if(!addItem(p,id,1))return {ok:false,error:"inventory_full"};
   if(it.t==="e"&&it.weaponType){match.craftStats??={};match.craftStats[it.weaponType]=(match.craftStats[it.weaponType]||0)+1}
@@ -856,7 +864,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(type!=="attack"&&type!=="skill"&&type!=="flee"&&p.encounter&&type!=="use_item")return {ok:false,error:"encounter_in_progress"};
   if(type==="move"){if(status(p,"bind",now))return {ok:false,error:"bound"};if(!ADJACENCY[p.region]?.includes(payload.to))return {ok:false,error:"invalid_move"};const mv=movementProfile(p.region,payload.to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp<cost)return {ok:false,error:"not_enough_sp"};return {ok:true,meta:{...mv,spCost:cost}}}
   if(type==="search"&&p.sp<3)return {ok:false,error:"not_enough_sp"};
-  if(type==="craft"&&!canCraft(p,payload.id))return {ok:false,error:"cannot_craft"};
+  if(type==="craft"){if(!canCraft(p,payload.id))return {ok:false,error:"cannot_craft"};if(!canReceiveCraftOutput(p,payload.id))return {ok:false,error:"inventory_full"}}
   if(type==="use_item"&&owned(p,payload.id)<=0)return {ok:false,error:"item_missing"};
   if(type==="loot_corpse"){
     const corpse=match.corpses.find(x=>x.id===payload.corpseId&&x.region===p.region&&x.expiresAt>now);
