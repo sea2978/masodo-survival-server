@@ -17,6 +17,10 @@ jobs:
         run: npm run test:engine
       - name: Catalog and version
         run: npm run test:catalog
+      - name: Full content parity audit
+        run: npm run test:full-audit
+      - name: Runtime parity audit
+        run: npm run test:phase2p-runtime
       - name: Recommendations
         run: npm run test:recommendations
       - name: Event E004 tool condition
