@@ -127,20 +127,17 @@ export class GameRoom extends DurableObject{
     if(msg.type==="request_state"){const m=await this.getMatch();if(!m){send(ws,"error",{error:"match_not_started"});return}await this.completeDueActions(m,Date.now());this.sendMatchState(ws,m);return}
     if(msg.type==="chat"){const text=safeText(msg.text,120,"");if(text)this.broadcast("chat",{from:session.sessionId,playerName:session.playerName,text,at:Date.now()});return}
 
-    const commandMap={command_move:"move",command_search:"search",command_rest:"rest",command_craft:"craft",command_use_item:"use_item",command_attack:"attack",command_skill:"skill",command_flee:"flee",command_char_action:"char_action"};
+    const commandMap={command_move:"move",command_search:"search",command_rest:"rest",command_craft:"craft",command_use_item:"use_item",command_attack:"attack",command_skill:"skill",command_flee:"flee",command_char_action:"char_action",command_loot_corpse:"loot_corpse"};
     if(commandMap[msg.type]){
       const m=await this.getMatch();if(!m||m.phase!=="playing"){send(ws,"error",{error:"match_not_playing"});return}
       await this.completeDueActions(m,Date.now());const p=this.matchPlayerForSession(m,session.sessionId);const type=commandMap[msg.type],payload={to:msg.to,id:msg.id};
+      if(type==="loot_corpse"){payload.corpseId=msg.corpseId;payload.kind=msg.kind;payload.qty=msg.qty;payload.replace=!!msg.replace}
       const r=beginServerAction(m,p,type,payload,Date.now());if(!r.ok){send(ws,"error",{error:r.error});return}
       await this.saveMatch(m);await this.scheduleNextAlarm(m);send(ws,"action_accepted",{action:r.action});this.broadcastMatchState(m);return
     }
     if(msg.type==="event_choice"){
       const m=await this.getMatch(),p=this.matchPlayerForSession(m,session.sessionId);if(!m||!p){send(ws,"error",{error:"match_not_playing"});return}
       const r=resolveEventChoice(m,p,Number(msg.index),Date.now());if(!r.ok){send(ws,"error",{error:r.error});return}await this.saveMatch(m);send(ws,"event_result",{result:r});this.broadcastMatchState(m);return
-    }
-    if(msg.type==="loot_corpse"){
-      const m=await this.getMatch(),p=this.matchPlayerForSession(m,session.sessionId);if(!m||!p){send(ws,"error",{error:"match_not_playing"});return}
-      const r=lootCorpse(m,p,msg.corpseId,msg.kind,msg.id,Date.now());if(!r.ok){send(ws,"error",{error:r.error});return}await this.saveMatch(m);send(ws,"loot_result",{result:r});this.broadcastMatchState(m);return
     }
     send(ws,"error",{error:"unknown_message_type",received:msg.type})
   }
