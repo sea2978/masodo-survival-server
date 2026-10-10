@@ -361,6 +361,28 @@ function wildCounter(match,p,w,now){
   if(p.hp<=0)environmentDeath(match,p,now);
   return d;
 }
+function clearOneNegativeStatus(p,now=Date.now()){
+  for(const id of Object.keys(p.statuses||{})){if(status(p,id,now)){delete p.statuses[id];return true}}
+  return false;
+}
+function applySkillSelfEffects(match,p,sd,damageDealt=0,killed=false,now=Date.now()){
+  const fx=combinedFx(p,match,now);
+  if(sd.heal)p.hp=clamp(p.hp+sd.heal*(1+(fx.heal||0)),0,maxHp(p,match,now));
+  if(sd.restoreSp)recoverSp(p,sd.restoreSp,match,now);
+  if(sd.selfDamage){p.hp-=sd.selfDamage;if(p.hp<=0)environmentDeath(match,p,now)}
+  if(sd.freeMove)p.nextMoveFree=true;
+  if(sd.lifesteal&&damageDealt>0)p.hp=clamp(p.hp+damageDealt*sd.lifesteal,0,maxHp(p,match,now));
+  if(sd.killHeal&&killed)p.hp=clamp(p.hp+sd.killHeal,0,maxHp(p,match,now));
+  if(sd.tempGuard){p.tempGuardUntil=now+(sd.tempGuardDuration||8)*1000;p.tempGuardRate=sd.tempGuard}
+}
+function skillDamageVsPlayer(match,p,t,sd,now){
+  const ignore=sd.defIgnore||0,d=Math.max(0,def(t,match,now)*(1-ignore));
+  return Math.max(1,atk(p,match,now)*100/(100+d)*incomingMult(t,match,now));
+}
+function skillDamageVsWild(match,p,w,sd,now){
+  const wt=wildTemplate(w),ignore=sd.defIgnore||0,d=Math.max(0,wt.def*(1-ignore));
+  return Math.max(1,atk(p,match,now)*100/(100+d));
+}
 function attackPlayer(match,p,t,skill=false,now=Date.now()){
   const sd=COMBAT_SKILL_DEFS[p.charId]||{mult:1.08,sp:12,cd:55};
   const ctx=attackContext(match,p,t,skill,now);
@@ -377,45 +399,47 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!hitRoll(p,skill,bonus,match,now)){
-    gainProf(p,.5);p.attackChainTarget=t.playerId;p.attackChainHits=0;const bleedDamage=triggerBleedAction(match,p,now);
+    gainProf(p,.5);p.attackChainTarget=t.playerId;p.attackChainHits=0;
+    if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
+    const bleedDamage=triggerBleedAction(match,p,now);
     return {ok:true,hit:false,damage:0,bleedDamage};
   }
 
-  let d=baseDamage(p,t,match,now)*mult;
   const fx=combinedFx(p,match,now);
+  let d=(skill?skillDamageVsPlayer(match,p,t,sd,now):baseDamage(p,t,match,now))*mult;
   if(skill)d*=1+(fx.skillDamage||0);
-  let crit=Math.random()<clamp(.05+(sd.crit||0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
+  if(skill&&sd.quietBonus&&ctx.quietReady)d*=1+sd.quietBonus;
+  let dispelled=false;
+  if(skill&&sd.dispelOne){dispelled=clearOneNegativeStatus(t,now);if(dispelled)d*=1+(sd.dispelBonus||0)}
+  const canSkillCrit=!skill||!!sd.crit;
+  const crit=canSkillCrit&&Math.random()<clamp(.05+(skill?(sd.crit||0):0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,t,d,ctx,now);
   t.hp-=d;wakeOnDamage(t,now);gainProf(p,1.5);
 
   if(skill){
     for(const row of sd.statuses||[]){
-      const[id,chance,dur,stacks=1]=row;
-      const finalChance=clamp(chance+(fx.statusChance||0),0,.95);
-      if(Math.random()<finalChance)applyStatus(t,id,stacks,dur||5,p.playerId,now,p,match);
+      const[id,chance,dur,stacks=1]=row,finalChance=clamp(chance+(fx.statusChance||0),0,.95);
+      if(Math.random()<finalChance)applyStatus(t,id,stacks,dur||null,p.playerId,now,p,match);
     }
     if(sd.forcePoison)applyStatus(t,"poison",sd.forcePoison,8,p.playerId,now,p,match);
-    if(sd.randomStatus&&Math.random()<.35)applyStatus(t,pick(["poison","bleed","slow"]),1,6,p.playerId,now,p,match);
-    if(sd.doubleRandomStatus)for(const id of pick([["poison","bleed"],["poison","slow"],["bleed","slow"]]))if(Math.random()<.5)applyStatus(t,id,1,6,p.playerId,now,p,match);
-    if(sd.randomControl&&Math.random()<sd.randomControl)applyStatus(t,pick(["slow","bind","fear","confusion","silence"]),1,5,p.playerId,now,p,match);
-    if(sd.heal)p.hp=clamp(p.hp+sd.heal*(1+(fx.heal||0)),0,maxHp(p,match,now));
-    if(sd.restoreSp)recoverSp(p,sd.restoreSp,match,now);
+    if(sd.randomStatus&&Math.random()<clamp(.35+(fx.statusChance||0),0,.95))applyStatus(t,pick(["poison","bleed","slow"]),1,null,p.playerId,now,p,match);
+    if(sd.doubleRandomStatus)for(const id of pick([["poison","bleed"],["poison","slow"],["bleed","slow"]]))if(Math.random()<clamp(.50+(fx.statusChance||0),0,.95))applyStatus(t,id,1,null,p.playerId,now,p,match);
+    if(sd.randomControl&&Math.random()<clamp(sd.randomControl+(fx.statusChance||0),0,.95))applyStatus(t,pick(["slow","bind","fear","confusion","silence"]),1,null,p.playerId,now,p,match);
     if(sd.drainSp)t.sp=Math.max(0,t.sp-sd.drainSp);
-    if(sd.lifesteal)p.hp=clamp(p.hp+d*sd.lifesteal,0,maxHp(p,match,now));
-    if(sd.freeMove)p.nextMoveFree=true;
-    if(sd.tempGuard){p.tempGuardUntil=now+(sd.tempGuardDuration||8)*1000;p.tempGuardRate=sd.tempGuard}
+    if(sd.mark){p.trackingMarks??={};p.trackingMarks[t.playerId]=now+sd.mark*1000}
   }
 
   applyOnHitStatuses(match,p,t,now);
-  const death=t.hp<=0?killPlayer(match,p,t,now):null;
-  if(death?.killed){
+  const death=t.hp<=0?killPlayer(match,p,t,now):null,killed=!!death?.killed;
+  if(skill)applySkillSelfEffects(match,p,sd,d,killed,now);
+  if(killed){
     const kfx=combinedFx(p,match,now);
     if(kfx.killHeal)p.hp=clamp(p.hp+kfx.killHeal,0,maxHp(p,match,now));
     if(kfx.killSp)recoverSp(p,kfx.killSp,match,now);
   }
   const bleedDamage=triggerBleedAction(match,p,now);
-  return {ok:true,hit:true,crit,damage:d,death,bleedDamage};
+  return {ok:true,hit:true,crit,damage:d,death,dispelled,bleedDamage};
 }
 function attackWild(match,p,w,skill=false,now=Date.now()){
   const t=wildTemplate(w),sd=COMBAT_SKILL_DEFS[p.charId]||{mult:1.08,sp:12,cd:55};
@@ -430,29 +454,38 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
+    if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!hitRoll(p,skill,bonus,match,now)){
-    gainProf(p,.5);p.attackChainTarget=w.id;p.attackChainHits=0;const bleedDamage=triggerBleedAction(match,p,now);
+    gainProf(p,.5);p.attackChainTarget=w.id;p.attackChainHits=0;
+    if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
+    const bleedDamage=triggerBleedAction(match,p,now);
     return {ok:true,hit:false,damage:0,counter:wildCounter(match,p,w,now),bleedDamage};
   }
+
   const fx=combinedFx(p,match,now);
-  let d=Math.max(1,Math.round(atk(p,match,now)*100/(100+t.def)*mult));
+  let d=(skill?skillDamageVsWild(match,p,w,sd,now):Math.max(1,atk(p,match,now)*100/(100+t.def)))*mult;
   if(skill)d*=1+(fx.skillDamage||0);
-  const crit=Math.random()<clamp(.05+(sd.crit||0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
+  if(skill&&sd.quietBonus&&ctx.quietReady)d*=1+sd.quietBonus;
+  const canSkillCrit=!skill||!!sd.crit;
+  const crit=canSkillCrit&&Math.random()<clamp(.05+(skill?(sd.crit||0):0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,w,d,ctx,now);
   if(t.skill==="guard"&&w.guardReady){w.guardReady=false;d=Math.max(1,Math.round(d*.8))}
   w.hp-=d;gainProf(p,1.5);
-  let drop=null,extra=[];
+
+  let drop=null,extra=[],killed=false;
   if(w.hp<=0){
-    w.alive=false;w.hp=0;drop=pick(t.drop);addItem(p,drop);
+    killed=true;w.alive=false;w.hp=0;drop=pick(t.drop);addItem(p,drop);
     if(t.skill==="supply_cache")for(let i=0;i<2;i++){const x=pick(t.drop);if(addItem(p,x))extra.push(x)}
-    if(fx.killHeal)p.hp=clamp(p.hp+fx.killHeal,0,maxHp(p,match,now));
-    if(fx.killSp)recoverSp(p,fx.killSp,match,now);
+    const kfx=combinedFx(p,match,now);
+    if(kfx.killHeal)p.hp=clamp(p.hp+kfx.killHeal,0,maxHp(p,match,now));
+    if(kfx.killSp)recoverSp(p,kfx.killSp,match,now);
   }
+  if(skill)applySkillSelfEffects(match,p,sd,d,killed,now);
   const bleedDamage=triggerBleedAction(match,p,now);
   const counter=w.alive&&p.alive?wildCounter(match,p,w,now):0;
-  return {ok:true,hit:true,crit,damage:d,killed:!w.alive,drop,extra,counter,bleedDamage};
+  return {ok:true,hit:true,crit,damage:d,killed,drop,extra,counter,bleedDamage};
 }
 function searchResult(match,p,now){
   p.sp=Math.max(0,p.sp-3);
