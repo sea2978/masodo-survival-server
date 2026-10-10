@@ -902,7 +902,7 @@ export function completeAction(match,p,now=Date.now()){
   p.pendingAction=null;
   const type=a.type,x=a.payload||{};let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
-  else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};
+  else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};}
   else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
   else if(type==="craft"){result={...result,...craftItem(match,p,x.id)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
