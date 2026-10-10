@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node tests/engine_smoke.mjs"
+    "test": "node tests/engine_smoke.mjs && node tests/catalog_smoke.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
