@@ -7,6 +7,42 @@ const pick=a=>a[Math.floor(Math.random()*a.length)];
 const nowSec=(match,now=Date.now())=>Math.max(0,(now-match.startedAt)/1000);
 const item=id=>ITEMS[id]||null;
 const char=p=>CHARACTER_BY_ID.get(p.charId)||CHARACTER_BY_ID.get("c01");
+const SPECIAL_ROUTE_REGION={
+  special_01:"estate",special_02:"city",special_03:"church",special_04:"mgmt_lab",
+  special_05:"mgmt_training",special_06:"mgmt_training",special_07:"mgmt_admin",special_08:"church",
+  special_09:"evil_quarters",special_10:"city",special_11:"factory",special_12:"church",
+  special_13:"mgmt_training",special_14:"estate",special_15:"mgmt_training",special_16:"estate",
+  special_17:"evil_training",special_18:"mgmt_training",special_19:"evil_training",special_20:"estate",
+  special_21:"mgmt_training",special_22:"estate",special_23:"factory",special_24:"factory",
+  special_25:"church",special_26:"estate",special_27:"mgmt_lab",special_28:"evil_training",
+  special_29:"evil_quarters",special_30:"evil_training",special_31:"city",special_32:"mgmt_lab",
+  special_33:"church",special_34:"mgmt_lab",special_35:"evil_training",special_36:"evil_quarters",
+  special_37:"evil_quarters",special_38:"city",special_39:"evil_training",special_40:"mgmt_lab",
+  special_41:"city"
+};
+function isSpecialMaterial(id){return /^special_\d{2}$/.test(id)&&!!item(id)}
+function initUniqueSpecials(){
+  const out={};for(let i=1;i<=41;i++){const id="special_"+String(i).padStart(2,"0");out[id]={state:"unspawned",holderId:null,region:null}}return out
+}
+function specialState(match,id){return match.uniqueSpecials?.[id]||null}
+function grantSpecial(match,p,id){
+  const s=specialState(match,id);if(!s||s.state!=="unspawned"||(p.mat[id]||0)>0)return false;
+  p.mat[id]=(p.mat[id]||0)+1;s.state="held";s.holderId=p.playerId;s.region=null;return true
+}
+function pickupGroundSpecial(match,p,id){
+  const s=specialState(match,id);if(!s||s.state!=="ground"||s.region!==p.region)return false;
+  p.mat[id]=(p.mat[id]||0)+1;s.state="held";s.holderId=p.playerId;s.region=null;return true
+}
+function dropSpecialsFromPlayer(match,p,region=p.region){
+  for(const[id,n]of Object.entries(p.mat||{})){if(!isSpecialMaterial(id)||n<=0)continue;p.mat[id]=0;const s=specialState(match,id);if(s&&s.state!=="consumed"){s.state="ground";s.holderId=null;s.region=region}}
+}
+function markSpecialConsumed(match,id){
+  if(!isSpecialMaterial(id))return;const s=specialState(match,id);if(s){s.state="consumed";s.holderId=null;s.region=null}
+}
+function groundSpecialsInRegion(match,region){return Object.entries(match.uniqueSpecials||{}).filter(([,s])=>s.state==="ground"&&s.region===region).map(([id])=>id)}
+function regionSpecialCandidates(match,region){return Object.entries(SPECIAL_ROUTE_REGION).filter(([id,r])=>r===region&&specialState(match,id)?.state==="unspawned").map(([id])=>id)}
+function findItemIdByExactName(name){return Object.keys(ITEMS).find(id=>ITEMS[id]?.n===name)||null}
+
 
 function tempFx(p,match,now=Date.now()){
   const out={};
@@ -79,9 +115,9 @@ function consumeItem(p,id,n=1){
   return true
 }
 function canCraft(p,id){const r=item(id)?.r;return !!r&&Object.entries(r).every(([k,v])=>owned(p,k)>=v)}
-function craftItem(p,id){
+function craftItem(match,p,id){
   const it=item(id);if(!it||!canCraft(p,id))return {ok:false,error:"recipe_missing"};
-  for(const[k,v]of Object.entries(it.r))if(!consumeItem(p,k,v))return {ok:false,error:"recipe_race"};
+  for(const[k,v]of Object.entries(it.r)){if(!consumeItem(p,k,v))return {ok:false,error:"recipe_race"};if(isSpecialMaterial(k)&&(p.mat[k]||0)<=0)markSpecialConsumed(match,k)}
   if(!addItem(p,id,1))return {ok:false,error:"inventory_full"};
   return {ok:true,itemId:id,itemName:it.n};
 }
@@ -122,7 +158,7 @@ export function updatePassiveTime(match,now=Date.now()){
 export function initWorld(match){
   let seq=1;match.wilds=[];
   for(const t of WILD_TEMPLATES)for(const region of t.regions)match.wilds.push({id:"w"+seq++,templateId:t.id,region,hp:t.hp,alive:true,guardReady:t.skill==="guard"});
-  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];
+  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.uniqueSpecials=initUniqueSpecials();
 }
 function wildTemplate(w){return WILD_TEMPLATES.find(x=>x.id===w.templateId)}
 function playerById(match,id){return match.players.find(p=>p.playerId===id)}
@@ -154,9 +190,10 @@ function wildDamage(a,w,match,now){
 }
 function killPlayer(match,a,b,now){
   const fx=PASSIVE_FX[b.charId]||{};
-  if(fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));return {revived:true}}
+  if(fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));b.statuses={};return {revived:true}}
   b.alive=false;b.encounter=null;a.kills++;
-  const corpse={id:"corpse_"+b.playerId+"_"+now,name:b.playerName,region:b.region,eq:[...b.eq],mat:{...b.mat},con:{...b.con},expiresAt:now+75000};
+  dropSpecialsFromPlayer(match,b,b.region);
+  const corpse={id:"corpse_"+b.playerId+"_"+now,name:b.playerName,region:b.region,eq:[...b.eq],mat:Object.fromEntries(Object.entries(b.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id))),con:{...b.con},expiresAt:now+75000};
   match.corpses.push(corpse);b.eq=[];b.mat={};b.con={};
   return {killed:true}
 }
@@ -228,6 +265,10 @@ function searchResult(match,p,now){
     const pool=ENCOUNTER_EVENTS.filter(e=>e.region===p.region&&e.id!==match.lastEventId);
     if(pool.length){const e=pick(pool);match.lastEventId=e.id;match.eventPity[p.region]=0;p.pendingEvent=e.id;return {kind:"event",event:e}}
   } else match.eventPity[p.region]=(match.eventPity[p.region]||0)+.007;
+  const ground=groundSpecialsInRegion(match,p.region);
+  if(ground.length&&Math.random()<.35){const id=pick(ground);if(pickupGroundSpecial(match,p,id))return {kind:"special",itemId:id,itemName:item(id)?.n||id,source:"ground"}}
+  const regional=regionSpecialCandidates(match,p.region);
+  if(regional.length&&Math.random()<.035){const id=pick(regional);if(grantSpecial(match,p,id))return {kind:"special",itemId:id,itemName:item(id)?.n||id,source:"search"}}
   const humans=match.players.filter(x=>x!==p&&x.alive&&x.region===p.region);
   if(humans.length&&Math.random()<.70){const t=pick(humans);p.encounter={kind:"player",targetId:t.playerId};return {kind:"player",target:{playerId:t.playerId,playerName:t.playerName,charId:t.charId,hp:t.hp,maxHp:t.maxHp}}}
   const wilds=match.wilds.filter(w=>w.alive&&w.region===p.region&&nowSec(match,now)>=wildTemplate(w).after);
@@ -321,7 +362,7 @@ export function completeAction(match,p,now=Date.now()){
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.nextMoveFree=false;p.encounter=null;result.to=x.to}
   else if(type==="search")result={...result,...searchResult(match,p,now)};
   else if(type==="rest"){p.hp=clamp(p.hp+5*(1+(combinedFx(p,match,now).restHeal||0)),0,maxHp(p,match,now));p.sp=clamp(p.sp+12*(1+(combinedFx(p,match,now).restSp||0)),0,p.maxSp)}
-  else if(type==="craft"){result={...result,...craftItem(p,x.id)};p.nextCraftTimeMult=1}
+  else if(type==="craft"){result={...result,...craftItem(match,p,x.id)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
   else if(type==="attack"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,false,now):attackWild(match,p,t.obj,false,now)):{ok:false,error:"target_lost"};p.encounter=null}
   else if(type==="skill"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,true,now):attackWild(match,p,t.obj,true,now)):{ok:false,error:"target_lost"};p.encounter=null}
@@ -333,18 +374,32 @@ export function completeAction(match,p,now=Date.now()){
 export function resolveEventChoice(match,p,index,now=Date.now()){
   const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(!e)return {ok:false,error:"no_event"};
   const choice=e.choices?.[index];if(!choice)return {ok:false,error:"invalid_choice"};
-  p.pendingEvent=null;
-  // Exact event text is preserved; bespoke mechanical parsing remains intentionally conservative.
-  const pool=POOLS[p.region]||[];const rewards=[];
-  const count=/2~4|2~3|2개|3개/.test(choice.result)?2:1;
-  for(let i=0;i<count&&pool.length;i++){const id=pick(pool);if(addItem(p,id)){rewards.push(id)}}
-  if(/HP \+18/.test(choice.result))p.hp=clamp(p.hp+18,0,maxHp(p,match,now));
-  if(/HP \+10/.test(choice.result))p.hp=clamp(p.hp+10,0,maxHp(p,match,now));
-  if(/SP \+20/.test(choice.result))p.sp=clamp(p.sp+20,0,p.maxSp);
-  if(/SP \+18/.test(choice.result))p.sp=clamp(p.sp+18,0,p.maxSp);
-  if(/SP \+14/.test(choice.result))p.sp=clamp(p.sp+14,0,p.maxSp);
-  if(/SP \+10/.test(choice.result))p.sp=clamp(p.sp+10,0,p.maxSp);
-  return {ok:true,eventId:e.id,choiceIndex:index,text:choice.result,rewards};
+  p.pendingEvent=null;const text=choice.result||"",rewards=[];
+  for(const m of text.matchAll(/HP\s*([+-])\s*(\d+)/g)){const n=+m[2]*(m[1]==="-"?-1:1);p.hp=clamp(p.hp+n,0,maxHp(p,match,now))}
+  for(const m of text.matchAll(/SP\s*([+-])\s*(\d+)/g)){const n=+m[2]*(m[1]==="-"?-1:1);p.sp=clamp(p.sp+n,0,p.maxSp)}
+  const names=(e.special||"").split("/").map(x=>x.trim()).filter(Boolean);
+  const specialIds=names.map(findItemIdByExactName).filter(id=>id&&text.includes(item(id)?.n||""));
+  if(specialIds.length){
+    const guaranteed=!/판정|확률/.test(text),boost=/크게 상승|상승|증가/.test(text),chance=guaranteed?1:(boost?.78:.55);
+    if(Math.random()<chance){
+      const valid=specialIds.filter(id=>specialState(match,id)?.state==="unspawned");
+      if(valid.length){const id=pick(valid);if(grantSpecial(match,p,id))rewards.push(id)}
+    }
+  }
+  let count=1;const range=text.match(/(\d+)~(\d+)개/);if(range)count=Math.floor(+range[1]+Math.random()*(+range[2]-+range[1]+1));else{const n=text.match(/(\d+)개/);if(n)count=+n[1]}
+  const exact=Object.entries(ITEMS).filter(([id,it])=>!isSpecialMaterial(id)&&it?.n&&text.includes(it.n)).sort((a,b)=>b[1].n.length-a[1].n.length);
+  const used=new Set();
+  for(const[id,it]of exact){if([...used].some(n=>n.includes(it.n)||it.n.includes(n)))continue;for(let i=0;i<Math.min(count,3);i++)if(addItem(p,id)){rewards.push(id);used.add(it.n)}}
+  const pool=POOLS[p.region]||[];
+  if(!rewards.length&&/일반재료|고급재료|재료|음식|음료|약품|배터리|전자부품|기계부품|정밀부품/.test(text)){
+    for(let i=0;i<Math.min(count,3)&&pool.length;i++){const id=pick(pool);if(addItem(p,id))rewards.push(id)}
+  }
+  if(/독성 상태|중독/.test(text))applyStatus(p,"poison",1,8,null,now);
+  for(const[ko,id]of[["혼란","confusion"],["공포","fear"],["수면","sleep"]]){const m=text.match(new RegExp(ko+"\\s*(\\d+)초"));if(m)applyStatus(p,id,1,+m[1],null,now)}
+  if(/공포·혼란 지속시간 -20%/.test(text)){for(const id of["fear","confusion"]){const s=p.statuses?.[id];if(s&&s.until>now)s.until=now+(s.until-now)*.8}}
+  if(/다음.*제작시간 -50%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.5);
+  if(/다음.*제작시간 -20%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.8);
+  return {ok:true,eventId:e.id,choiceIndex:index,text,rewards};
 }
 export function lootCorpse(match,p,corpseId,kind,id,now=Date.now()){
   const c=match.corpses.find(x=>x.id===corpseId&&x.region===p.region&&x.expiresAt>now);if(!c)return {ok:false,error:"corpse_missing"};
@@ -458,7 +513,7 @@ export function runAIStep(match,p,now=Date.now()){
   if((match.corpses||[]).some(c=>c.region===p.region&&c.expiresAt>now)&&Math.random()<(p.ai==="craft" ? .28 : .16)){if(aiLootCorpse(match,p,now))return true}
   const heal=aiBestHeal(p);if(heal&&(aiHpRatio(match,p,now)<.48||aiHasBadStatus(p,now))){useConsumable(match,p,heal,now);return true}
   if(aiShouldUseAction(match,p,now)){const r=charAction(match,p,now);if(r.ok)return true}
-  const craftId=aiChooseCraft(p);if(craftId&&((p.ai==="craft"&&Math.random()<.65)||Math.random()<.18)){if(craftItem(p,craftId).ok)return true}
+  const craftId=aiChooseCraft(p);if(craftId&&((p.ai==="craft"&&Math.random()<.65)||Math.random()<.18)){if(craftItem(match,p,craftId).ok)return true}
   const crowded=sameRegion(match,p.region).length-1;
   if(!status(p,"bind",now)&&p.ai==="safe"&&crowded>0&&aiHpRatio(match,p,now)<.65){
     const to=aiMoveChoice(match,p);if(to){const mv=movementProfile(p.region,to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp>=cost){p.region=to;p.sp-=cost;p.nextMoveFree=false;return true}}
