@@ -6,6 +6,10 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const nowSec=(match,now=Date.now())=>Math.max(0,(now-match.startedAt)/1000);
 const item=id=>ITEMS[id]||null;
+const STATUS_DEFS={
+  poison:{duration:8,max:3},bleed:{duration:10,max:3},slow:{duration:6,max:2},bind:{duration:2.5,max:1},
+  sleep:{duration:3,max:1},fear:{duration:5,max:1},confusion:{duration:5,max:1},silence:{duration:3,max:1},actionDelay:{duration:3,max:1}
+};
 const char=p=>CHARACTER_BY_ID.get(p.charId)||CHARACTER_BY_ID.get("c01");
 const SPECIAL_ROUTE_REGION={
   special_01:"estate",special_02:"city",special_03:"church",special_04:"mgmt_lab",
@@ -154,21 +158,46 @@ function craftItem(match,p,id){
   return {ok:true,itemId:id,itemName:it.n};
 }
 function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.until>now?s:null}
-function applyStatus(p,id,stacks=1,duration=5,sourceId=null,now=Date.now(),source=null,match=null){
-  p.statuses??={};
-  if(id==="sleep"&&(p.statusImmunity?.sleepUntil||0)>now)return false;
+function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null){
+  p.statuses??={};const defn=STATUS_DEFS[id];if(!defn)return false;
+  if((p.statusImmunity?.[id]||0)>now)return false;
   const targetFx=match?combinedFx(p,match,now):{};
   if(id==="actionDelay"&&targetFx.delayResist&&Math.random()<targetFx.delayResist)return false;
-  let dur=duration;
+  let dur=duration??defn.duration;
   if(source&&match&&["slow","bind","sleep","fear","confusion","silence","actionDelay"].includes(id)){
     dur*=1+(combinedFx(source,match,now).controlDuration||0)+(combinedFx(source,match,now).statusDuration||0);
   }
   if(targetFx.incomingStatusDuration)dur*=Math.max(.5,1+targetFx.incomingStatusDuration);
   if(id==="poison"&&targetFx.poisonDurationTaken)dur*=Math.max(.5,1+targetFx.poisonDurationTaken);
-  const max=id==="poison"||id==="bleed"?3:id==="slow"?2:1;
   const old=p.statuses[id];
-  p.statuses[id]={stacks:clamp((old?.until>now?old.stacks:0)+stacks,1,max),until:now+dur*1000,sourceId};
-  return true
+  if(id==="bind"&&old?.until>now){
+    old.until=Math.min(now+3500,old.until+1000);
+    if(sourceId!=null)old.sourceId=sourceId;
+    return true;
+  }
+  p.statuses[id]={stacks:clamp((old?.until>now?old.stacks:0)+stacks,1,defn.max),until:now+dur*1000,sourceId};
+  return true;
+}
+function wakeOnDamage(p,now=Date.now()){
+  if(status(p,"sleep",now)){
+    delete p.statuses.sleep;p.statusImmunity??={};p.statusImmunity.sleep=now+12000;
+    return true;
+  }
+  return false;
+}
+function awardStatusKill(match,victim,sourceId,now){
+  const killer=match.players.find(x=>x.playerId===sourceId&&x!==victim&&x.alive);
+  const fx=PASSIVE_FX[victim.charId]||{};
+  if(fx.revive&&!victim.rev){victim.rev=true;victim.hp=Math.min(18,maxHp(victim,match,now));victim.statuses={};return {revived:true,killerId:killer?.playerId||null}}
+  victim.alive=false;victim.encounter=null;
+  if(killer){
+    killer.kills++;
+    const kfx=combinedFx(killer,match,now);
+    if(kfx.killHeal)killer.hp=clamp(killer.hp+kfx.killHeal,0,maxHp(killer,match,now));
+    if(kfx.killSp)recoverSp(killer,kfx.killSp,match,now);
+  }
+  createDeathCorpse(match,victim,now);
+  return {killed:true,killerId:killer?.playerId||null};
 }
 function cleanseExpired(p,now){
   for(const[id,s]of Object.entries(p.statuses||{}))if(!s||s.until<=now)delete p.statuses[id];
@@ -181,11 +210,15 @@ function updateSatiety(match,p,now){
 }
 function applyStatusTicks(match,p,now){
   p.nextStatusTick??=match.startedAt;
-  while(p.nextStatusTick+2000<=now){
+  while(p.alive&&p.nextStatusTick+2000<=now){
     p.nextStatusTick+=2000;
-    const poison=p.statuses?.poison;if(poison?.until>p.nextStatusTick)p.hp-=maxHp(p,match,p.nextStatusTick)*.02*(poison.stacks||1);
+    const poison=p.statuses?.poison;
+    if(poison?.until>p.nextStatusTick){
+      p.hp-=Math.max(1,Math.round(maxHp(p,match,p.nextStatusTick)*.02*(poison.stacks||1)));
+      wakeOnDamage(p,p.nextStatusTick);
+      if(p.hp<=0){awardStatusKill(match,p,poison.sourceId,p.nextStatusTick);break}
+    }
   }
-  if(p.hp<=0)p.alive=false;
 }
 export function updatePassiveTime(match,now=Date.now()){
   for(const p of match.players){
@@ -242,8 +275,8 @@ function onTargetDetected(seeker,target,match,now){
 }
 function triggerBleedAction(match,p,now){
   const s=status(p,"bleed",now);if(!s||!p.alive)return 0;
-  const d=2*(s.stacks||1);p.hp-=d;
-  if(p.hp<=0)environmentDeath(match,p,now);
+  const d=2*(s.stacks||1);p.hp-=d;wakeOnDamage(p,now);
+  if(p.hp<=0)awardStatusKill(match,p,s.sourceId,now);
   return d;
 }
 function attackContext(match,p,target,skill,now){
@@ -316,16 +349,16 @@ function killPlayer(match,a,b,now){
 }
 function wildCounter(match,p,w,now){
   if(!p.alive||!w.alive)return 0;
-  const t=wildTemplate(w),d=wildDamage(p,w,match,now);p.hp-=d;
-  if(t.skill==="bite_bleed"&&Math.random()<.20)applyStatus(p,"bleed",1,10,w.id,now);
-  else if(t.skill==="scan_delay"&&Math.random()<.20)applyStatus(p,"actionDelay",1,3,w.id,now);
-  else if(t.skill==="emp"&&Math.random()<.20)applyStatus(p,"silence",1,3,w.id,now);
-  else if(t.skill==="toxic"&&Math.random()<.30)applyStatus(p,"poison",1,8,w.id,now);
-  else if(t.skill==="chimera_status"&&Math.random()<.30)applyStatus(p,pick(["poison","bleed","slow"]),1,6,w.id,now);
-  else if(t.skill==="phantom_fear"&&Math.random()<.25)applyStatus(p,"fear",1,5,w.id,now);
+  const t=wildTemplate(w),d=wildDamage(p,w,match,now);p.hp-=d;wakeOnDamage(p,now);
+  if(t.skill==="bite_bleed"&&Math.random()<.20)applyStatus(p,"bleed",1,10,w.id,now,null,match);
+  else if(t.skill==="scan_delay"&&Math.random()<.20)applyStatus(p,"actionDelay",1,3,w.id,now,null,match);
+  else if(t.skill==="emp"&&Math.random()<.20)applyStatus(p,"silence",1,3,w.id,now,null,match);
+  else if(t.skill==="toxic"&&Math.random()<.30)applyStatus(p,"poison",1,8,w.id,now,null,match);
+  else if(t.skill==="chimera_status"&&Math.random()<.30)applyStatus(p,pick(["poison","bleed","slow"]),1,null,w.id,now,null,match);
+  else if(t.skill==="phantom_fear"&&Math.random()<.25)applyStatus(p,"fear",1,5,w.id,now,null,match);
   else if(t.skill==="pilfer"&&Math.random()<.20)p.sp=Math.max(0,p.sp-5);
   else if(t.skill==="mana_bite"&&Math.random()<.20)p.sp=Math.max(0,p.sp-8);
-  if(p.hp<=0)p.alive=false;
+  if(p.hp<=0)environmentDeath(match,p,now);
   return d;
 }
 function attackPlayer(match,p,t,skill=false,now=Date.now()){
@@ -354,7 +387,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   let crit=Math.random()<clamp(.05+(sd.crit||0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,t,d,ctx,now);
-  t.hp-=d;gainProf(p,1.5);
+  t.hp-=d;wakeOnDamage(t,now);gainProf(p,1.5);
 
   if(skill){
     for(const row of sd.statuses||[]){
