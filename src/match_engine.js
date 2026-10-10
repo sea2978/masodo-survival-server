@@ -503,11 +503,41 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
   const counter=w.alive&&p.alive?wildCounter(match,p,w,now):0;
   return {ok:true,hit:true,crit,damage:d,killed,drop,extra,counter,bleedDamage};
 }
+function hasEquippedWeaponType(p,type){return (p.eq||[]).some(id=>item(id)?.weaponType===type)}
+function hasTool(p){return hasEquippedWeaponType(p,"도구")}
+function hasTerminal(p){return hasEquippedWeaponType(p,"단말")}
+function metalMaterialKinds(p){return ["iron","steel","alloy","silver","wire"].filter(id=>(p.mat?.[id]||0)>0).length}
+function eventEligibleForPlayer(e,p){
+  const cond=e?.condition||"";
+  if(cond==="금속 재료 2종 이상 보유")return metalMaterialKinds(p)>=2;
+  return true;
+}
+export function eventChoiceAvailability(e,p,index){
+  const choice=e?.choices?.[index];if(!choice)return{available:false,reason:"선택지 없음"};
+  const text=(choice.label||"")+" "+(choice.result||"");
+  if(/도구 보유 시/.test(text)||/도구로/.test(choice.label||"")){
+    if(!hasTool(p))return{available:false,reason:"도구 장비 필요"};
+  }
+  if(/정밀부품 1개 소비/.test(text)){
+    if((p.mat?.precision||0)<1)return{available:false,reason:"정밀부품 1개 필요"};
+  }
+  if(/단말 태그 보유 시/.test(text)||/단말로/.test(choice.label||"")){
+    if(!hasTerminal(p))return{available:false,reason:"단말 장비 필요"};
+  }
+  if(e.id==="E078"&&index===0&&!hasTool(p)&&(p.mat?.precision||0)<1)return{available:false,reason:"도구 또는 정밀부품 필요"};
+  return{available:true,reason:""};
+}
+function consumeEventChoiceCost(e,p,index){
+  const choice=e?.choices?.[index],text=choice?.result||"";
+  if(/정밀부품 1개 소비/.test(text))consumeItem(p,"precision",1);
+}
 function searchResult(match,p,now){
   p.sp=Math.max(0,p.sp-3);
   const eventChance=Math.min(.12,.05+(match.eventPity[p.region]||0));
   if(Math.random()<eventChance){
-    const pool=ENCOUNTER_EVENTS.filter(e=>e.region===p.region&&e.id!==match.lastEventId);
+    let pool=ENCOUNTER_EVENTS.filter(e=>e.region===p.region&&e.id!==match.lastEventId&&eventEligibleForPlayer(e,p));
+    const normal=pool.filter(e=>e.condition!=="매우 낮은 확률"),rare=pool.filter(e=>e.condition==="매우 낮은 확률");
+    if(rare.length&&Math.random()<.12)pool=rare;else if(normal.length)pool=normal;
     if(pool.length){const e=pick(pool);match.lastEventId=e.id;match.eventPity[p.region]=0;p.pendingEvent=e.id;return {kind:"event",event:e}}
   } else match.eventPity[p.region]=(match.eventPity[p.region]||0)+.007;
   const ground=groundSpecialsInRegion(match,p.region);
@@ -845,6 +875,8 @@ function advanceEventTime(match,sec,now=Date.now()){
 export function resolveEventChoice(match,p,index,now=Date.now()){
   const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(!e)return {ok:false,error:"no_event"};
   const choice=e.choices?.[index];if(!choice)return {ok:false,error:"invalid_choice"};
+  const availability=eventChoiceAvailability(e,p,index);if(!availability.available)return {ok:false,error:"event_choice_unavailable",reason:availability.reason};
+  consumeEventChoiceCost(e,p,index);
   p.pendingEvent=null;const text=choice.result||"",rewards=[],summary=[];
 
   const tm=text.match(/시간 \+(\d+)초/);
