@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "npm run test:engine && npm run test:catalog && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:simulation",
+    "test": "npm run test:engine && npm run test:catalog && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:simulation && npm run test:multi-sim",
     "test:engine": "node tests/engine_smoke.mjs",
     "test:catalog": "node tests/catalog_smoke.mjs",
     "test:recommendations": "node tests/recommendation_smoke.mjs",
@@ -15,7 +15,10 @@
     "test:event-e004": "node tests/event_condition_e004.mjs",
     "test:event-e008": "node tests/event_condition_e008.mjs",
     "test:intel": "node tests/intel_smoke.mjs",
-    "test:concurrency": "node tests/concurrency_smoke.mjs"
+    "test:concurrency": "node tests/concurrency_smoke.mjs",
+    "test:combat-concurrency": "node tests/combat_concurrency.mjs",
+    "test:passive-audit": "node tests/passive_audit.mjs",
+    "test:multi-sim": "node tests/multi_match_simulation.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
