@@ -718,7 +718,7 @@ function recipeProgress(p,it){
   let have=0,need=0;const missing=[];
   for(const[id,n]of Object.entries(it.r)){
     const count=owned(p,id);need+=n;have+=Math.min(n,count);
-    if(count<n)missing.push({id,name:item(id)?.n||id,need:n-have+Math.min(n,count),have:count,missing:n-count});
+    if(count<n)missing.push({id,name:item(id)?.n||id,need:n,have:count,missing:n-count});
   }
   return{ready:missing.length===0,have,need,missing};
 }
@@ -1109,14 +1109,6 @@ function aiShouldAvoidFight(match,p,target,now){
   if(aiHpRatio(match,p,now)<.28)threshold+=.25;
   return ownPower<foePower*threshold
 }
-function aiResolveEncounter(match,p,target,now){
-  if(!p.alive||!target)return;
-  if(aiShouldAvoidFight(match,p,target,now)){p.encounter=null;return}
-  const skillScore=aiSkillUtility(match,p,target,now),useSkill=target.kind==="player"?(skillScore>.85||(skillScore>.45&&Math.random()<.45)):(skillScore>.90||(skillScore>.50&&Math.random()<.35));
-  if(target.kind==="player")attackPlayer(match,p,target.obj,useSkill,now);
-  else attackWild(match,p,target.obj,useSkill,now);
-  p.encounter=null;
-}
 function aiActionUtility(match,p,now){
   if((p.cdAUntil||0)>now||p.encounter||status(p,"sleep",now))return 0;
   const d=ACTION_SKILL_DEFS[p.charId]||{};let score=.10;
@@ -1166,8 +1158,11 @@ export function runAIStep(match,p,now=Date.now()){
 
   if(p.pendingEvent){
     const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);
-    if(e?.choices?.length)resolveEventChoice(match,p,Math.floor(Math.random()*e.choices.length),now);
-    else p.pendingEvent=null;
+    if(e?.choices?.length){
+      const available=e.choices.map((_,i)=>i).filter(i=>eventChoiceAvailability(e,p,i).available);
+      if(available.length)resolveEventChoice(match,p,pick(available),now);
+      else p.pendingEvent=null;
+    }else p.pendingEvent=null;
     return true;
   }
 
