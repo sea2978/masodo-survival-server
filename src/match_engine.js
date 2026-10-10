@@ -1,6 +1,6 @@
 import { CHARACTER_BY_ID, ADJACENCY, movementProfile } from "./game_data.js";
 import { ITEMS, POOLS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
-import { PASSIVE_FX, COMBAT_SKILL_DEFS, ACTION_SKILL_DEFS } from "./skill_defs.js";
+import { PASSIVE_FX, COMBAT_SKILL_DEFS, ACTION_SKILL_DEFS, NAMED_GEAR_FX } from "./skill_defs.js";
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
@@ -55,6 +55,8 @@ function combinedFx(p,match,now=Date.now()){
   for(const[k,v]of Object.entries(tempFx(p,match,now)))out[k]=(out[k]||0)+v;
   for(const id of p.eq||[]){
     const it=item(id);if(!it)continue;
+    const named=NAMED_GEAR_FX[id];
+    if(named)for(const[k,v]of Object.entries(named))if(typeof v==="number")out[k]=(out[k]||0)+v;
     if(id==="synergy_01"){out.markHit=(out.markHit||0)+.05;out.trackingDuration=(out.trackingDuration||0)+.20}
     if(id==="synergy_02"){out.conceal=(out.conceal||0)+.07;out.quietDamage=(out.quietDamage||0)+.04}
     if(id==="synergy_03"){out.poisonChance=(out.poisonChance||0)+.06;out.poisonDamage=(out.poisonDamage||0)+.03}
@@ -85,7 +87,9 @@ function def(p,match,now=Date.now()){
   return Math.max(0,v);
 }
 function incomingMult(p,match,now=Date.now()){
-  let m=1+(combinedFx(p,match,now).damageTaken||0);
+  const fx=combinedFx(p,match,now);
+  let m=1+(fx.damageTaken||0)+(fx.taken||0);
+  if((p.eq||[]).includes("plate")&&p.hp/maxHp(p,match,now)>=.5)m*=.97;
   if(p.tempGuardUntil>now)m*=1-(p.tempGuardRate||0);
   return Math.max(.25,m);
 }
@@ -150,12 +154,20 @@ function craftItem(match,p,id){
   return {ok:true,itemId:id,itemName:it.n};
 }
 function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.until>now?s:null}
-function applyStatus(p,id,stacks=1,duration=5,sourceId=null,now=Date.now()){
+function applyStatus(p,id,stacks=1,duration=5,sourceId=null,now=Date.now(),source=null,match=null){
   p.statuses??={};
-  if(id==="sleep"&&p.statusImmunity?.sleepUntil>now)return false;
+  if(id==="sleep"&&(p.statusImmunity?.sleepUntil||0)>now)return false;
+  const targetFx=match?combinedFx(p,match,now):{};
+  if(id==="actionDelay"&&targetFx.delayResist&&Math.random()<targetFx.delayResist)return false;
+  let dur=duration;
+  if(source&&match&&["slow","bind","sleep","fear","confusion","silence","actionDelay"].includes(id)){
+    dur*=1+(combinedFx(source,match,now).controlDuration||0)+(combinedFx(source,match,now).statusDuration||0);
+  }
+  if(targetFx.incomingStatusDuration)dur*=Math.max(.5,1+targetFx.incomingStatusDuration);
+  if(id==="poison"&&targetFx.poisonDurationTaken)dur*=Math.max(.5,1+targetFx.poisonDurationTaken);
   const max=id==="poison"||id==="bleed"?3:id==="slow"?2:1;
   const old=p.statuses[id];
-  p.statuses[id]={stacks:clamp((old?.until>now?old.stacks:0)+stacks,1,max),until:now+duration*1000,sourceId};
+  p.statuses[id]={stacks:clamp((old?.until>now?old.stacks:0)+stacks,1,max),until:now+dur*1000,sourceId};
   return true
 }
 function cleanseExpired(p,now){
@@ -254,7 +266,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   if(skill){
     if(status(p,"silence"))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
-    spCost=Math.max(0,(sd.sp??12)-(p.nextSkillSpDiscount||0));if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
+    {const fx=combinedFx(p,match,now);spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));}if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
     p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*1000;bonus=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
@@ -451,7 +463,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(["attack","skill","flee"].includes(type)&&!encounterTarget(match,p))return {ok:false,error:"no_encounter"};
   if(type==="skill"){
     const sd=COMBAT_SKILL_DEFS[p.charId]||{sp:12,cd:55};
-    const cost=Math.max(0,(sd.sp??12)-(p.nextSkillSpDiscount||0));
+    const fx=combinedFx(p,match,now),cost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
     if(p.sp<cost)return {ok:false,error:"not_enough_sp"};
