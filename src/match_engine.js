@@ -577,7 +577,8 @@ function searchResult(match,p,now){
     if(rare.length&&Math.random()<.12)pool=rare;else if(normal.length)pool=normal;
     if(pool.length){
       const specialBoost=mods.nextSpecialEventBoost||0;
-      const e=weightedPick(pool,x=>1+(mods.eventWeights[x.id]?.bonus||0)+(x.type?.includes("특수")?specialBoost:0));
+      const specialRegional=mods.regionSpecialEventBoosts[p.region]?.bonus||0;
+      const e=weightedPick(pool,x=>1+(mods.eventWeights[x.id]?.bonus||0)+(x.type?.includes("특수")?(specialBoost+specialRegional):0));
       mods.nextSpecialEventBoost=0;match.lastEventId=e.id;match.eventPity[p.region]=0;p.pendingEvent=e.id;return {kind:"event",event:e}
     }
   } else match.eventPity[p.region]=(match.eventPity[p.region]||0)+.007;
@@ -585,7 +586,7 @@ function searchResult(match,p,now){
   if(ground.length&&Math.random()<.35){const id=pick(ground);if(pickupGroundSpecial(match,p,id))return {kind:"special",itemId:id,itemName:item(id)?.n||id,source:"ground"}}
   const regional=regionSpecialCandidates(match,p.region);
   const specialChance=clamp(.035+(mods.regionSpecialBoosts[p.region]?.bonus||0)+(mods.nextSpecialChanceBonus||0),0,.95);
-  mods.nextSpecialChanceBonus=0;
+  if(regional.length){mods.nextSpecialChanceBonus=0}
   if(regional.length&&Math.random()<specialChance){const id=pick(regional);if(grantSpecial(match,p,id))return {kind:"special",itemId:id,itemName:item(id)?.n||id,source:"search"}}
   const humans=match.players.filter(x=>x!==p&&x.alive&&x.region===p.region);
   if(humans.length){
@@ -606,7 +607,13 @@ function searchResult(match,p,now){
   const pool=POOLS[p.region]||[],fx=combinedFx(p,match,now);
   const itemChance=clamp(.90+(fx.searchLoot||0)+(p.nextSearchLootBonus||0),.20,.99);
   p.nextSearchLootBonus=0;
-  if(pool.length&&Math.random()<itemChance){const id=pick(pool);if(addItem(p,id))return {kind:"item",itemId:id,itemName:item(id)?.n||id}}
+  if(pool.length&&Math.random()<itemChance){
+    const boost=mods.regionLootBoosts[p.region];
+    const weaponMat=new Set(["iron","steel","alloy","wire","wood","stick","gunpowder","leather","rubber"]);
+    const medMagic=new Set(["medicine","toxin","mana_ink","mana_fiber","mana_stone","crystal"]);
+    const id=boost?weightedPick(pool,x=>1+(boost.kind==="weapon"&&weaponMat.has(x)?boost.bonus:boost.kind==="medmagic"&&medMagic.has(x)?boost.bonus:0)):pick(pool);
+    if(addItem(p,id))return {kind:"item",itemId:id,itemName:item(id)?.n||id}
+  }
   return {kind:"nothing"};
 }
 function useConsumable(match,p,id,now){
@@ -902,7 +909,7 @@ export function completeAction(match,p,now=Date.now()){
   match.updatedAt=now;updatePassiveTime(match,now);return result;
 }
 function ensureEventMods(p){
-  p.eventMods??={eventWeights:{},regionEventBoosts:{},regionSpecialBoosts:{},nextSpecialChanceBonus:0,nextSpecialEventBoost:0,instantSearchRegion:null,traceHiddenUntil:0,nextCraftFilter:null};
+  p.eventMods??={eventWeights:{},regionEventBoosts:{},regionSpecialEventBoosts:{},regionSpecialBoosts:{},regionLootBoosts:{},nextSpecialChanceBonus:0,nextSpecialEventBoost:0,instantSearchRegion:null,traceHiddenUntil:0,nextCraftFilter:null,nextEventSuccess:null,hazardReductionUntil:0};
   return p.eventMods;
 }
 function weightedPick(rows,weightFn){
@@ -911,7 +918,7 @@ function weightedPick(rows,weightFn){
 }
 function cleanupEventMods(p,now){
   const m=ensureEventMods(p);
-  for(const map of [m.eventWeights,m.regionEventBoosts,m.regionSpecialBoosts])for(const[k,v]of Object.entries(map))if(v?.until&&v.until<=now)delete map[k];
+  for(const map of [m.eventWeights,m.regionEventBoosts,m.regionSpecialEventBoosts,m.regionSpecialBoosts,m.regionLootBoosts])for(const[k,v]of Object.entries(map))if(v?.until&&v.until<=now)delete map[k];
   if((m.traceHiddenUntil||0)<=now)m.traceHiddenUntil=0;
   return m;
 }
@@ -1014,9 +1021,12 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
 
   // Resolve percentage-gated HP damage first and remember those text spans so they are not also applied unconditionally.
   const probabilisticHpSpans=[];
+  const eventModsBefore=cleanupEventMods(p,now),successMod=eventModsBefore.nextEventSuccess&&e.name.includes(eventModsBefore.nextEventSuccess.keyword)?eventModsBefore.nextEventSuccess:null;
+  const hazardReduce=(eventModsBefore.hazardReductionUntil||0)>now ? .25 : 0;
   for(const m of text.matchAll(/(\d+)%[^/]*?HP\s*-\s*(\d+)/g)){
     probabilisticHpSpans.push([m.index,m.index+m[0].length]);
-    if(Math.random()<+m[1]/100){
+    const risk=clamp(+m[1]/100-(successMod?.bonus||0)-hazardReduce,0,1);
+    if(Math.random()<risk){
       const d=+m[2];p.hp=clamp(p.hp-d,0,maxHp(p,match,now));summary.push("확률 피해 HP -"+d);
     }else summary.push("위험 판정 회피");
   }
@@ -1089,6 +1099,10 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if(e.id==="E044"&&index===0&&!exact.length){if(Math.random()<.18)eventAwardItem(match,p,"mint_choco_fish",1);else eventAwardGeneric(match,p,"food",1)}
   if(e.id==="E048"&&index===0){const ownedMats=Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id));let left=2;for(const[id,n]of ownedMats){const take=Math.min(left,n);if(take>0){consumeItem(p,id,take);left-=take}if(left<=0)break}if(left===0)eventAwardGeneric(match,p,"high_food",1)}
   if(e.id==="E048"&&index===2){if(Math.random()>=.20)eventAwardGeneric(match,p,"high_food",1);else{const row=Object.entries(p.mat||{}).find(([id,n])=>n>0&&!isSpecialMaterial(id));if(row)consumeItem(p,row[0],1)}}
+  if(/희귀 약품 확률/.test(rewardText)&&Math.random()<.35)eventAwardItem(match,p,"advanced_first_aid",1);
+  if(/고급장신구 재료 확률/.test(rewardText)&&Math.random()<.40)eventAwardGeneric(match,p,"accessory",1);
+  if(/특수보상 확률 낮음/.test(rewardText)&&Math.random()<.20)eventAwardGeneric(match,p,"high_reward",1);
+  if(/고급 전자재료 2개/.test(rewardText))for(let i=0;i<2;i++)eventAwardGeneric(match,p,"electronic",1);
 
 
   if(/다음.*제작시간 -50%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.5);
@@ -1102,13 +1116,18 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if((mmod=text.match(/다음 특수재료 판정 \+(\d+)%/)))mods.nextSpecialChanceBonus=Math.max(mods.nextSpecialChanceBonus||0,+mmod[1]/100);
   if(/특수재료 판정률 소폭 감소/.test(text))mods.nextSpecialChanceBonus=Math.min(mods.nextSpecialChanceBonus||0,-.15);
   if(/특수재료 획득률 크게 상승|판정률 증가|특수재료 판정 상승/.test(text))mods.nextSpecialChanceBonus=Math.max(mods.nextSpecialChanceBonus||0,.25);
-  if((mmod=text.match(/(\d+)초간 간부 숙소 특수이벤트 \+(\d+)%/)))mods.regionEventBoosts.evil_quarters={bonus:+mmod[2]/100,until:now+(+mmod[1])*1000};
-  if((mmod=text.match(/(\d+)초간 악의조직 훈련장 특수이벤트 \+(\d+)%/)))mods.regionEventBoosts.evil_training={bonus:+mmod[2]/100,until:now+(+mmod[1])*1000};
+  if((mmod=text.match(/(\d+)초간 간부 숙소 특수이벤트 \+(\d+)%/)))mods.regionSpecialEventBoosts.evil_quarters={bonus:+mmod[2]/100,until:now+(+mmod[1])*1000};
+  if((mmod=text.match(/(\d+)초간 악의조직 훈련장 특수이벤트 \+(\d+)%/)))mods.regionSpecialEventBoosts.evil_training={bonus:+mmod[2]/100,until:now+(+mmod[1])*1000};
   if(/다음 온실 이벤트 특수재료 확률 \+30%/.test(text))mods.regionSpecialBoosts.estate={bonus:.30,until:now+60000};
   if(/다음 마도 이벤트 가중치 \+/.test(text))mods.nextSpecialEventBoost=Math.max(mods.nextSpecialEventBoost||0,.20);
   if(/무작위 외부 지역 하나의 이벤트 가중치/.test(text)){
     const external=["city","estate","church","factory"],r=pick(external);mods.regionEventBoosts[r]={bonus:.25,until:now+60000};
   }
+  if(/60초간 관리국 훈련장 무기재료 드롭 가중치 \+20%/.test(text))mods.regionLootBoosts.mgmt_training={kind:"weapon",bonus:.20,until:now+60000};
+  if(/60초간 연구실 약품·마도 드롭 가중치 \+20%/.test(text))mods.regionLootBoosts.mgmt_lab={kind:"medmagic",bonus:.20,until:now+60000};
+  if(/다음 금고 이벤트 성공률 \+30%/.test(text))mods.nextEventSuccess={keyword:"금고",bonus:.30};
+  if(/다음 통로 이벤트 성공률 상승/.test(text))mods.nextEventSuccess={keyword:"통로",bonus:.25};
+  if(/최면 계열 이벤트 위험 감소/.test(text))mods.hazardReductionUntil=now+60000;
   if(/다음 행정실 탐색 1회 즉시 완료/.test(text))mods.instantSearchRegion="mgmt_admin";
   if(/자신의 정보 흔적 감소|최근 관리국 흔적 제거|흔적을 남기지 않음/.test(text))mods.traceHiddenUntil=Math.max(mods.traceHiddenUntil||0,now+30000);
   if(/25초간 상태이상 지속 -5%/.test(text))addTemp(p,{incomingStatusDuration:-.05},25,now);
@@ -1133,6 +1152,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
     const next=candidates.length?pick(candidates):null;
     if(next){pushIntel(ensureIntel(p).eventHints,{kind:"event_hint",region:p.region,eventId:next.id,name:next.name,type:next.type,at:now});summary.push("다음 이벤트 정보 획득")}
   }
+  if(successMod)eventModsBefore.nextEventSuccess=null;
   const noiseLevel=eventNoiseLevel(e,text);
   if(noiseLevel){recordNoise(match,p,noiseLevel,e.id,now);summary.push("소음 "+noiseLevel+" 발생")}
   if(!summary.length)summary.push("이벤트 효과 적용");
