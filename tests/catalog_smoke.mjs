@@ -7,7 +7,7 @@ assert.ok(CHARACTERS.some(c=>c.id==="c51"));
 assert.ok(REGIONS.some(r=>r.id==="evil_training"));
 console.log("catalog smoke ok", {characters:CHARACTERS.length,regions:REGIONS.length});
 
-assert.equal(GAME_VERSION,"0.7.1-online-alpha");
-assert.equal(PHASE,"2L");
-assert.equal(PROTOCOL_VERSION,6);
-assert.ok(BUILD_LABEL.includes("Phase 2L"));
+assert.equal(GAME_VERSION,"0.7.2-online-alpha");
+assert.equal(PHASE,"2M");
+assert.equal(PROTOCOL_VERSION,7);
+assert.ok(BUILD_LABEL.includes("Phase 2M"));
