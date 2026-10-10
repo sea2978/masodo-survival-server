@@ -186,7 +186,7 @@ export function updatePassiveTime(match,now=Date.now()){
 export function initWorld(match){
   let seq=1;match.wilds=[];
   for(const t of WILD_TEMPLATES)for(const region of t.regions)match.wilds.push({id:"w"+seq++,templateId:t.id,region,hp:t.hp,alive:true,guardReady:t.skill==="guard"});
-  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.uniqueSpecials=initUniqueSpecials();
+  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.regionTraps={};match.uniqueSpecials=initUniqueSpecials();
 }
 function wildTemplate(w){return WILD_TEMPLATES.find(x=>x.id===w.templateId)}
 function playerById(match,id){return match.players.find(p=>p.playerId===id)}
@@ -354,19 +354,69 @@ function useConsumable(match,p,id,now){
   if(inCombat){const target=encounterTarget(match,p);if(target?.kind==="wild"&&p.alive)wildCounter(match,p,target.obj,now);p.encounter=null}
   return {ok:true,itemId:id,itemName:it.n,repeatMultiplier:repeat,combatMultiplier:combat};
 }
+function firstCorpseInRegion(match,p,now){return (match.corpses||[]).find(c=>c.region===p.region&&c.expiresAt>now)}
+function removeAnyStatus(p,n=1,now=Date.now()){
+  let removed=0;
+  for(const id of Object.keys(p.statuses||{})){if(removed>=n)break;const s=p.statuses[id];if(s&&s.until>now){delete p.statuses[id];removed++}}
+  return removed;
+}
 function charAction(match,p,now){
   const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
-  if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};if(p.sp<(d.sp||0))return {ok:false,error:"not_enough_sp"};
-  p.sp-=d.sp||0;p.cdAUntil=now+(d.cd||45)*1000;
-  if(d.heal)p.hp=clamp(p.hp+d.heal,0,maxHp(p,match,now));if(d.restoreSp)p.sp=clamp(p.sp+d.restoreSp,0,p.maxSp);
-  if(d.selfDamage){p.hp-=d.selfDamage;if(p.hp<=0)p.alive=false}
-  if(d.giveItem)addItem(p,d.giveItem,1);if(d.nextDetect)p.nextDetectBonus=(p.nextDetectBonus||0)+d.nextDetect;
-  if(d.nextSearch)p.nextSearchLootBonus=(p.nextSearchLootBonus||0)+d.nextSearch;if(d.nextHit)p.nextHitBonus=(p.nextHitBonus||0)+d.nextHit;
-  if(d.nextDamage)p.nextDamageBonus=(p.nextDamageBonus||0)+d.nextDamage;if(d.nextCrit)p.nextCritBonus=(p.nextCritBonus||0)+d.nextCrit;
+  if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
+  p.cdAUntil=now+(d.cd||45)*1000;
+
+  if(d.heal)p.hp=clamp(p.hp+d.heal,0,maxHp(p,match,now));
+  if(d.sp)recoverSp(p,d.sp,match,now);
+  if(d.selfDamage){p.hp-=d.selfDamage;if(p.hp<=0){environmentDeath(match,p,now);return {ok:true,selfDeath:!p.alive}}}
+  if(d.tempFx)addTemp(p,d.tempFx,d.duration||20,now);
+  if(d.nextDetect)p.nextDetectBonus=(p.nextDetectBonus||0)+d.nextDetect;
+  if(d.nextSearch)p.nextSearchLootBonus=(p.nextSearchLootBonus||0)+d.nextSearch;
+  if(d.nextHit)p.nextHitBonus=(p.nextHitBonus||0)+d.nextHit;
+  if(d.nextDamage){
+    if(d.skillOnlyDamage)p.nextSkillDamageBonus=(p.nextSkillDamageBonus||0)+d.nextDamage;
+    else p.nextDamageBonus=(p.nextDamageBonus||0)+d.nextDamage;
+  }
+  if(d.nextCrit)p.nextCritBonus=(p.nextCritBonus||0)+d.nextCrit;
+  if(d.nextStatus)p.nextStatusBonus={...(p.nextStatusBonus||{}),...d.nextStatus};
   if(d.nextSkillSpDiscount)p.nextSkillSpDiscount=Math.max(p.nextSkillSpDiscount||0,d.nextSkillSpDiscount);
-  if(d.nextCraftTimeMult)p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,d.nextCraftTimeMult);if(d.nextMoveFree)p.nextMoveFree=true;
-  const fx={};for(const k of["damage","damageTaken","hit","crit","detect","conceal","moveTime","moveSp","searchLoot","searchTime","statusChance","incomingStatusDuration","defFlat","prep"]){if(d[k]!=null)fx[k]=d[k]}
-  if(Object.keys(fx).length)addTemp(p,fx,d.duration||18,now);
+  if(d.nextCraftTimeMult)p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,d.nextCraftTimeMult);
+  if(d.nextMoveFree)p.nextMoveFree=true;
+
+  if(d.cleanseAny)removeAnyStatus(p,d.cleanseAny,now);
+  if(d.cleanse){
+    let n=d.cleanseCount||1;
+    for(const id of d.cleanse){if(n<=0)break;const s=p.statuses?.[id];if(s&&s.until>now){delete p.statuses[id];n--}}
+  }
+  if(d.cleanseSpecific)for(const[id,n]of Object.entries(d.cleanseSpecific))removeStatusStacks(p,id,n);
+
+  if(d.material)p.mat[d.material]=(p.mat[d.material]||0)+(d.materialQty||1);
+  if(d.consumable)addItem(p,d.consumable,1);
+  if(d.randomMetal){const id=Math.random()<.65?"iron":"steel";p.mat[id]=(p.mat[id]||0)+1}
+
+  if(d.corpseHeal||d.consumeCorpse){
+    const corpse=firstCorpseInRegion(match,p,now);
+    if(corpse){
+      p.hp=clamp(p.hp+(d.corpseHeal||0),0,maxHp(p,match,now));
+      if(d.consumeCorpse)match.corpses.splice(match.corpses.indexOf(corpse),1);
+    }else{
+      if(d.noCorpseSp)recoverSp(p,d.noCorpseSp,match,now);
+      if(d.noCorpseHeal)p.hp=clamp(p.hp+d.noCorpseHeal,0,maxHp(p,match,now));
+    }
+  }
+
+  if(d.healIfRevUsed&&p.rev)p.hp=clamp(p.hp+d.healIfRevUsed,0,maxHp(p,match,now));
+  if(d.reduceCombatCd)p.cdCUntil=Math.max(now,(p.cdCUntil||now)-d.reduceCombatCd*1000);
+  if(d.refundActionCd)p.cdAUntil=Math.max(now,p.cdAUntil-d.refundActionCd*1000);
+  if(d.luckAction){
+    const r=Math.random();
+    if(r<.34)p.hp=clamp(p.hp+10,0,maxHp(p,match,now));
+    else if(r<.67)recoverSp(p,12,match,now);
+    else p.nextCritBonus=(p.nextCritBonus||0)+.08;
+  }
+  if(d.trap){
+    match.regionTraps??={};
+    match.regionTraps[p.region]={ownerId:p.playerId,until:now+45000,hitBonus:.08};
+  }
   return {ok:true};
 }
 export function publicPlayer(match,p,now=Date.now()){
@@ -409,7 +459,6 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(type==="char_action"){
     const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
     if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
-    if(p.sp<(d.sp||0))return {ok:false,error:"not_enough_sp"};
   }
   if(type==="flee"&&status(p,"bind"))return {ok:false,error:"bound"};
   return {ok:true};
