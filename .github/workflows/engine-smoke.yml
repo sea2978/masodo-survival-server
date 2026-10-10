@@ -31,6 +31,8 @@ jobs:
         run: npm run test:combat-concurrency
       - name: Passive and gear modifier audit
         run: npm run test:passive-audit
+      - name: Phase 2O parity and event noise
+        run: npm run test:phase2o
       - name: 15 minute simulation
         run: npm run test:simulation
       - name: 12 match long-run simulation
