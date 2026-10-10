@@ -101,11 +101,11 @@ function combinedFx(p,match,now=Date.now()){
     const it=item(id);if(!it)continue;
     const named=NAMED_GEAR_FX[id];
     if(named)for(const[k,v]of Object.entries(named))if(typeof v==="number")out[k]=(out[k]||0)+v;
-    if(id==="toxin_kit"||id==="synergy_03"){out.poisonChance=(out.poisonChance||0)+.06;out.poisonVsDamage=(out.poisonVsDamage||0)+.03}
+    if(id==="toxin_kit"||id==="synergy_03"){out.poisonChance=(out.poisonChance||0)+.06}
     if(id==="propulsion"||id==="synergy_04"){out.moveSp=(out.moveSp||0)+1}
     if(id==="plate"||id==="synergy_05"){out.lowDef=(out.lowDef||0)+4}
     if(id==="spell_amp"||id==="synergy_07"){out.statusChance=(out.statusChance||0)+.03}
-    if(id==="accel"||id==="synergy_08"){out.thirdHit=(out.thirdHit||0)+.03}
+    if(id==="accel"||id==="synergy_08"){}
     if(id==="focus"||id==="synergy_12"){out.delayResist=(out.delayResist||0)+.10}
   }
   return out;
@@ -345,11 +345,13 @@ function modifyAttackDamage(match,p,target,d,ctx,now){
   let mult=1+(fx.damage||0)+(ctx.actionDamageBonus||0);
   if(ctx.quietReady&&(p.eq||[]).includes("camo_mask"))mult*=1.04;
   if(ctx.quietReady&&fx.quietDamage)mult*=1+fx.quietDamage;
+  if((p.eq||[]).includes("toxin_kit")&&status(target,"poison",now))mult*=1.03;
   if(status(target,"poison",now)&&fx.poisonVsDamage)mult*=1+fx.poisonVsDamage;
   const anyStatus=Object.values(target.statuses||{}).some(s=>s&&s.until>now);
   if(anyStatus&&fx.statusTargetDamage)mult*=1+fx.statusTargetDamage;
   if(ctx.movedRecently&&fx.afterMoveDamage)mult*=1+fx.afterMoveDamage;
   if(p.hp/maxHp(p,match,now)<.4&&fx.lowHpDamage)mult*=1+fx.lowHpDamage;
+  if((p.eq||[]).includes("accel")&&p.attackChainHits>=3){mult*=1.03;p.attackChainHits=0}
   if(fx.thirdHit&&p.namedChainHits%3===0)mult*=1+fx.thirdHit;
   if(fx.chainPerHit)mult*=1+Math.min(fx.chainMax||fx.chainPerHit,Math.max(0,p.namedChainHits-1)*fx.chainPerHit);
   if(fx.extraChance&&Math.random()<fx.extraChance)mult*=1+(fx.extraRatio||0);
@@ -963,12 +965,17 @@ function eventAwardItem(match,p,id,count=1){
   return got;
 }
 function eventAwardGeneric(match,p,kind,count=1){
-  const mats=eventGenericMaterialPool(),cons=eventConsumablePool();let pool=[];
+  const mats=eventGenericMaterialPool(),cons=eventConsumablePool(),eq=Object.keys(ITEMS).filter(id=>ITEMS[id]?.t==="e");let pool=[];
   if(kind==="material")pool=mats;
-  else if(kind==="medicine")pool=cons.filter(id=>/약|붕대|해독|응급/.test(item(id)?.n||""));
-  else if(kind==="food")pool=cons.filter(id=>!/붕대|해독|응급/.test(item(id)?.n||""));
-  else if(kind==="electronic")pool=mats.filter(id=>/전자|배터리|정밀|기계/.test(item(id)?.n||""));
-  else if(kind==="metal")pool=mats.filter(id=>/철|강철|합금|은괴|철사/.test(item(id)?.n||""));
+  else if(kind==="high_material")pool=mats.filter(id=>["steel","alloy","precision","mana_stone","crystal","silver","machine"].includes(id));
+  else if(kind==="medicine")pool=cons.filter(id=>item(id)?.kind==="medicine");
+  else if(kind==="food")pool=cons.filter(id=>["food","drink"].includes(item(id)?.kind));
+  else if(kind==="high_food")pool=cons.filter(id=>["food","drink"].includes(item(id)?.kind)&&["고급","희귀"].includes(item(id)?.tier));
+  else if(kind==="electronic")pool=mats.filter(id=>["electronics","battery","precision","machine"].includes(id));
+  else if(kind==="metal")pool=mats.filter(id=>["iron","steel","alloy","silver","wire"].includes(id));
+  else if(kind==="magic")pool=mats.filter(id=>["mana_ink","mana_fiber","mana_stone","crystal"].includes(id));
+  else if(kind==="accessory")pool=["silver","crystal","mana_stone","mana_ink"].filter(id=>item(id));
+  else if(kind==="high_reward")pool=[...eq.filter(id=>["희귀","희귀 시너지"].includes(item(id)?.tier)),...cons.filter(id=>["고급","희귀"].includes(item(id)?.tier)),...mats.filter(id=>["steel","alloy","precision","mana_stone","crystal","silver"].includes(id))];
   else pool=mats.length?mats:cons;
   let got=0;for(let i=0;i<count&&pool.length;i++)got+=eventAwardItem(match,p,pick(pool),1);return got;
 }
@@ -1016,6 +1023,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   const overlapsProbHp=(idx,len)=>probabilisticHpSpans.some(([a,b])=>idx<b&&idx+len>a);
   for(const m of text.matchAll(/HP\s*([+-])\s*(\d+)/g)){
     if(overlapsProbHp(m.index,m[0].length))continue;
+    if(/가능/.test(text.slice(Math.max(0,m.index-8),m.index+m[0].length+8))&&Math.random()>=.50)continue;
     const n=+m[2]*(m[1]==="-"?-1:1);p.hp=clamp(p.hp+n,0,maxHp(p,match,now));summary.push("HP "+(n>=0?"+":"")+n);
   }
   for(const m of text.matchAll(/SP\s*([+-])\s*(\d+)/g)){
@@ -1043,7 +1051,8 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
 
   const specials=eventSpecialCandidates(e,text);
   if(specials.length){
-    const guaranteed=!/판정|확률/.test(text),boost=/크게 상승|상승|증가/.test(text),chance=guaranteed ? 1 : (boost ? .78 : .55);
+    const guaranteed=!/판정|확률/.test(text),boost=/크게 상승|상승|증가/.test(text),mods0=cleanupEventMods(p,now);
+    const chance=clamp((guaranteed ? 1 : (boost ? .78 : .55))+(mods0.nextSpecialChanceBonus||0),0,1);mods0.nextSpecialChanceBonus=0;
     if(Math.random()<chance){
       const valid=specials.filter(id=>specialState(match,id)?.state==="unspawned");
       if(valid.length){
@@ -1071,6 +1080,16 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if(/금속·기계|금속계|강철|철/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"metal",1);
   if(/전자재료|전자부품|배터리|정밀부품|기계부품/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"electronic",1);
   if(/약품/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"medicine",Math.min(genericCount,2));
+  if(/장신구(?:·| 또는 | 계열)|마력재료/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,/마력재료/.test(rewardText)?"magic":"accessory",Math.min(genericCount,2));
+  if(/고급 ?요리|일반 식사 소모품|고기·|우유|달걀|채소|쌀·|감자|소금·|기름|설탕/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,/고급 ?요리/.test(rewardText)?"high_food":"food",Math.min(genericCount||1,2));
+  if(/고급보상|가치 높은 보상/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"high_reward",Math.min(genericCount||1,3));
+  if(/보상 \d+개/.test(rewardText)&&!exact.length)eventAwardGeneric(match,p,"high_material",Math.min(genericCount,3));
+  if(e.id==="E022"&&index===1)eventAwardGeneric(match,p,"material",3);
+  if(e.id==="E043"&&index===1&&!exact.length)eventAwardGeneric(match,p,"food",1);
+  if(e.id==="E044"&&index===0&&!exact.length){if(Math.random()<.18)eventAwardItem(match,p,"mint_choco_fish",1);else eventAwardGeneric(match,p,"food",1)}
+  if(e.id==="E048"&&index===0){const ownedMats=Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id));let left=2;for(const[id,n]of ownedMats){const take=Math.min(left,n);if(take>0){consumeItem(p,id,take);left-=take}if(left<=0)break}if(left===0)eventAwardGeneric(match,p,"high_food",1)}
+  if(e.id==="E048"&&index===2){if(Math.random()>=.20)eventAwardGeneric(match,p,"high_food",1);else{const row=Object.entries(p.mat||{}).find(([id,n])=>n>0&&!isSpecialMaterial(id));if(row)consumeItem(p,row[0],1)}}
+
 
   if(/다음.*제작시간 -50%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.5);
   if(/다음.*제작시간 -20%/.test(text))p.nextCraftTimeMult=Math.min(p.nextCraftTimeMult||1,.8);
