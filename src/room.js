@@ -3,6 +3,7 @@ import { MAX_HUMANS, json, parseJsonMessage, safeText, send } from "./protocol.j
 import { ADJACENCY, CHARACTERS, REGIONS, createAIPlayer, createServerPlayer, isValidCharacter, isValidRegion } from "./game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
 import { beginServerAction, completeAction, initWorld, lootCorpse, publicPlayer, resolveEventChoice, runAITick, updatePassiveTime } from "./match_engine.js";
+import { BUILD_LABEL, GAME_VERSION, PHASE, PROTOCOL_VERSION } from "./version.js";
 
 const ROOM_META_KEY="room_meta",MATCH_KEY="match_state";
 
@@ -20,7 +21,7 @@ export class GameRoom extends DurableObject{
   connectedPlayers(meta){return this.joinedSessions().map(s=>({sessionId:s.sessionId,playerName:s.playerName,charId:s.charId,startRegion:s.startRegion||"city",ready:!!s.ready,joinedAt:s.joinedAt,host:meta.hostSessionId===s.sessionId}))}
   roomState(meta){
     const players=this.connectedPlayers(meta);
-    return{code:meta.code,phase:meta.phase||"lobby",createdAt:meta.createdAt,maxHumans:MAX_HUMANS,players,humanCount:players.length,allReady:players.length>=2&&players.every(p=>p.ready),hostSessionId:meta.hostSessionId||null,protocolVersion:3,serverVersion:"phase-2b"}
+    return{code:meta.code,phase:meta.phase||"lobby",createdAt:meta.createdAt,maxHumans:MAX_HUMANS,players,humanCount:players.length,allReady:players.length>=2&&players.every(p=>p.ready),hostSessionId:meta.hostSessionId||null,protocolVersion:PROTOCOL_VERSION,serverVersion:GAME_VERSION,buildLabel:BUILD_LABEL,phaseLabel:PHASE}
   }
   broadcast(type,payload={}){for(const ws of this.sessions.keys())send(ws,type,payload)}
   async broadcastRoomState(meta){this.broadcast("room_state",{room:this.roomState(meta)})}
@@ -90,7 +91,7 @@ export class GameRoom extends DurableObject{
       const pair=new WebSocketPair(),[client,server]=Object.values(pair);this.ctx.acceptWebSocket(server);
       const session={sessionId:crypto.randomUUID(),joined:false,playerName:"Player",charId:"c01",startRegion:"city",ready:false,joinedAt:Date.now()};
       server.serializeAttachment(session);this.sessions.set(server,session);
-      send(server,"connected",{sessionId:session.sessionId,room:this.roomState(meta),catalog:{characters:CHARACTERS.map(c=>({id:c.id,name:c.name,arch:c.arch})),regions:REGIONS}});
+      send(server,"connected",{sessionId:session.sessionId,room:this.roomState(meta),build:{version:GAME_VERSION,buildLabel:BUILD_LABEL,phase:PHASE,protocolVersion:PROTOCOL_VERSION},catalog:{characters:CHARACTERS.map(c=>({id:c.id,name:c.name,arch:c.arch})),regions:REGIONS}});
       return new Response(null,{status:101,webSocket:client})
     }
     return json({ok:false,error:"not_found"},404)
