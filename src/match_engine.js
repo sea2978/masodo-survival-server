@@ -73,15 +73,12 @@ function combinedFx(p,match,now=Date.now()){
     const it=item(id);if(!it)continue;
     const named=NAMED_GEAR_FX[id];
     if(named)for(const[k,v]of Object.entries(named))if(typeof v==="number")out[k]=(out[k]||0)+v;
-    if(id==="aim_terminal"||id==="synergy_01"){out.markHit=(out.markHit||0)+.05;out.trackingDuration=(out.trackingDuration||0)+.20}
-    if(id==="camo_mask"||id==="synergy_02"){out.conceal=(out.conceal||0)+.07;out.quietDamage=(out.quietDamage||0)+.04}
     if(id==="toxin_kit"||id==="synergy_03"){out.poisonChance=(out.poisonChance||0)+.06;out.poisonVsDamage=(out.poisonVsDamage||0)+.03}
-    if(id==="propulsion"||id==="synergy_04"){out.moveSp=(out.moveSp||0)+1;out.afterMoveHit=(out.afterMoveHit||0)+.04}
-    if(id==="plate"||id==="synergy_05"){out.damageTaken=(out.damageTaken||0)-.03;out.lowDef=(out.lowDef||0)+4}
+    if(id==="propulsion"||id==="synergy_04"){out.moveSp=(out.moveSp||0)+1}
+    if(id==="plate"||id==="synergy_05"){out.lowDef=(out.lowDef||0)+4}
     if(id==="recovery"||id==="synergy_06"){out.consumeHeal=(out.consumeHeal||0)+.08;out.restHeal=(out.restHeal||0)+.05}
     if(id==="spell_amp"||id==="synergy_07"){out.controlDuration=(out.controlDuration||0)+.06;out.statusChance=(out.statusChance||0)+.03}
     if(id==="accel"||id==="synergy_08"){out.prep=(out.prep||0)-.04;out.thirdHit=(out.thirdHit||0)+.03}
-    if(id==="trace"||id==="synergy_09"){out.woundedDetect=(out.woundedDetect||0)+.08;out.redetectHit=(out.redetectHit||0)+.04}
     if(id==="detox"||id==="synergy_10"){out.poisonDurationTaken=(out.poisonDurationTaken||0)-.20}
     if(id==="evasion"||id==="synergy_11"){out.fleePrep=(out.fleePrep||0)-.05}
     if(id==="focus"||id==="synergy_12"){out.skillSp=(out.skillSp||0)-.05;out.delayResist=(out.delayResist||0)+.10}
@@ -280,8 +277,7 @@ function onTargetDetected(seeker,target,match,now){
   const tid=target.playerId;
   if((seeker.eq||[]).includes("aim_terminal")){
     seeker.trackingMarks??={};
-    const dur=24*(1+(combinedFx(seeker,match,now).trackingDuration||0));
-    seeker.trackingMarks[tid]=now+dur*1000;
+    seeker.trackingMarks[tid]=now+24000;
   }
   if((seeker.eq||[]).includes("trace")){
     seeker.redetectReady=seeker.lastDetectedTarget===tid;
@@ -303,8 +299,8 @@ function attackContext(match,p,target,skill,now){
   if((p.eq||[]).includes("propulsion")&&p.moveHitReady&&now-(p.lastMoveAt||0)<=8000)hitBonus+=.04;
   if((p.eq||[]).includes("trace")&&p.redetectReady&&p.lastDetectedTarget===tid)hitBonus+=.04;
   if(p.moveHitReady&&now-(p.lastMoveAt||0)<=8000)hitBonus+=fx.afterMoveHit||0;
-  const ctx={tid,quietReady,movedRecently:now-(p.lastMoveAt||0)<=8000,hitBonus,actionDamageBonus:p.nextDamageBonus||0,skillDamageBonus:skill?(p.nextSkillDamageBonus||0):0,actionCritBonus:p.nextCritBonus||0};
-  p.nextHitBonus=0;p.nextDamageBonus=0;if(skill)p.nextSkillDamageBonus=0;p.nextCritBonus=0;p.lastAttackAt=now;
+  const ctx={tid,quietReady,movedRecently:now-(p.lastMoveAt||0)<=8000,hitBonus,actionDamageBonus:p.nextDamageBonus||0,skillDamageBonus:0,actionCritBonus:p.nextCritBonus||0};
+  p.nextHitBonus=0;p.nextDamageBonus=0;p.nextCritBonus=0;p.lastAttackAt=now;
   if(p.moveHitReady)p.moveHitReady=false;if(p.redetectReady)p.redetectReady=false;
   return ctx;
 }
@@ -312,7 +308,8 @@ function modifyAttackDamage(match,p,target,d,ctx,now){
   const fx=combinedFx(p,match,now);
   if(p.attackChainTarget===ctx.tid)p.attackChainHits=(p.attackChainHits||0)+1;else{p.attackChainTarget=ctx.tid;p.attackChainHits=1}
   if(p.namedChainTarget===ctx.tid)p.namedChainHits=(p.namedChainHits||0)+1;else{p.namedChainTarget=ctx.tid;p.namedChainHits=1}
-  let mult=1+(fx.damage||0)+(ctx.actionDamageBonus||0)+(ctx.skillDamageBonus||0);
+  let mult=1+(fx.damage||0)+(ctx.actionDamageBonus||0);
+  if(ctx.quietReady&&(p.eq||[]).includes("camo_mask"))mult*=1.04;
   if(ctx.quietReady&&fx.quietDamage)mult*=1+fx.quietDamage;
   if(status(target,"poison",now)&&fx.poisonVsDamage)mult*=1+fx.poisonVsDamage;
   const anyStatus=Object.values(target.statuses||{}).some(s=>s&&s.until>now);
@@ -385,7 +382,7 @@ function clearOneNegativeStatus(p,now=Date.now()){
 }
 function applySkillSelfEffects(match,p,sd,damageDealt=0,killed=false,now=Date.now()){
   const fx=combinedFx(p,match,now);
-  if(sd.heal)p.hp=clamp(p.hp+sd.heal*(1+(fx.heal||0)),0,maxHp(p,match,now));
+  if(sd.heal)p.hp=clamp(p.hp+sd.heal,0,maxHp(p,match,now));
   if(sd.restoreSp)recoverSp(p,sd.restoreSp,match,now);
   if(sd.selfDamage){p.hp-=sd.selfDamage;if(p.hp<=0)environmentDeath(match,p,now)}
   if(sd.freeMove)p.nextMoveFree=true;
@@ -411,7 +408,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     const fx=combinedFx(p,match,now);
     spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
-    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*Math.max(.25,1-(fx.cdRate||0))*1000;bonus+=sd.hit||0;
+    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
@@ -425,7 +422,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
 
   const fx=combinedFx(p,match,now);
   let d=(skill?skillDamageVsPlayer(match,p,t,sd,now):baseDamage(p,t,match,now))*mult;
-  if(skill)d*=1+(fx.skillDamage||0);
+  if(skill){ctx.skillDamageBonus=p.nextSkillDamageBonus||0;p.nextSkillDamageBonus=0;d*=1+(fx.skillDamage||0)+ctx.skillDamageBonus}
   if(skill&&sd.quietBonus&&ctx.quietReady)d*=1+sd.quietBonus;
   let dispelled=false;
   if(skill&&sd.dispelOne){dispelled=clearOneNegativeStatus(t,now);if(dispelled)d*=1+(sd.dispelBonus||0)}
@@ -469,7 +466,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     const fx=combinedFx(p,match,now);
     spCost=Math.max(0,(sd.sp??12)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
-    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+(sd.cd??55)*Math.max(.25,1-(fx.cdRate||0))*1000;bonus+=sd.hit||0;
+    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
@@ -483,7 +480,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
 
   const fx=combinedFx(p,match,now);
   let d=(skill?skillDamageVsWild(match,p,w,sd,now):Math.max(1,atk(p,match,now)*100/(100+t.def)))*mult;
-  if(skill)d*=1+(fx.skillDamage||0);
+  if(skill){ctx.skillDamageBonus=p.nextSkillDamageBonus||0;p.nextSkillDamageBonus=0;d*=1+(fx.skillDamage||0)+ctx.skillDamageBonus}
   if(skill&&sd.quietBonus&&ctx.quietReady)d*=1+sd.quietBonus;
   const canSkillCrit=!skill||!!sd.crit;
   const crit=canSkillCrit&&Math.random()<clamp(.05+(skill?(sd.crit||0):0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
@@ -616,7 +613,7 @@ function removeAnyStatus(p,n=1,now=Date.now()){
 function charAction(match,p,now){
   const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
   if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
-  p.cdAUntil=now+(d.cd||45)*1000;
+  p.cdAUntil=now+((d.cd||45)/Math.max(.25,1+(combinedFx(p,match,now).cdRate||0)))*1000;
 
   if(d.heal)p.hp=clamp(p.hp+d.heal,0,maxHp(p,match,now));
   if(d.sp)recoverSp(p,d.sp,match,now);
