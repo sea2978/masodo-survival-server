@@ -147,7 +147,7 @@ const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rn
 function renderCharInfo(){
   const c=(net.catalog?.characters||[]).find(x=>x.id===$('#char').value);
   if(!c){$('#charInfo').textContent="캐릭터 정보 없음";return}
-  $('#charInfo').innerHTML=`<b>${c.name}</b> · ${c.arch||""}<br>HP ${c.baseHp} / SP ${c.baseSp} / ATK ${Number(c.baseAtk).toFixed(1)} / DEF ${Number(c.baseDef).toFixed(1)}<br><span class="muted">선호: ${c.preferredWeapon||"-"} · 패시브: ${c.passive||"-"} · 전투: ${c.combat||"-"} · 행동: ${c.action||"-"}</span>`;
+  $('#charInfo').innerHTML=`<b>${c.name}</b> · ${c.arch||""}<br>HP ${c.baseHp} / SP ${c.baseSp} / ATK ${Number(c.baseAtk).toFixed(1)} / DEF ${Number(c.baseDef).toFixed(1)}<br><div class="muted">선호 무기: ${c.preferredWeapon||"-"}</div><div><b>패시브 · ${c.passive||"-"}</b><div class="muted">${c.passiveEffectText||""}</div></div><div><b>전투 스킬 · ${c.combat||"-"}</b><div class="muted">${c.combatEffectText||""}</div></div><div><b>추가 행동 · ${c.action||"-"}</b><div class="muted">${c.actionEffectText||""}</div></div>`;
 }
 function renderBuild(){
   const b=net.build;if(!b)return;
