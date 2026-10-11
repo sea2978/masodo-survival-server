@@ -11,6 +11,7 @@ export class MasodoNetworkAdapter {
     this.connectOptions = null;
     this.manualClose = false;
     this.reconnectTimer = null;
+    this.reconnectAttempts = 0;
   }
 
   on(type, fn) {
@@ -21,6 +22,24 @@ export class MasodoNetworkAdapter {
 
   emit(type, payload) {
     for (const fn of this.listeners.get(type) || []) fn(payload);
+  }
+
+  tokenKey(code) { return `masodo-reconnect-${String(code || "").trim().toUpperCase()}`; }
+
+  getReconnectToken(code) {
+    try { return localStorage.getItem(this.tokenKey(code)) || null; } catch { return null; }
+  }
+
+  saveReconnectToken(code, token) {
+    if (!token) return;
+    try { localStorage.setItem(this.tokenKey(code), token); } catch {}
+  }
+
+  async listRooms() {
+    const res = await fetch(`${this.baseUrl}/api/rooms`, { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || "room_list_failed");
+    return data;
   }
 
   async loadCatalog() {
@@ -52,6 +71,7 @@ export class MasodoNetworkAdapter {
     const roomCode = String(code).trim().toUpperCase();
     const storageKey = `masodo-session-${roomCode}`;
     const resumeSessionId = this.sessionId || sessionStorage.getItem(storageKey) || null;
+    const reconnectToken = this.getReconnectToken(roomCode);
     if (this.ws) { const old=this.ws; this.ws=null; try { old.close(1000,"reconnect"); } catch {} }
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
     this.manualClose = false;
@@ -73,7 +93,9 @@ export class MasodoNetworkAdapter {
         const msg = JSON.parse(event.data);
         if (msg.sessionId && msg.type === "hello_ok") {
           this.sessionId = msg.sessionId;
+          this.reconnectAttempts = 0;
           try { sessionStorage.setItem(storageKey, msg.sessionId); } catch {}
+          if (msg.reconnectToken) this.saveReconnectToken(this.roomCode, msg.reconnectToken);
         }
         if (msg.catalog) this.catalog = msg.catalog;
         if (msg.build) this.build = msg.build;
@@ -90,14 +112,16 @@ export class MasodoNetworkAdapter {
       this.ws = null;
       this.emit("close", { code: event.code, reason: event.reason });
       if (!this.manualClose && this.roomCode && this.connectOptions) {
+        const delay = Math.min(30000, 1500 * (2 ** Math.min(this.reconnectAttempts, 5)));
+        this.reconnectAttempts += 1;
         this.reconnectTimer = setTimeout(() => {
           this.reconnectTimer = null;
           this.connect(this.roomCode, this.connectOptions).catch(error => this.emit("reconnect_error", { error:String(error?.message||error) }));
-        }, 1500);
+        }, delay);
       }
     });
 
-    this.send("hello", { playerName, charId, startRegion, resumeSessionId });
+    this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId });
     return this;
   }
 
