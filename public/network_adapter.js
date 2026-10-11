@@ -12,6 +12,7 @@ export class MasodoNetworkAdapter {
     this.manualClose = false;
     this.reconnectTimer = null;
     this.reconnectAttempts = 0;
+    this.reconnectChannels = new Map();
   }
 
   on(type, fn) {
@@ -26,16 +27,59 @@ export class MasodoNetworkAdapter {
 
   tokenKey(code) { return `masodo-reconnect-${String(code || "").trim().toUpperCase()}`; }
 
-  getReconnectToken(code) {
-    // Reconnect identity must be scoped to one tab/window.
-    // localStorage is shared by every same-origin tab and caused a second
-    // browser window to resume/steal the first player's host session.
-    try { return sessionStorage.getItem(this.tokenKey(code)) || null; } catch { return null; }
+  ensureReconnectChannel(code) {
+    const roomCode = String(code || "").trim().toUpperCase();
+    if (!roomCode || typeof BroadcastChannel === "undefined") return null;
+    if (this.reconnectChannels.has(roomCode)) return this.reconnectChannels.get(roomCode);
+    const channel = new BroadcastChannel(`masodo-reconnect-claim-${roomCode}`);
+    channel.addEventListener("message", event => {
+      const msg = event.data || {};
+      if (msg.type !== "probe" || !msg.token) return;
+      let current = null;
+      try { current = sessionStorage.getItem(this.tokenKey(roomCode)); } catch {}
+      if (current && current === msg.token) {
+        channel.postMessage({ type:"in_use", token:current });
+      }
+    });
+    this.reconnectChannels.set(roomCode, channel);
+    return channel;
+  }
+
+  async getReconnectToken(code) {
+    // sessionStorage keeps refresh reconnects tab-local. A duplicated tab can
+    // inherit sessionStorage, so additionally probe active same-room tabs.
+    const roomCode = String(code || "").trim().toUpperCase();
+    let token = null;
+    try { token = sessionStorage.getItem(this.tokenKey(roomCode)) || null; } catch { return null; }
+    if (!token) return null;
+    const channel = this.ensureReconnectChannel(roomCode);
+    if (!channel) return token;
+
+    const inUse = await new Promise(resolve => {
+      let settled = false;
+      const finish = value => { if (settled) return; settled = true; channel.removeEventListener("message", onMessage); resolve(value); };
+      const onMessage = event => {
+        const msg = event.data || {};
+        if (msg.type === "in_use" && msg.token === token) finish(true);
+      };
+      channel.addEventListener("message", onMessage);
+      channel.postMessage({ type:"probe", token });
+      setTimeout(() => finish(false), 120);
+    });
+
+    if (!inUse) return token;
+    try {
+      sessionStorage.removeItem(this.tokenKey(roomCode));
+      sessionStorage.removeItem(`masodo-session-${roomCode}`);
+    } catch {}
+    return null;
   }
 
   saveReconnectToken(code, token) {
     if (!token) return;
-    try { sessionStorage.setItem(this.tokenKey(code), token); } catch {}
+    const roomCode = String(code || "").trim().toUpperCase();
+    try { sessionStorage.setItem(this.tokenKey(roomCode), token); } catch {}
+    this.ensureReconnectChannel(roomCode);
   }
 
   mergeCatalog(incoming) {
@@ -85,8 +129,8 @@ export class MasodoNetworkAdapter {
   async connect(code, { playerName = "Player", charId = "c01", startRegion = "city" } = {}) {
     const roomCode = String(code).trim().toUpperCase();
     const storageKey = `masodo-session-${roomCode}`;
-    const resumeSessionId = this.sessionId || sessionStorage.getItem(storageKey) || null;
-    const reconnectToken = this.getReconnectToken(roomCode);
+    const reconnectToken = await this.getReconnectToken(roomCode);
+    const resumeSessionId = reconnectToken ? (this.sessionId || sessionStorage.getItem(storageKey) || null) : null;
     if (this.ws) { const old=this.ws; this.ws=null; try { old.close(1000,"reconnect"); } catch {} }
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
     this.manualClose = false;
