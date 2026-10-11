@@ -24,6 +24,13 @@ assert.match(index,/gameBuildLabel/);
 assert.match(api,/CHARACTERS\.map/);
 assert.match(api,/version:\s*GAME_VERSION/);
 assert.match(api,/protocolVersion:\s*PROTOCOL_VERSION/);
+assert.ok(api.includes('"/api/rooms"'));
+assert.ok(room.includes("EMPTY_ROOM_TTL_MS"));
+assert.ok(room.includes("deleteAll()"));
+assert.ok(room.includes("reconnectToken"));
+assert.ok(adapter.includes("listRooms()"));
+assert.ok(adapter.includes("localStorage.setItem"));
+assert.ok(!index.includes("setInterval(()=>{if(net.ws?.readyState===WebSocket.OPEN&&M)net.requestState()},2000)"));
 
 assert.match(room,/while\(players\.length<11\)/);
 for(const token of [
@@ -32,7 +39,7 @@ for(const token of [
   'command_char_action:"char_action"','command_loot_corpse:"loot_corpse"'
 ]) assert.ok(room.includes(token),"missing server command mapping "+token);
 assert.ok(room.includes("resumeSessionId"));
-assert.ok(room.includes("resumed:true"));
+assert.ok(room.includes("resumed:true") || room.includes("reconnected:resumed"));
 assert.ok(adapter.includes("sessionStorage.setItem"));
 assert.ok(adapter.includes("resumeSessionId"));
 assert.ok(adapter.includes("reconnectTimer"));
@@ -46,9 +53,9 @@ for(const id of synergyIds)assert.ok(ITEMS[id],"missing synergy item "+id);
 for(const id of Object.keys(NAMED_GEAR_FX))assert.ok(ITEMS[id],"named gear FX without item: "+id);
 assert.equal(Object.keys(NAMED_GEAR_FX).length,41);
 
-assert.equal(GAME_VERSION,"0.7.5-online-alpha");
+assert.equal(GAME_VERSION,"0.7.6-online-alpha");
 assert.equal(PHASE,"2P");
-assert.equal(PROTOCOL_VERSION,10);
+assert.equal(PROTOCOL_VERSION,11);
 assert.equal(INTENTIONAL_SOURCE_GAPS.length,3);
 
 console.log("client/server/static audit ok",{characters:CHARACTERS.length,namedGear:Object.keys(NAMED_GEAR_FX).length,version:GAME_VERSION});
