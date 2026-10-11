@@ -47,7 +47,8 @@ export default {
         characters: CHARACTERS.map(c => ({
           id: c.id, name: c.name, arch: c.arch, baseHp: c.baseHp, baseSp: c.baseSp,
           baseAtk: c.baseAtk, baseDef: c.baseDef, preferredWeapon: c.preferredWeapon,
-          passive: c.passive, combat: c.combat, action: c.action
+          passive: c.passive, combat: c.combat, action: c.action,
+          passiveEffectText: c.passiveEffectText, combatEffectText: c.combatEffectText, actionEffectText: c.actionEffectText
         })),
         regions: REGIONS
       }));
