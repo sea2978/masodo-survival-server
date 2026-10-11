@@ -27,12 +27,27 @@ export class MasodoNetworkAdapter {
   tokenKey(code) { return `masodo-reconnect-${String(code || "").trim().toUpperCase()}`; }
 
   getReconnectToken(code) {
-    try { return localStorage.getItem(this.tokenKey(code)) || null; } catch { return null; }
+    // Reconnect identity must be scoped to one tab/window.
+    // localStorage is shared by every same-origin tab and caused a second
+    // browser window to resume/steal the first player's host session.
+    try { return sessionStorage.getItem(this.tokenKey(code)) || null; } catch { return null; }
   }
 
   saveReconnectToken(code, token) {
     if (!token) return;
-    try { localStorage.setItem(this.tokenKey(code), token); } catch {}
+    try { sessionStorage.setItem(this.tokenKey(code), token); } catch {}
+  }
+
+  mergeCatalog(incoming) {
+    if (!incoming) return this.catalog;
+    const previous = this.catalog || { characters: [], regions: [] };
+    const previousById = new Map((previous.characters || []).map(c => [c.id, c]));
+    const characters = (incoming.characters || []).map(c => ({ ...(previousById.get(c.id) || {}), ...c }));
+    this.catalog = {
+      characters: characters.length ? characters : (previous.characters || []),
+      regions: (incoming.regions || []).length ? incoming.regions : (previous.regions || [])
+    };
+    return this.catalog;
   }
 
   async listRooms() {
@@ -97,7 +112,7 @@ export class MasodoNetworkAdapter {
           try { sessionStorage.setItem(storageKey, msg.sessionId); } catch {}
           if (msg.reconnectToken) this.saveReconnectToken(this.roomCode, msg.reconnectToken);
         }
-        if (msg.catalog) this.catalog = msg.catalog;
+        if (msg.catalog) this.mergeCatalog(msg.catalog);
         if (msg.build) this.build = msg.build;
         if (msg.match) this.lastMatch = msg.match;
         this.emit(msg.type || "message", msg);
