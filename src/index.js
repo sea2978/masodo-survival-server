@@ -3,6 +3,8 @@ import { CHARACTERS, REGIONS } from "./game_data.js";
 import { BUILD_LABEL, GAME_VERSION, PHASE, PROTOCOL_VERSION } from "./version.js";
 export { GameRoom } from "./room.js";
 
+const DIRECTORY_NAME = "__MASODO_ROOM_DIRECTORY__";
+
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,OPTIONS",
@@ -27,6 +29,12 @@ export default {
 
     if (url.pathname === "/api/health") {
       return withCors(json({ ok: true, service: "masodo-survival-server", version: GAME_VERSION, buildLabel: BUILD_LABEL, phase: PHASE, protocolVersion: PROTOCOL_VERSION }));
+    }
+
+    if (url.pathname === "/api/rooms" && request.method === "GET") {
+      const stub = await getRoomStub(env, DIRECTORY_NAME);
+      const response = await stub.fetch("https://directory.internal/directory/list");
+      return withCors(response);
     }
 
     if (url.pathname === "/api/catalog" && request.method === "GET") {
