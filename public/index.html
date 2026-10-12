@@ -20,14 +20,14 @@ body{overflow-x:hidden}
 .visual-stage{position:absolute;z-index:1;left:260px;right:315px;top:78px;bottom:92px;pointer-events:none}
 .standing-slot{position:absolute;bottom:-3%;width:52%;height:94%;display:flex;align-items:flex-end;justify-content:center}
 .enemy-standing-slot{left:50%;transform:translateX(-50%)}
-.standing-img{display:none;max-height:100%;max-width:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 18px 18px #000b)}
+.standing-sprite{display:none;height:100%;aspect-ratio:150/275;background-repeat:no-repeat;background-size:800% 100%;background-position-y:0;filter:drop-shadow(0 18px 18px #000b)}
 .standing-fallback{width:250px;height:72%;display:flex;align-items:flex-end;justify-content:center;padding:18px;border:1px dashed #7b8ea5;color:#9caabd;font-weight:800;letter-spacing:.15em;background:linear-gradient(180deg,rgba(23,34,47,.18),rgba(8,12,18,.72));clip-path:polygon(34% 0,66% 0,84% 18%,78% 42%,94% 100%,6% 100%,22% 42%,16% 18%);text-shadow:0 2px 4px #000}
 .enemy-fallback{border-color:#9c6666;color:#bc8e8e}
 .glass-panel{position:absolute;z-index:6;background:linear-gradient(180deg,rgba(10,18,28,.93),rgba(7,12,19,.9));border:1px solid #53677c;box-shadow:0 12px 32px #0009,inset 0 0 25px #27456022;backdrop-filter:blur(8px);border-radius:8px}
 .player-hud{left:14px;top:94px;width:315px;padding:14px}
 .player-profile-block{display:grid;grid-template-columns:78px 1fr;gap:11px;align-items:center;margin-bottom:9px}
 .profile-frame{width:78px;height:78px;border:1px solid #67819a;background:#0b1119;overflow:hidden;position:relative;box-shadow:inset 0 0 18px #1b3146}
-.profile-img{display:none;width:100%;height:100%;object-fit:cover;object-position:50% 18%}
+.profile-sprite{display:none;position:absolute;left:0;top:0;width:100%;height:184%;background-repeat:no-repeat;background-size:800% 100%;background-position-y:0}
 .profile-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#9caabd;letter-spacing:.08em;background:linear-gradient(145deg,#172738,#0b1119)}
 .profile-copy{min-width:0}.player-name-row{display:flex;justify-content:space-between;align-items:end;gap:8px;font-size:21px}.player-name-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.player-name-row span{font-size:12px;color:#aebdcb;white-space:nowrap}.player-region{color:#80b6e8;margin:4px 0 12px}
 .stat-line{display:flex;justify-content:space-between;padding:7px 10px;margin:5px 0;background:linear-gradient(90deg,#17283dcc,#0e1723aa);border-left:3px solid #5ea0d9}.stat-line:nth-of-type(2){border-color:#d15864}.combat-stat-row,.cooldown-row{display:flex;justify-content:space-between;font-size:12px;padding:8px 2px;color:#b9c4cf}.pending-line{font-size:12px;padding:9px;border:1px solid #46566a;background:#0c131d;margin:4px 0 10px}.move-title{font-size:11px;color:#91a4b8;margin:7px 0}.move-buttons{display:grid;gap:5px}.move-buttons button{min-height:34px;padding:6px 8px;text-align:left;background:#101c29dd;border-color:#3f5d78}
@@ -105,7 +105,7 @@ body{overflow-x:hidden}
 
     <div class="visual-stage" aria-hidden="true">
       <div class="standing-slot enemy-standing-slot">
-        <img id="enemyStanding" class="standing-img" alt="">
+        <div id="enemyStanding" class="standing-sprite"></div>
         <div id="enemyStandingFallback" class="standing-fallback enemy-fallback">ENCOUNTER</div>
       </div>
     </div>
@@ -113,7 +113,7 @@ body{overflow-x:hidden}
     <aside class="player-hud glass-panel">
       <div class="player-profile-block">
         <div class="profile-frame">
-          <img id="playerProfile" class="profile-img" alt="">
+          <div id="playerProfile" class="profile-sprite"></div>
           <div id="playerProfileFallback" class="profile-fallback">PLAYER</div>
         </div>
         <div class="profile-copy">
@@ -231,14 +231,28 @@ const REGION_BG={
   mgmt_cafeteria:"/assets/images/backgrounds/mgmt_cafeteria.webp",mgmt_lab:"/assets/images/backgrounds/mgmt_lab.webp",mgmt_training:"/assets/images/backgrounds/mgmt_training.webp",
   evil_reception:"/assets/images/backgrounds/evil_reception.webp",evil_quarters:"/assets/images/backgrounds/evil_quarters.webp",evil_training:"/assets/images/backgrounds/evil_training.webp"
 };
-const STANDING_IMG={c04:"/assets/images/standing/c04.webp"};
+const STANDING_SPRITES={
+  c01:[0,0],c02:[0,1],c03:[0,2],c04:[0,3],c05:[0,4],c06:[0,5],c07:[0,6],c08:[0,7],
+  c09:[1,0],c10:[1,1],c11:[1,2],c12:[1,3],c13:[1,4],c14:[1,5],c15:[1,6],c16:[1,7],
+  c17:[2,0],c18:[2,1],c19:[2,2],c20:[2,3],c21:[2,4],c22:[2,5],c23:[2,6],c24:[2,7],
+  c25:[3,0],c26:[3,1],c27:[3,2],c28:[3,3],c29:[3,4],c31:[3,5],c32:[3,6],c33:[3,7],
+  c36:[4,0],c37:[4,1],c38:[4,2],c40:[4,3],c41:[4,4],c42:[4,5],c43:[4,6],c44:[4,7],
+  c45:[5,0],c46:[5,1],c47:[5,2],c48:[5,3],c49:[5,4],c50:[5,5],c51:[5,6]
+};
 function charInfo(id){return (net.catalog?.characters||[]).find(c=>c.id===id)||null}
-function setVisual(img,fb,url,label){
-  fb.textContent=label||"TEMP";fb.style.display="flex";img.style.display="none";img.removeAttribute("src");
-  if(!url)return;
-  img.onload=()=>{img.style.display="block";fb.style.display="none"};
-  img.onerror=()=>{img.style.display="none";fb.style.display="flex"};
-  img.src=url;
+function setCharacterSprite(el,fb,charId,label){
+  fb.textContent=label||"TEMP";
+  fb.style.display="flex";
+  el.style.display="none";
+  el.style.backgroundImage="";
+  const meta=STANDING_SPRITES[charId];
+  if(!meta)return false;
+  const [row,col]=meta;
+  el.style.backgroundImage=`url("/assets/images/standing/row${row}.webp")`;
+  el.style.backgroundPositionX=`${(col/7)*100}%`;
+  el.style.display="block";
+  fb.style.display="none";
+  return true;
 }
 function applyGameVisuals(m,p){
   const screen=$('#gameScreen'),areaName=rname(p.region);
@@ -246,15 +260,18 @@ function applyGameVisuals(m,p){
   $('#areaTitle').textContent=areaName;
 
   const pc=charInfo(p.charId),pLabel=pc?.name||p.charId;
-  setVisual($('#playerProfile'),$('#playerProfileFallback'),STANDING_IMG[p.charId],pLabel);
+  setCharacterSprite($('#playerProfile'),$('#playerProfileFallback'),p.charId,pLabel);
 
   if(m.encounter){
     const enemyLabel=m.encounter.name||"조우 대상";
-    const enemyUrl=m.encounter.kind==="player"?STANDING_IMG[m.encounter.charId]:null;
-    setVisual($('#enemyStanding'),$('#enemyStandingFallback'),enemyUrl,enemyLabel);
+    const enemyCharId=m.encounter.kind==="player"?m.encounter.charId:null;
+    setCharacterSprite($('#enemyStanding'),$('#enemyStandingFallback'),enemyCharId,enemyLabel);
     $('.enemy-standing-slot').style.opacity="1";
   }else{
-    $('#enemyStanding').style.display="none";$('#enemyStandingFallback').style.display="none";$('.enemy-standing-slot').style.opacity="0";
+    $('#enemyStanding').style.display="none";
+    $('#enemyStanding').style.backgroundImage="";
+    $('#enemyStandingFallback').style.display="none";
+    $('.enemy-standing-slot').style.opacity="0";
   }
 }
 
