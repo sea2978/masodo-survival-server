@@ -1,0 +1,36 @@
+name: Build standalone HTML
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "public/MasodoSurvival.html"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build single-file client
+        run: node scripts/build_standalone.mjs
+      - name: Commit generated client
+        shell: bash
+        run: |
+          if git diff --quiet -- public/MasodoSurvival.html && git ls-files --error-unmatch public/MasodoSurvival.html >/dev/null 2>&1; then
+            echo "Standalone client is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/MasodoSurvival.html
+          git commit -m "Build standalone HTML client [skip ci]"
+          git push
