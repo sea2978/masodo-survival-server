@@ -33,16 +33,19 @@ for (const name of bgNames) {
 
 const standingRows = Array.from({length:6}, (_,i)=>dataUrl(`/assets/images/standing/row${i}.webp`));
 const profileRows = Array.from({length:6}, (_,i)=>dataUrl(`/assets/images/profile/row${i}.webp`));
-const embeddedRows = `const EMBEDDED_ROWS=${JSON.stringify({standing:standingRows,profile:profileRows})};\n`;
+const embeddedRows = { standing: standingRows, profile: profileRows };
 
 html = html.replace(
   /import\{MasodoNetworkAdapter\}from"\.\/network_adapter\.js";const net=new MasodoNetworkAdapter\(location\.origin\),\$=s=>document\.querySelector\(s\);let M=null;/,
-  `${adapter}\nconst SERVER_BASE=${JSON.stringify(SERVER_BASE)};\n${embeddedRows}const net=new MasodoNetworkAdapter(SERVER_BASE),$=s=>document.querySelector(s);let M=null;`
+  `${adapter}\nconst SERVER_BASE=${JSON.stringify(SERVER_BASE)};\nconst net=new MasodoNetworkAdapter(SERVER_BASE),$=s=>document.querySelector(s);let M=null;`
 );
 
+
+
+
 html = html.replace(
-  'el.style.backgroundImage=\`url("/assets/images/\${folder}/row\${row}.webp")\`;',
-  'el.style.backgroundImage=\`url("\${EMBEDDED_ROWS[folder][row]}")\`;'
+  /const SPRITE_ROWS=\{[\s\S]*?\};\nconst STANDING_SPRITES=/,
+  `const SPRITE_ROWS=${JSON.stringify(embeddedRows)};\nconst STANDING_SPRITES=`
 );
 
 html = html.replace(
