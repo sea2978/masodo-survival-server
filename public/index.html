@@ -240,7 +240,7 @@ const STANDING_SPRITES={
   c45:[5,0],c46:[5,1],c47:[5,2],c48:[5,3],c49:[5,4],c50:[5,5],c51:[5,6]
 };
 function charInfo(id){return (net.catalog?.characters||[]).find(c=>c.id===id)||null}
-function setCharacterSprite(el,fb,charId,label){
+function setCharacterSprite(el,fb,charId,label,type="standing"){
   fb.textContent=label||"TEMP";
   fb.style.display="flex";
   el.style.display="none";
@@ -248,7 +248,8 @@ function setCharacterSprite(el,fb,charId,label){
   const meta=STANDING_SPRITES[charId];
   if(!meta)return false;
   const [row,col]=meta;
-  el.style.backgroundImage=`url("/assets/images/standing/row${row}.webp")`;
+  const folder=type==="profile"?"profile":"standing";
+  el.style.backgroundImage=`url("/assets/images/${folder}/row${row}.webp")`;
   el.style.backgroundPositionX=`${(col/7)*100}%`;
   el.style.display="block";
   fb.style.display="none";
@@ -260,7 +261,7 @@ function applyGameVisuals(m,p){
   $('#areaTitle').textContent=areaName;
 
   const pc=charInfo(p.charId),pLabel=pc?.name||p.charId;
-  setCharacterSprite($('#playerProfile'),$('#playerProfileFallback'),p.charId,pLabel);
+  setCharacterSprite($('#playerProfile'),$('#playerProfileFallback'),p.charId,pLabel,"profile");
 
   if(m.encounter){
     const enemyLabel=m.encounter.name||"조우 대상";
