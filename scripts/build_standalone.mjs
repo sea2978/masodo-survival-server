@@ -1,0 +1,59 @@
+import fs from "node:fs";
+import path from "node:path";
+
+const root = process.cwd();
+const publicDir = path.join(root, "public");
+const indexPath = path.join(publicDir, "index.html");
+const adapterPath = path.join(publicDir, "network_adapter.js");
+const outputPath = path.join(publicDir, "MasodoSurvival.html");
+
+const SERVER_BASE = "https://masodo-survival-server.sunny-d45.workers.dev";
+
+let html = fs.readFileSync(indexPath, "utf8");
+let adapter = fs.readFileSync(adapterPath, "utf8").replace(/^export\s+class\s+MasodoNetworkAdapter/m, "class MasodoNetworkAdapter");
+
+function dataUrl(rel) {
+  const full = path.join(publicDir, rel.replace(/^\//, ""));
+  const buf = fs.readFileSync(full);
+  const ext = path.extname(full).toLowerCase();
+  const mime = ext === ".webp" ? "image/webp" : ext === ".png" ? "image/png" : "application/octet-stream";
+  return `data:${mime};base64,${buf.toString("base64")}`;
+}
+
+const bgNames = [
+  "city","estate","church","factory",
+  "mgmt_lobby","mgmt_admin","mgmt_director","mgmt_cafeteria","mgmt_lab","mgmt_training",
+  "evil_reception","evil_quarters","evil_training"
+];
+
+for (const name of bgNames) {
+  const rel = `/assets/images/backgrounds/${name}.webp`;
+  html = html.split(rel).join(dataUrl(rel));
+}
+
+const standingRows = Array.from({length:6}, (_,i)=>dataUrl(`/assets/images/standing/row${i}.webp`));
+const profileRows = Array.from({length:6}, (_,i)=>dataUrl(`/assets/images/profile/row${i}.webp`));
+const embeddedRows = `const EMBEDDED_ROWS=${JSON.stringify({standing:standingRows,profile:profileRows})};\n`;
+
+html = html.replace(
+  /import\{MasodoNetworkAdapter\}from"\.\/network_adapter\.js";const net=new MasodoNetworkAdapter\(location\.origin\),\$=s=>document\.querySelector\(s\);let M=null;/,
+  `${adapter}\nconst SERVER_BASE=${JSON.stringify(SERVER_BASE)};\n${embeddedRows}const net=new MasodoNetworkAdapter(SERVER_BASE),$=s=>document.querySelector(s);let M=null;`
+);
+
+html = html.replace(
+  'el.style.backgroundImage=\`url("/assets/images/\${folder}/row\${row}.webp")\`;',
+  'el.style.backgroundImage=\`url("\${EMBEDDED_ROWS[folder][row]}")\`;'
+);
+
+html = html.replace(
+  '<a href="/offline.html">오프라인 빌드</a>',
+  '<span class="muted">단일 HTML 클라이언트 · 서버 데이터 통신만 사용</span>'
+);
+
+html = html.replace(
+  "<title>마소도 온라인 알파 · 버전 확인 중</title>",
+  "<title>마소도 서바이벌 · 단일 HTML 클라이언트</title>"
+);
+
+fs.writeFileSync(outputPath, html);
+console.log(`Built ${outputPath}: ${(fs.statSync(outputPath).size/1024/1024).toFixed(1)} MiB`);
