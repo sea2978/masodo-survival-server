@@ -29,7 +29,7 @@ assert.ok(room.includes("EMPTY_ROOM_TTL_MS"));
 assert.ok(room.includes("deleteAll()"));
 assert.ok(room.includes("reconnectToken"));
 assert.ok(adapter.includes("listRooms()"));
-assert.ok(adapter.includes("localStorage.setItem"));
+assert.ok(adapter.includes("sessionStorage.setItem"));
 assert.ok(!index.includes("setInterval(()=>{if(net.ws?.readyState===WebSocket.OPEN&&M)net.requestState()},2000)"));
 
 assert.match(room,/while\(players\.length<11\)/);
@@ -53,8 +53,8 @@ for(const id of synergyIds)assert.ok(ITEMS[id],"missing synergy item "+id);
 for(const id of Object.keys(NAMED_GEAR_FX))assert.ok(ITEMS[id],"named gear FX without item: "+id);
 assert.equal(Object.keys(NAMED_GEAR_FX).length,41);
 
-assert.equal(GAME_VERSION,"0.7.6-online-alpha");
-assert.equal(PHASE,"2P");
+assert.equal(GAME_VERSION,"0.8.6-online-alpha");
+assert.equal(PHASE,"3A");
 assert.equal(PROTOCOL_VERSION,11);
 assert.equal(INTENTIONAL_SOURCE_GAPS.length,3);
 
