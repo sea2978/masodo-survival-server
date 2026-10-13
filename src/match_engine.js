@@ -859,6 +859,7 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
 }
 export function validateAction(match,p,type,payload={},now=Date.now()){
   updatePassiveTime(match,now);
+  if(p?.encounter&&!encounterTarget(match,p))p.encounter=null;
   if(!p?.alive)return {ok:false,error:"player_not_active"};if(p.pendingAction)return {ok:false,error:"action_in_progress"};if(status(p,"sleep",now))return {ok:false,error:"asleep"};
   if(p.pendingEvent)return {ok:false,error:"event_choice_required"};
   if(type!=="attack"&&type!=="skill"&&type!=="flee"&&p.encounter&&type!=="use_item")return {ok:false,error:"encounter_in_progress"};
@@ -909,7 +910,7 @@ export function completeAction(match,p,now=Date.now()){
   if(!p.alive){p.pendingAction=null;return {ok:false,error:"player_not_active",type:a.type}}
   p.pendingAction=null;
   const type=a.type,x=a.payload||{};let result={ok:true,type};
-  if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
+  if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;for(const q of match.players)if(q!==p&&q.encounter?.kind==="player"&&q.encounter.targetId===p.playerId)q.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};}
   else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
   else if(type==="craft"){result={...result,...craftItem(match,p,x.id)};p.nextCraftTimeMult=1}
