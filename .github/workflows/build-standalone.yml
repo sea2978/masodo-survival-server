@@ -22,6 +22,13 @@ jobs:
           node-version: "22"
       - name: Build single-file client
         run: node scripts/build_standalone.mjs
+      - name: Upload standalone client
+        uses: actions/upload-artifact@v4
+        with:
+          name: MasodoSurvival
+          path: public/MasodoSurvival.html
+          if-no-files-found: error
+          compression-level: 0
       - name: Commit generated client
         shell: bash
         run: |
