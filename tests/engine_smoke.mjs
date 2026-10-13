@@ -36,6 +36,7 @@ assert.equal(r.ok,true);
 const crafted=completeAction(match,p,r.action.completeAt+1);
 assert.equal(crafted.ok,true);
 
+match.wilds[0].region=p.region;
 p.encounter={kind:"wild",wildId:match.wilds[0].id};
 assert.equal(beginServerAction(match,p,"search",{},t0+20_000).error,"encounter_in_progress");
 p.encounter=null;
