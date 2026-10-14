@@ -213,6 +213,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
 .scene-main-btn{color:#e4edf6;background:linear-gradient(180deg,#17283b,#0c1622);border:1px solid #4d647a}.primary-float{background:linear-gradient(180deg,#501924,#220c12);border-color:#a73d4e}.skill-float{background:linear-gradient(180deg,#542044,#250d1d);border-color:#b44389}.scene-controls-group.hidden{display:none!important}.top-toast-stack{position:fixed;z-index:1500;left:50%;top:84px;transform:translateX(-50%);width:min(430px,calc(100vw - 28px));display:grid;gap:7px;pointer-events:none}.top-toast{background:#101923f2;color:#eef4fa;border:1px solid #65809c;border-left:4px solid #82c79a;padding:12px 16px;border-radius:8px;box-shadow:0 8px 24px #0009;opacity:0;transform:translateY(-12px);transition:opacity .18s,transform .18s}.top-toast.show{opacity:1;transform:translateY(0)}.top-toast.hide{opacity:0;transform:translateY(-12px)}.top-toast.combat{border-left-color:#e56a78}.top-toast-title{font-size:11px;color:#acbfd1}.top-toast-main{font-size:16px;font-weight:bold;margin-top:3px}.top-toast-sub{font-size:12px;color:#c3ceda;margin-top:3px}@media(max-width:820px){.scene-action-dock{position:fixed}.scene-primary-row{right:10px;bottom:10px;gap:7px}.scene-secondary-row{right:10px;bottom:100px}.scene-secondary-row.utility{left:10px;right:auto;bottom:100px;gap:5px}.scene-secondary-row.utility .btn{width:58px;min-width:58px;height:48px}.scene-main-btn.primary-float{width:92px;height:76px}.scene-main-btn.skill-float{width:112px}.top-toast-stack{top:66px}#gameScreen{padding-bottom:170px}}
 .top-toast-stack{max-height:25dvh;overflow:hidden}.lower-event-panel{position:fixed;z-index:8;left:50%;transform:translateX(-50%);bottom:120px;width:min(520px,calc(100vw - 32px));max-height:max(70px,min(42dvh,calc(75dvh - 220px)));overflow:auto;pointer-events:auto}.lower-event-panel:empty{display:none}.lower-event-panel .event{padding:14px;background:#0c1017f5;border:1px solid #60738b;border-radius:8px;box-shadow:0 8px 24px #0009}.lower-event-panel button{min-height:38px;margin:5px 0}.utility-panel-buttons{margin:10px 0}.utility-panel-buttons button{flex:1;min-height:36px;padding:6px}@media(max-width:820px){.lower-event-panel{bottom:170px;max-height:max(70px,min(35dvh,calc(75dvh - 252px)))}}
+.scene-secondary-row.flee-row{right:96px}@media(max-width:820px){.scene-secondary-row.flee-row{right:88px}}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -352,13 +353,14 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       </details>
 </dialog>
     <footer class="scene-action-dock">
+      <div class="scene-secondary-row rest-row"><button id="rest" class="btn">휴식</button></div>
       <div id="exploreControls" class="scene-controls-group">
         <div class="scene-primary-row"><button id="search" class="btn primary scene-main-btn primary-float">탐색</button><button id="charAction" class="btn scene-main-btn skill-float"><span class="btn-kicker">추가 행동</span><b id="actionSkillName">추가 행동</b></button></div>
-        <div class="scene-secondary-row utility"><button id="rest" class="btn">휴식</button></div>
+        
       </div>
       <div id="encounterControls" class="scene-controls-group hidden">
         <div class="scene-primary-row"><button id="attack" class="btn primary scene-main-btn primary-float">일반 공격</button><button id="skill" class="btn scene-main-btn skill-float"><span class="btn-kicker">전투 스킬</span><b id="combatSkillName">전투 스킬</b></button></div>
-        <div class="scene-secondary-row"><button class="btn" data-open-panel="inventoryPanel">아이템</button><button id="flee" class="btn">도주</button></div>
+        <div class="scene-secondary-row flee-row"><button id="flee" class="btn">도주</button></div>
       </div>
     </footer>
   </section>
