@@ -45,6 +45,115 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 @media(max-width:820px){body.game-active{overflow:hidden}#gameScreen{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;overflow-y:auto;overflow-x:hidden;padding:66px 8px 96px;background-attachment:scroll}.game-topbar{height:58px;padding:7px 10px;grid-template-columns:1fr auto}.game-area-name{font-size:18px}.match-summary{display:none}.connection-box{display:none}.visual-stage{position:relative;left:auto;right:auto;top:auto;bottom:auto;height:44dvh;min-height:280px;max-height:520px}.standing-slot{width:min(82vw,480px);height:100%}.standing-sprite{height:min(100%,520px)}.player-hud,.inventory-hud,.intel-hud{position:relative;left:auto;right:auto;top:auto;bottom:auto;width:auto;max-height:none;margin:8px 0}.encounter-layer{position:relative;left:auto;transform:none;top:auto;width:auto}.action-dock{position:fixed;left:0;right:0;bottom:0;transform:none;max-width:100vw;overflow-x:auto;justify-content:flex-start;border-radius:8px 8px 0 0;padding:6px}.dock-button{min-width:86px;width:86px;min-height:66px!important}.dock-button.utility{min-width:76px;width:76px}}
 
 .game-popup{color:#e4edf6;background:#111c2b;border:1px solid #637c94;border-radius:14px;width:min(680px,calc(100vw - 32px));max-height:80dvh;overflow:auto;padding:18px;box-sizing:border-box}.game-popup::backdrop{background:#000a}.popup-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.popup-head h2{margin:0 0 12px}.food-quick-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:12px}.food-quick-slots button{min-height:74px;white-space:normal;overflow-wrap:anywhere}.food-quick-slots small{display:block;margin-top:4px}.inventory-hud h3{font-size:13px;color:#b9cada}.game-popup .card{padding:10px;margin:8px 0;background:#0b131dcc}.game-popup .scroll{max-height:35dvh;overflow:auto}
+/* LoL-style crafting catalog */
+#craftPanel{width:min(1080px,calc(100% - 28px));height:min(760px,86vh)}
+#craftPanel .modal-body{padding:0;overflow:hidden;display:flex;min-height:0}
+#craft{width:100%;height:100%;padding:0!important;display:block!important;overflow:hidden}
+.craft-shop{display:grid;grid-template-columns:150px minmax(0,1fr) 300px;height:100%;min-height:0;background:#0d0f12}
+.craft-sidebar{border-right:1px solid #373b42;background:#111318;padding:10px;overflow:auto}
+.craft-sidebar-title{font-size:11px;color:#858b95;margin:4px 5px 8px}
+.craft-cat{width:100%;text-align:left;margin-bottom:5px;border:1px solid #333b45;background:#171a20;padding:9px;border-radius:5px}
+.craft-cat.active{background:#273444;border-color:#6a829f}
+.craft-center{display:flex;flex-direction:column;min-width:0;min-height:0}
+.craft-toolbar{display:flex;gap:7px;padding:9px;background:#15181d;border-bottom:1px solid #383d45}
+.craft-search{flex:1;background:#0d0f12;border:1px solid #424852;color:#eee;padding:8px 10px;border-radius:5px}
+.craft-count{display:flex;align-items:center;color:#888;font-size:10px;white-space:nowrap}
+.craft-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px;padding:9px;overflow:auto;align-content:start}
+.craft-item-card{min-height:108px;background:#15181d;border:1px solid #343b45;padding:8px;border-radius:6px;cursor:pointer;position:relative}
+.craft-item-card:hover{border-color:#6c7888;background:#1b2027}
+.craft-item-card.selected{border-color:#89a7cb;background:#202a36;box-shadow:inset 0 0 0 1px #526a84}
+.craft-item-card.craftable:after{content:"제작 가능";position:absolute;right:5px;top:5px;font-size:8px;color:#aee0a7;background:#1d3a23;border:1px solid #376642;padding:2px 4px;border-radius:3px}
+.craft-item-icon{width:38px;height:38px;border:1px solid #4b535f;background:linear-gradient(135deg,#2c333d,#171a1f);display:flex;align-items:center;justify-content:center;font-weight:bold;color:#9ca7b4;margin-bottom:7px}
+.craft-item-name{font-size:10px;font-weight:bold;line-height:1.25;padding-right:2px}
+.craft-item-meta{font-size:9px;color:#858d98;margin-top:5px}
+.craft-detail{border-left:1px solid #373b42;background:#111318;padding:13px;overflow:auto}
+.craft-detail-head{display:grid;grid-template-columns:56px 1fr;gap:10px;padding-bottom:12px;border-bottom:1px solid #343a42}
+.craft-detail-icon{width:56px;height:56px;border:1px solid #56606d;background:linear-gradient(135deg,#303946,#171b21);display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:bold}
+.craft-detail-name{font-size:16px;font-weight:bold;margin-top:3px}
+.craft-detail-type{font-size:10px;color:#9098a4;margin-top:4px}
+.craft-statbox{margin-top:10px;padding:9px;background:#171a20;border:1px solid #343a42;font-size:10px;line-height:1.7}
+.recipe-title{font-weight:bold;margin:13px 0 7px;font-size:11px}
+.recipe-tree{display:grid;gap:5px}
+.recipe-part{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px;background:#171a20;border:1px solid #343a42}
+.recipe-part.have{border-color:#426846}
+.recipe-part.missing{border-color:#674247}
+.recipe-owned{font-size:9px;color:#999}
+.craft-detail-action{margin-top:12px}
+.craft-detail-action .btn{width:100%;min-height:43px;font-weight:bold}
+.craft-upgrade-title{font-weight:bold;margin:14px 0 7px;font-size:11px;border-top:1px solid #343a42;padding-top:11px}
+.craft-upgrade-list{display:grid;gap:6px}
+.craft-upgrade-card{
+  display:grid;grid-template-columns:42px 1fr auto;gap:8px;align-items:center;
+  padding:7px;border:1px solid #3b4551;background:#171c22;border-radius:6px;cursor:pointer
+}
+.craft-upgrade-card:hover{border-color:#7a91aa;background:#202a35}
+.craft-upgrade-icon{
+  width:42px;height:42px;border:1px solid #525e6c;background:linear-gradient(135deg,#2d3743,#171b21);
+  display:flex;align-items:center;justify-content:center;font-weight:bold;color:#aab6c3
+}
+.craft-upgrade-card b{display:block;font-size:10px}
+.craft-upgrade-card small{display:block;color:#89939e;margin-top:3px;font-size:8px}
+.craft-upgrade-tier{font-size:8px;color:#d4c074;white-space:nowrap}
+
+.craft-empty{padding:30px;text-align:center;color:#777}
+@media(max-width:800px){
+  .craft-shop{grid-template-columns:110px minmax(0,1fr)}
+  .craft-detail{grid-column:1/3;border-left:0;border-top:1px solid #373b42;max-height:250px}
+  #craftPanel{height:90vh}
+}
+
+
+
+/* Favorite item route guide */
+.route-guide-hud{
+  position:absolute;right:14px;top:142px;z-index:11;
+  width:245px;max-height:330px;padding:8px;
+  border:1px solid #505761;border-radius:9px;
+  background:rgba(11,13,16,.90);
+  box-shadow:0 7px 20px rgba(0,0,0,.42);
+  font-size:9px;color:#abb3bd;
+  overflow:auto;pointer-events:auto
+}
+.route-guide-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.route-guide-head>span{font-size:8px;letter-spacing:.12em;color:#7f8995}
+.route-guide-head button,.route-target-row button{
+  border:1px solid #444c56;background:#171b21;color:#d9dee4;border-radius:5px;
+  width:25px;height:23px;padding:0;cursor:pointer
+}
+.route-guide-empty{padding:8px 4px;color:#7d858e;line-height:1.45}
+.route-target-row{display:flex;align-items:center;justify-content:space-between;gap:6px;padding-bottom:6px;border-bottom:1px solid #323840}
+.route-target-row b{font-size:11px;color:#f0f2f5;line-height:1.25}
+.route-target-row button{color:#e3c45a}
+.route-progress-text{margin:6px 0;color:#8f98a4}
+.route-steps{display:grid;gap:5px}
+.route-step{
+  padding:6px 7px;border:1px solid #343b44;background:#15191e;border-radius:5px;
+  line-height:1.35
+}
+.route-step.current{border-color:#6b86a5;background:#1a2430}
+.route-step.done{border-color:#426447;opacity:.72}
+.route-step .route-step-title{display:flex;justify-content:space-between;gap:7px}
+.route-step b{font-size:9px;color:#e1e5e9}
+.route-step small{display:block;color:#838c97;margin-top:3px}
+.route-step .route-loc{color:#9fc0e3}
+.route-step .route-have{color:#9bc99d}
+.craft-fav-btn{
+  position:absolute;left:54px;top:5px;z-index:2;width:24px;height:24px;
+  border:1px solid #444c56;border-radius:5px;background:#11151a;color:#7f8995;
+  cursor:pointer;font-size:14px;line-height:20px;padding:0
+}
+.craft-fav-btn.active{color:#f0ca55;border-color:#806d34;background:#29230f}
+.craft-detail-fav{
+  margin-top:8px;width:100%;height:34px;border:1px solid #4a5360;border-radius:5px;
+  background:#181c22;color:#d8dde4;cursor:pointer
+}
+.craft-detail-fav.active{color:#f0ca55;border-color:#806d34;background:#29230f}
+@media(max-width:760px){
+  .route-guide-hud{right:8px;top:126px;width:210px;max-height:280px}
+}
+
+
+#craftPanel{padding:0;overflow:hidden;max-height:90dvh}#craftPanel>.popup-head{padding:12px 16px}#craft{height:calc(100% - 70px)}.route-guide-hud{position:relative;top:auto;right:auto;width:auto;max-height:270px;overflow:auto;margin-top:12px}.hidden{display:none!important}@media(max-width:800px){.craft-shop{grid-template-rows:minmax(180px,1fr) 250px}.craft-detail{max-height:none}.craft-search{min-width:0}}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -146,10 +255,26 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       <div id="equippedHud"></div>
       <h3>음식 퀵슬롯</h3><div id="foodQuickSlots" class="food-quick-slots"></div>
       <div class="row"><button data-open-panel="movePanel">지역 이동</button><button data-open-panel="inventoryPanel">인벤토리</button><button data-open-panel="craftPanel">제작</button></div>
+      <div id="routeGuideHud" class="route-guide-hud">
+        <div class="route-guide-head">
+          <span>ITEM ROUTE</span>
+          <button id="routeCycleBtn" type="button" title="다음 즐겨찾기">↻</button>
+        </div>
+        <div id="routeGuideEmpty" class="route-guide-empty">제작창에서 ☆를 눌러 아이템을 추적하세요.</div>
+        <div id="routeGuideBody" class="route-guide-body hidden">
+          <div class="route-target-row">
+            <b id="routeTargetName">-</b>
+            <button id="routeUnfavBtn" type="button" title="즐겨찾기 해제">★</button>
+          </div>
+          <div id="routeProgressText" class="route-progress-text">-</div>
+          <div id="routeSteps" class="route-steps"></div>
+        </div>
+      </div>
+
     </aside>
     <dialog id="movePanel" class="game-popup"><div class="popup-head"><h2>지역 이동</h2><button data-close-panel>닫기</button></div><div id="moves" class="move-buttons"></div></dialog>
     <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 장비</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
-    <dialog id="craftPanel" class="game-popup"><div class="popup-head"><h2>제작</h2><button data-close-panel>닫기</button></div><h3>추천 제작</h3><div id="recommended"></div><h3>전체 제작 가능</h3><div id="craft"></div></dialog>
+    <dialog id="craftPanel" class="game-popup"><div class="popup-head"><h2>제작</h2><button data-close-panel>닫기</button></div><div id="craft"></div></dialog>
 
     <section class="intel-hud glass-panel">
       <div class="intel-tabs"><b>전투/행동 로그</b></div>
@@ -274,6 +399,284 @@ function applyGameVisuals(m,p){
   }
 }
 
+
+const D={"items":{"iron":{"n":"철조각","t":"m","tier":"일반"},"glass":{"n":"유리조각","t":"m","tier":"일반"},"rubber":{"n":"고무","t":"m","tier":"일반"},"wire":{"n":"철사","t":"m","tier":"일반"},"battery":{"n":"배터리","t":"m","tier":"일반"},"electronics":{"n":"전자부품","t":"m","tier":"일반"},"cloth":{"n":"질긴 천","t":"m","tier":"일반"},"medicine":{"n":"약품","t":"c","heal":22,"tier":"일반","kind":"medicine","useTime":1.2,"combatEff":0.85},"water":{"n":"생수","t":"c","sp":12,"effectText":"SP +12 · 포만도 +5","tier":"일반","kind":"drink","sat":5,"useTime":1.2,"combatEff":0.75},"bread":{"n":"빵","t":"c","heal":10,"effectText":"HP +10 · 포만도 +15","tier":"일반","kind":"food","sat":15,"useTime":1.2,"combatEff":0.75},"canned":{"n":"통조림","t":"c","heal":14,"effectText":"HP +14 · 포만도 +18","kind":"food","sat":18,"useTime":1.2,"combatEff":0.75},"chocolate":{"n":"초콜릿","t":"c","sp":10,"effectText":"SP +10 · 포만도 +10 · 15초간 이동속도 +5%","tier":"일반","kind":"food","sat":10,"useTime":1.2,"combatEff":0.75},"silver":{"n":"은괴","t":"m","tier":"일반"},"crystal":{"n":"수정","t":"m","tier":"일반"},"mana_ink":{"n":"마력잉크","t":"m","tier":"일반"},"mana_fiber":{"n":"마력섬유","t":"m","tier":"일반"},"leather":{"n":"가죽","t":"m","tier":"일반"},"precision":{"n":"정밀부품","t":"m","tier":"일반"},"mana_stone":{"n":"마력석","t":"m","tier":"일반"},"steel":{"n":"강철판","t":"m","tier":"일반"},"alloy":{"n":"특수합금","t":"m","tier":"일반"},"machine":{"n":"기계부품","t":"m","tier":"일반"},"toxin":{"n":"독성물질","t":"m","tier":"일반"},"wood":{"n":"강화목재","t":"m","tier":"일반"},"stick":{"n":"나무막대","t":"m","tier":"일반"},"gunpowder":{"n":"화약","t":"m","tier":"일반"},"aim_terminal":{"n":"전술 조준 단말","t":"e","def":18,"r":{"electronics":1,"precision":1,"battery":1},"fx":"tracking","tier":"희귀 시너지","effectText":"탐지한 적을 20초 표식(장비 보정으로 24초) · 표식 대상 첫 공격 명중률 +5% · 추적 정보 지속시간 +20%","weaponType":"단말"},"camo_mask":{"n":"저소음 위장 마스크","t":"e","def":19,"r":{"cloth":1,"mana_fiber":1},"fx":"stealth","tier":"희귀 시너지","effectText":"적에게 탐지될 확률 -7% · 8초 이상 공격하지 않았다면 다음 첫 적중 피해 +4%"},"toxin_kit":{"n":"독성 투여 키트","t":"e","def":17,"r":{"toxin":1,"medicine":1},"fx":"poison","tier":"희귀 시너지","effectText":"공격 적중 시 독 부여 확률 +6% · 독 상태 대상에게 주는 피해 +3%","weaponType":"도구"},"propulsion":{"n":"경량 추진 하네스","t":"e","def":18,"r":{"battery":1,"rubber":1,"machine":1},"fx":"mobility","tier":"희귀 시너지","effectText":"지역 이동 SP 소모 -1 · 이동 후 8초 이내 첫 공격 명중률 +4%"},"plate":{"n":"충격 흡수 플레이트","t":"e","def":22,"r":{"steel":1,"rubber":1},"fx":"bruiser","tier":"희귀 시너지","effectText":"HP 50% 이상일 때 받는 전투 피해 -3% · HP 50% 미만일 때 방어력 +4"},"recovery":{"n":"응급 회복 모듈","t":"e","def":18,"r":{"medicine":1,"mana_fiber":1},"fx":"sustain","tier":"희귀 시너지","effectText":"음식/약품 HP 회복량 +8% · 비전투 회복 효과 +5%"},"spell_amp":{"n":"술식 증폭 장신구","t":"e","def":18,"r":{"mana_stone":1,"crystal":1},"fx":"control","tier":"희귀 시너지","effectText":"가하는 상태이상 지속시간 +6% · 상태이상 부여 확률 +3%","weaponType":"장신구"},"accel":{"n":"반응 가속 모듈","t":"e","def":17,"r":{"precision":1,"battery":1},"fx":"rapid","tier":"희귀 시너지","effectText":"일반 공격 준비시간 -4% · 같은 대상을 연속 3회 적중하면 3번째 피해 +3%","weaponType":"단말"},"trace":{"n":"추적용 흔적 분석기","t":"e","def":17,"r":{"precision":1,"electronics":1},"fx":"tracking","tier":"희귀 시너지","effectText":"부상당한 적 탐지 확률 +8% · 같은 대상을 다시 탐지했을 때 첫 공격 명중률 +4%","weaponType":"단말"},"detox":{"n":"해독 방호 마스크","t":"e","def":20,"r":{"mana_fiber":1,"medicine":1},"fx":"poison","tier":"희귀 시너지","effectText":"받는 독 지속시간 -20% · 독 상태 적을 발견하면 20초간 자신이 탐지될 확률 -3%"},"evasion":{"n":"전술 회피 장치","t":"e","def":17,"r":{"precision":1,"rubber":1},"fx":"mobility","tier":"희귀 시너지","effectText":"도주 준비시간 -5% · 도주 성공 후 다음 지역 이동 SP 소모 0"},"focus":{"n":"집중 유지 부적","t":"e","def":17,"r":{"mana_ink":1,"mana_fiber":1},"fx":"control","tier":"희귀 시너지","effectText":"전투 스킬 SP 소모 -5% · 행동지연 저항 +10%","weaponType":"장신구"},"blade":{"n":"강화검","t":"e","atk":18,"r":{"steel":1,"rubber":1},"def":0,"tier":"희귀","weaponType":"검"},"spear":{"n":"강화창","t":"e","atk":18,"r":{"steel":1,"stick":1},"def":0,"tier":"희귀","weaponType":"창"},"bow":{"n":"강화활","t":"e","atk":17,"r":{"wood":1,"wire":1},"def":0,"tier":"희귀","weaponType":"활"},"gun":{"n":"강화총","t":"e","atk":19,"r":{"machine":1,"gunpowder":1},"def":0,"tier":"희귀","weaponType":"총"},"gauntlet":{"n":"강화권갑","t":"e","atk":16,"r":{"steel":1,"leather":1},"def":3,"tier":"희귀","weaponType":"권갑"},"ceramic":{"n":"세라믹","t":"m","tier":"일반"},"energy_drink":{"n":"에너지드링크","t":"c","sp":22,"effectText":"SP +22 · 포만도 +10 · 25초간 지역 이동 SP 소모 -1","tier":"고급","kind":"drink","sat":10,"useTime":1.2,"combatEff":0.75},"coffee":{"n":"커피","t":"c","sp":18,"effectText":"SP +18 · 포만도 +8 · 30초간 탐색 시간 -5%","tier":"고급","kind":"drink","sat":8,"useTime":1.2,"combatEff":0.75},"strong_coffee":{"n":"진한 커피","t":"c","sp":25,"effectText":"SP +25 · 포만도 +10 · 30초간 행동속도 +4% · 종료 후 20초 SP회복 -10%","tier":"희귀","kind":"drink","sat":10,"useTime":1.2,"combatEff":0.75},"sandwich":{"n":"샌드위치","t":"c","heal":12,"sp":12,"effectText":"HP +12 · SP +12 · 포만도 +20","tier":"고급","kind":"food","sat":20,"useTime":1.2,"combatEff":0.75},"grilled_meat":{"n":"구운 고기","t":"c","heal":18,"effectText":"HP +18 · 포만도 +25 · 30초간 최대 HP +8","tier":"고급","kind":"food","sat":25,"useTime":1.2,"combatEff":0.75},"warm_soup":{"n":"따뜻한 수프","t":"c","heal":18,"effectText":"HP +18 · 포만도 +20 · 공포/혼란 지속시간 -20%","tier":"고급","kind":"food","sat":20,"useTime":1.2,"combatEff":0.75},"first_aid":{"n":"응급약","t":"c","heal":22,"effectText":"HP +22 · 전투 중 회복효율 85%","tier":"고급","kind":"medicine","useTime":1.2,"combatEff":0.85},"advanced_first_aid":{"n":"고급응급약","t":"c","heal":30,"effectText":"HP +30 · 전투 중 회복효율 80% · 사용시간 1.4초","tier":"희귀","kind":"medicine","useTime":1.4,"combatEff":0.8},"antidote":{"n":"해독제","t":"c","effectText":"독 2스택 제거 · 남은 독 지속시간 절반","tier":"고급","kind":"medicine","useTime":1.2,"combatEff":1},"bandage":{"n":"붕대","t":"c","heal":8,"effectText":"HP +8 · 출혈 2스택 제거","tier":"일반","kind":"medicine","useTime":1.2,"combatEff":0.85},"mint_choco_fish":{"n":"민트초코 붕어빵","t":"c","heal":16,"sp":8,"effectText":"HP +16 · SP +8 · 포만도 +20 · 하쿠/아바돈 특수 반응","tier":"희귀","kind":"food","sat":20,"useTime":1.2,"combatEff":0.75},"carbonara_mint_fish":{"n":"카르보나라 파스타 민트초코 붕어빵(성심담 에디션)","t":"c","heal":18,"sp":12,"effectText":"HP +18 · SP +12 · 포만도 +25 · 아바돈 특수 반응","tier":"희귀","kind":"food","sat":25,"useTime":1.2,"combatEff":0.75},"basic_sword":{"n":"검","t":"e","atk":8,"def":0,"r":{"iron":1,"stick":1},"tier":"고급","category":"무기","weaponType":"검"},"basic_dagger":{"n":"단검","t":"e","atk":7,"def":0,"r":{"iron":1,"rubber":1},"tier":"고급","category":"무기","weaponType":"단검"},"basic_spear":{"n":"창","t":"e","atk":8,"def":0,"r":{"stick":1,"iron":1},"tier":"고급","category":"무기","weaponType":"창"},"basic_blunt":{"n":"둔기","t":"e","atk":9,"def":0,"r":{"iron":1,"wood":1},"tier":"고급","category":"무기","weaponType":"둔기"},"basic_scythe":{"n":"낫","t":"e","atk":8,"def":0,"r":{"iron":1,"stick":1},"tier":"고급","category":"무기","weaponType":"낫"},"basic_gauntlet":{"n":"권갑","t":"e","atk":7,"def":2,"r":{"leather":1,"iron":1},"tier":"고급","category":"무기","weaponType":"권갑"},"basic_bow":{"n":"활","t":"e","atk":7,"def":0,"r":{"wood":1,"wire":1},"tier":"고급","category":"무기","weaponType":"활"},"basic_gun":{"n":"총","t":"e","atk":9,"def":0,"r":{"iron":1,"gunpowder":1},"tier":"고급","category":"무기","weaponType":"총"},"basic_throw":{"n":"투척무기","t":"e","atk":7,"def":0,"r":{"iron":1,"cloth":1},"tier":"고급","category":"무기","weaponType":"투척무기"},"basic_heavy":{"n":"중량무기","t":"e","atk":10,"def":0,"r":{"steel":1,"wood":1},"tier":"고급","category":"무기","weaponType":"중량무기"},"basic_special":{"n":"특수무기","t":"e","atk":8,"def":1,"r":{"machine":1,"iron":1},"tier":"고급","category":"무기","weaponType":"특수무기"},"basic_magic":{"n":"마도구","t":"e","atk":4,"def":4,"r":{"mana_stone":1,"stick":1},"tier":"고급","category":"장비","weaponType":"마도구"},"basic_grimoire":{"n":"마법서","t":"e","atk":3,"def":5,"r":{"mana_ink":1,"cloth":1},"tier":"고급","category":"장비","weaponType":"마법서"},"basic_terminal":{"n":"단말","t":"e","atk":2,"def":6,"r":{"electronics":1,"battery":1},"tier":"고급","category":"장비","weaponType":"단말"},"basic_mask":{"n":"가면","t":"e","atk":0,"def":7,"r":{"cloth":1,"glass":1},"tier":"고급","category":"장비"},"basic_accessory":{"n":"장신구","t":"e","atk":1,"def":6,"r":{"silver":1,"crystal":1},"tier":"고급","category":"장비"},"basic_tool":{"n":"도구","t":"e","atk":2,"def":5,"r":{"machine":1,"rubber":1},"tier":"고급","category":"장비","weaponType":"도구"},"basic_armament":{"n":"병기","t":"e","atk":3,"def":8,"r":{"steel":1,"machine":1},"tier":"고급","category":"장비","weaponType":"병기"},"rare_dagger":{"n":"강화단검","t":"e","atk":17,"def":0,"r":{"basic_dagger":1,"alloy":1},"tier":"희귀","weaponType":"단검"},"rare_blunt":{"n":"강화둔기","t":"e","atk":19,"def":0,"r":{"basic_blunt":1,"alloy":1},"tier":"희귀","weaponType":"둔기"},"rare_scythe":{"n":"강화낫","t":"e","atk":18,"def":0,"r":{"basic_scythe":1,"alloy":1},"tier":"희귀","weaponType":"낫"},"rare_throw":{"n":"강화투척무기","t":"e","atk":17,"def":0,"r":{"basic_throw":1,"alloy":1},"tier":"희귀","weaponType":"투척무기"},"rare_heavy":{"n":"강화중량무기","t":"e","atk":21,"def":0,"r":{"basic_heavy":1,"alloy":1},"tier":"희귀","weaponType":"중량무기"},"rare_special":{"n":"강화특수무기","t":"e","atk":18,"def":2,"r":{"basic_special":1,"alloy":1},"tier":"희귀","weaponType":"특수무기"},"rare_magic":{"n":"강화마도구","t":"e","atk":10,"def":8,"r":{"basic_magic":1,"alloy":1},"tier":"희귀","weaponType":"마도구"},"rare_grimoire":{"n":"고위마법서","t":"e","atk":9,"def":10,"r":{"basic_grimoire":1,"alloy":1},"tier":"희귀","weaponType":"마법서"},"rare_terminal":{"n":"강화단말","t":"e","atk":6,"def":12,"r":{"basic_terminal":1,"alloy":1},"tier":"희귀","weaponType":"단말"},"rare_mask":{"n":"주술가면","t":"e","atk":2,"def":13,"r":{"basic_mask":1,"alloy":1},"tier":"희귀"},"rare_accessory":{"n":"고급장신구","t":"e","atk":4,"def":12,"r":{"basic_accessory":1,"alloy":1},"tier":"희귀"},"rare_tool":{"n":"특수도구","t":"e","atk":6,"def":10,"r":{"basic_tool":1,"alloy":1},"tier":"희귀","weaponType":"도구"},"rare_armament":{"n":"강화병기","t":"e","atk":8,"def":14,"r":{"basic_armament":1,"alloy":1},"tier":"희귀","weaponType":"병기"},"special_01":{"n":"백색 양산살","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_02":{"n":"자수정 피어싱 조각","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_03":{"n":"성흔이 새겨진 철편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_04":{"n":"아레스 나노코어","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_05":{"n":"흑색 대검 파편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_06":{"n":"은빛 레이피어 파편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_07":{"n":"해킹 단말 칩","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_08":{"n":"성창의 금빛 파편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_09":{"n":"무언의 가면 조각","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_10":{"n":"아이돌 마이크 코어","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_11":{"n":"청해의 닻사슬","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_12":{"n":"여우 문양 부적지","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_13":{"n":"백은 칼날 조각","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_14":{"n":"고장 난 회중시계 부품","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_15":{"n":"검붉은 검편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_16":{"n":"마력이 밴 붓털","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_17":{"n":"당문 암기편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_18":{"n":"기사창 파편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_19":{"n":"검은 낫날 조각","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_20":{"n":"정밀 활시위","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_21":{"n":"리볼버 실린더","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_22":{"n":"별 장식 결정","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_23":{"n":"기사검 장갑판","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_24":{"n":"주황색 건틀릿 코어","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_25":{"n":"성화 부채살","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_26":{"n":"마력이 깃든 꽃잎","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_27":{"n":"마법서의 백지 페이지","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_28":{"n":"붉은 대검 파편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_29":{"n":"월광 비수편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_30":{"n":"미노타우로스 건틀릿 편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_31":{"n":"장산범의 털가죽","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_32":{"n":"키메라 조직 샘플","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_33":{"n":"청룡의 비늘","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_34":{"n":"독사의 허물","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_35":{"n":"기사장의 갑주편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_36":{"n":"몽마의 뿔조각","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_37":{"n":"마술사의 금속 카드","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_38":{"n":"하피의 깃털","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_39":{"n":"붉은 검집 장식","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_40":{"n":"탐식 기관 조직","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"special_41":{"n":"심해 촉수편","t":"m","tier":"특수","effectText":"캐릭터 연계 특수재료 · 최종/준최종 장비 제작에 사용"},"near_final_01":{"n":"벨리트라의 혀 피어싱","t":"e","atk":12,"def":8,"r":{"rare_accessory":1,"special_02":1},"tier":"준최종","effectText":"명중률 +2% · 치명타 확률 +2%","weaponType":"장신구"},"near_final_02":{"n":"페더파일의 마도 단말","t":"e","atk":5,"def":16,"r":{"rare_terminal":1,"special_07":1},"tier":"준최종","effectText":"플레이어 탐지 확률 +6%","weaponType":"단말"},"near_final_03":{"n":"헤드라의 가면","t":"e","atk":5,"def":16,"r":{"rare_mask":1,"special_09":1},"tier":"준최종","effectText":"자신이 탐지될 확률 -5%"},"near_final_04":{"n":"아이리스의 스테이지 마이크","t":"e","atk":12,"def":8,"r":{"rare_special":1,"special_10":1},"tier":"준최종","effectText":"전투 스킬 SP 소모 -2","weaponType":"특수무기"},"near_final_05":{"n":"키츠네의 고헤이","t":"e","atk":12,"def":8,"r":{"rare_magic":1,"special_12":1},"tier":"준최종","effectText":"상태이상 부여 확률 +4%","weaponType":"마도구"},"near_final_06":{"n":"몽트르의 회중시계","t":"e","atk":12,"def":8,"r":{"rare_accessory":1,"special_14":1},"tier":"준최종","effectText":"공격 준비시간 -3% · 이동시간 -3%","weaponType":"장신구"},"near_final_07":{"n":"우시아의 마도붓","t":"e","atk":12,"def":8,"r":{"rare_magic":1,"special_16":1},"tier":"준최종","effectText":"일반 탐색의 아이템 발견 확률 +5%","weaponType":"마도구"},"near_final_08":{"n":"티에스의 리볼버","t":"e","atk":12,"def":8,"r":{"gun":1,"special_21":1},"tier":"준최종","effectText":"치명타 확률 +3%","weaponType":"총"},"near_final_09":{"n":"유니온의 별봉","t":"e","atk":12,"def":8,"r":{"rare_magic":1,"special_22":1},"tier":"준최종","effectText":"전투 스킬 피해 +5%","weaponType":"마도구"},"near_final_10":{"n":"제니아의 성화부채","t":"e","atk":12,"def":8,"r":{"rare_magic":1,"special_25":1},"tier":"준최종","effectText":"가하는 제어 상태 지속시간 +5%","weaponType":"마도구"},"near_final_11":{"n":"이본느의 마법 꽃다발","t":"e","atk":12,"def":8,"r":{"rare_accessory":1,"special_26":1},"tier":"준최종","effectText":"소비 아이템 HP 회복 +5% · 휴식 HP 회복 +5%","weaponType":"마도구"},"near_final_12":{"n":"영령의 귀면","t":"e","atk":12,"def":8,"r":{"rare_mask":1,"special_31":1},"tier":"준최종","effectText":"공격 적중 시 6% 확률로 공포 5초"},"near_final_13":{"n":"샤를노아의 생체개조 도구","t":"e","atk":12,"def":16,"r":{"rare_tool":1,"special_32":1},"tier":"준최종","effectText":"소비 아이템 HP 회복 +5%","weaponType":"도구"},"near_final_14":{"n":"시즈쿠의 독극물 키트","t":"e","atk":12,"def":8,"r":{"rare_tool":1,"special_34":1},"tier":"준최종","effectText":"공격 적중 시 독 부여 +8% · 독 상태 대상 피해 +2%","weaponType":"도구"},"near_final_15":{"n":"메리앤의 마각 장식","t":"e","atk":5,"def":16,"r":{"rare_accessory":1,"special_36":1},"tier":"준최종","effectText":"휴식 SP 회복 +15%","weaponType":"장신구"},"near_final_16":{"n":"아브락사스의 하피 발톱","t":"e","atk":12,"def":8,"r":{"rare_special":1,"special_38":1},"tier":"준최종","effectText":"이동시간 -4% · 이동 후 8초 내 첫 공격 명중 +5%","weaponType":"특수무기"},"near_final_17":{"n":"아바돈의 포식구","t":"e","atk":12,"def":8,"r":{"rare_special":1,"special_40":1},"tier":"준최종","effectText":"적 처치 시 HP 6 회복 · 소비 아이템 HP 회복 +6%","weaponType":"특수무기"},"final_01":{"n":"앨리스의 백양산","t":"e","atk":30,"def":12,"r":{"rare_special":1,"special_01":1},"tier":"최종","effectText":"자신이 탐지될 확률 -4% · 8초 이상 비공격 후 다음 첫 적중 피해 +8%","weaponType":"특수무기"},"final_02":{"n":"크리스티나의 성철퇴","t":"e","atk":30,"def":12,"r":{"rare_blunt":1,"special_03":1},"tier":"최종","effectText":"전투 스킬 피해 +8% · 상태이상 대상에게 주는 피해 +4%","weaponType":"둔기"},"final_03":{"n":"기갑슈트 아레스","t":"e","atk":16,"def":28,"r":{"rare_armament":1,"special_04":1},"tier":"최종","effectText":"받는 전투 피해 -5% · HP 50% 미만 방어력 +6 · 이동 SP 소모 -1","weaponType":"병기"},"final_04":{"n":"에클레르의 흑색 대검","t":"e","atk":30,"def":12,"r":{"rare_heavy":1,"special_05":1},"tier":"최종","effectText":"같은 대상 연속 적중마다 피해 +2% (최대 +6%)","weaponType":"중량무기"},"final_05":{"n":"에클레어의 레이피어","t":"e","atk":30,"def":12,"r":{"blade":1,"special_06":1},"tier":"최종","effectText":"명중률 +5% · 공격 준비시간 -6% · 치명타 확률 +2%","weaponType":"검"},"final_06":{"n":"가브리엘의 성창","t":"e","atk":30,"def":12,"r":{"spear":1,"special_08":1},"tier":"최종","effectText":"전투 스킬 명중률 +4% · 전투 스킬 피해 +7%","weaponType":"창"},"final_07":{"n":"제니퍼의 대형 닻","t":"e","atk":30,"def":12,"r":{"rare_heavy":1,"special_11":1},"tier":"최종","effectText":"피해 +4% · 공격 적중 시 12% 확률로 둔화","weaponType":"중량무기"},"final_08":{"n":"라퓌셀의 백은 카타나","t":"e","atk":30,"def":12,"r":{"blade":1,"special_13":1},"tier":"최종","effectText":"공격 준비시간 -4% · 적 처치 시 HP 10 회복","weaponType":"검"},"final_09":{"n":"녹투아의 마검","t":"e","atk":30,"def":12,"r":{"blade":1,"special_15":1},"tier":"최종","effectText":"치명타 확률 +5% · 전투 스킬 피해 +4%","weaponType":"검"},"final_10":{"n":"파벨의 암기함","t":"e","atk":30,"def":12,"r":{"rare_throw":1,"special_17":1},"tier":"최종","effectText":"공격 적중 시 독 부여 +12% · 독 상태 대상 피해 +5%","weaponType":"투척무기"},"final_11":{"n":"키호테의 기사창","t":"e","atk":30,"def":12,"r":{"spear":1,"special_18":1},"tier":"최종","effectText":"이동 후 8초 내 첫 공격 명중 +8% / 피해 +8%","weaponType":"창"},"final_12":{"n":"리퍼의 대낫","t":"e","atk":30,"def":12,"r":{"rare_scythe":1,"special_19":1},"tier":"최종","effectText":"적 처치 시 HP 8 / SP 10 회복","weaponType":"낫"},"final_13":{"n":"스카디의 장궁","t":"e","atk":30,"def":12,"r":{"bow":1,"special_20":1},"tier":"최종","effectText":"플레이어 탐지 확률 +12% · 명중률 +5%","weaponType":"활"},"final_14":{"n":"베로니카의 양날대검","t":"e","atk":30,"def":12,"r":{"rare_heavy":1,"special_23":1},"tier":"최종","effectText":"주는 피해 +8% · 공격 준비시간 +5%","weaponType":"중량무기"},"final_15":{"n":"휘트니의 건틀릿","t":"e","atk":30,"def":12,"r":{"gauntlet":1,"special_24":1},"tier":"최종","effectText":"공격 준비시간 -10% · 같은 대상 3번째 적중 피해 +6%","weaponType":"권갑"},"final_16":{"n":"제타의 마법서","t":"e","atk":16,"def":28,"r":{"rare_grimoire":1,"special_27":1},"tier":"최종","effectText":"전투 스킬 SP 소모 -3 · 전투 스킬 피해 +7% · 상태이상 부여 확률 +3%","weaponType":"마법서"},"final_17":{"n":"네라뷸의 대검","t":"e","atk":30,"def":12,"r":{"rare_heavy":1,"special_28":1},"tier":"최종","effectText":"주는 피해 +5% · HP 40% 미만일 때 추가 피해 +7%","weaponType":"중량무기"},"final_18":{"n":"하나린의 비수","t":"e","atk":30,"def":12,"r":{"rare_dagger":1,"special_29":1},"tier":"최종","effectText":"자신이 탐지될 확률 -7% · 8초 이상 비공격 후 다음 첫 적중 피해 +12%","weaponType":"단검"},"final_19":{"n":"엠마의 전투 건틀릿","t":"e","atk":30,"def":12,"r":{"gauntlet":1,"special_30":1},"tier":"최종","effectText":"주는 피해 +3% · 치명타 확률 +6%","weaponType":"권갑"},"final_20":{"n":"나리 옌의 여의주","t":"e","atk":16,"def":28,"r":{"rare_magic":1,"special_33":1},"tier":"최종","effectText":"상태이상 부여 확률 +5% · 가하는 제어 지속시간 +10% · 받는 상태 지속시간 -10%","weaponType":"마도구"},"final_21":{"n":"릴리아의 기사 대검","t":"e","atk":30,"def":12,"r":{"rare_heavy":1,"special_35":1},"tier":"최종","effectText":"주는 피해 +9% · 공격 준비시간 +7%","weaponType":"중량무기"},"final_22":{"n":"량아 레하의 금속 카드","t":"e","atk":30,"def":12,"r":{"rare_throw":1,"special_37":1},"tier":"최종","effectText":"명중률 +4% · 공격 적중 시 10% 확률로 혼란","weaponType":"투척무기"},"final_23":{"n":"에덴의 전투검","t":"e","atk":30,"def":12,"r":{"blade":1,"special_39":1},"tier":"최종","effectText":"주는 피해 +4% · 공격 적중 시 10% 확률로 출혈","weaponType":"검"},"final_24":{"n":"천소의 팔완 촉수장치","t":"e","atk":30,"def":12,"r":{"rare_special":1,"special_41":1},"tier":"최종","effectText":"공격 적중 시 15% 확률로 추가타(기존 피해의 35%)","weaponType":"특수무기"}},"pools":{"city":["iron","glass","rubber","wire","battery","electronics","cloth","medicine","water","bread","canned","chocolate"],"estate":["silver","crystal","mana_ink","mana_fiber","cloth","leather","precision","chocolate"],"church":["silver","mana_stone","crystal","medicine","mana_ink","cloth","bread","water"],"factory":["iron","steel","alloy","machine","precision","wire","rubber","water","canned"],"mgmt_lobby":["iron","electronics","battery","cloth","glass","water","bread"],"mgmt_admin":["electronics","battery","precision","wire","machine"],"mgmt_director":["silver","crystal","mana_fiber","precision","leather","chocolate"],"mgmt_cafeteria":["bread","medicine","water","canned","chocolate"],"mgmt_lab":["medicine","toxin","electronics","precision","mana_stone","crystal","mana_ink","mana_fiber"],"mgmt_training":["iron","steel","wood","stick","leather","gunpowder","rubber"],"evil_reception":["mana_stone","crystal","cloth","iron","medicine","water","canned"],"evil_quarters":["silver","leather","mana_fiber","precision","mana_ink","chocolate"],"evil_training":["steel","alloy","wood","machine","gunpowder","toxin","rubber"]}};
+const I=id=>D.items[id];
+const R=new Proxy({}, {get:(_,id)=>({name:rname(id)})});
+function me(){const p=M?.self;if(!p)return null;return {...p,eq:p.inventory.eq.map(x=>x.id),mat:Object.fromEntries(p.inventory.mat.map(x=>[x.id,x.count])),con:Object.fromEntries(p.inventory.con.map(x=>[x.id,x.count]))}}
+function itemOwnedCount(p,id){const it=I(id);return it?.t==='m'?(p.mat[id]||0):it?.t==='c'?(p.con[id]||0):p.eq.filter(x=>x===id).length}
+function canCraft(p,id){const it=I(id);return !!(p&&it?.r&&Object.entries(it.r).every(([id,n])=>itemOwnedCount(p,id)>=n))}
+function craft(p,id){if(busy()||!M?.self?.alive||M.encounter||M.pendingEvent||!canCraft(p,id))return;net.craft(id);$('#craftPanel').close()}
+function toast(title,name,detail){gameLog(title+' · '+name+' · '+detail)}
+let craftShopCategory='recommended',craftShopQuery='',craftShopSelected=null;
+let craftGridScrollTop=0,craftDetailScrollTop=0,craftSideScrollTop=0;
+let craftSearchEditing=false,craftSearchComposing=false,craftSearchTimer=null;
+function scheduleCraftSearchRender(){
+  clearTimeout(craftSearchTimer);
+  craftSearchTimer=setTimeout(()=>renderCraft(true),260);
+}
+let favoriteItems=[],routeFavoriteIndex=0;
+const SPECIAL_ROUTE_REGION={
+  special_01:'estate',special_02:'city',special_03:'church',special_04:'mgmt_lab',
+  special_05:'mgmt_training',special_06:'mgmt_training',special_07:'mgmt_admin',special_08:'church',
+  special_09:'evil_quarters',special_10:'city',special_11:'factory',special_12:'church',
+  special_13:'mgmt_training',special_14:'estate',special_15:'mgmt_training',special_16:'estate',
+  special_17:'evil_training',special_18:'mgmt_training',special_19:'evil_training',special_20:'estate',
+  special_21:'mgmt_training',special_22:'estate',special_23:'factory',special_24:'factory',
+  special_25:'church',special_26:'estate',special_27:'mgmt_lab',special_28:'evil_training',
+  special_29:'evil_quarters',special_30:'evil_training',special_31:'city',special_32:'mgmt_lab',
+  special_33:'church',special_34:'mgmt_lab',special_35:'evil_training',special_36:'evil_quarters',
+  special_37:'evil_quarters',special_38:'city',special_39:'evil_training',special_40:'mgmt_lab',
+  special_41:'city'
+};
+
+
+function ownedCountForRoute(p,id){return itemOwnedCount(p,id)}
+function regionsForItem(id){
+  const out=[];
+  for(const[rid,pool]of Object.entries(D.pools||{}))if(pool.includes(id))out.push(rid);
+  return out;
+}
+function routeLocationText(id){
+  const state=M?.specialRouteStates?.[id];
+  if(state?.state==='ground')return rname(state.region)+' · 사망자가 떨어뜨린 유일 재료 회수';
+  if(state?.state==='held')return itemOwnedCount(me(),id)>0?'보유 중':'다른 생존자가 보유 중';
+  if(state?.state==='consumed')return '이번 라운드에서 이미 제작에 소비됨';
+  const special=SPECIAL_ROUTE_REGION[id];
+  if(special&&R[special])return R[special].name+' · 특수탐색/연계 캐릭터 처치';
+  const regs=regionsForItem(id);
+  if(regs.length)return regs.slice(0,3).map(r=>R[r]?.name||r).join(' / ')+(regs.length>3?' 외':'');
+  return '획득처 미연결 · 조우/드롭/이벤트 확인';
+}
+function collectRouteNeeds(p,id,qty=1,depth=0,seen=new Set()){
+  const it=I(id);if(!it||depth>8)return[];
+  if(M?.specialRouteStates?.[id]?.state==='consumed')return[{kind:'blocked',id,qty,have:0,depth,location:'이번 라운드에서 이미 소비됨'}];
+  const have=ownedCountForRoute(p,id);
+  if(have>=qty)return[{kind:'done',id,qty,have,depth}];
+  const missing=qty-have;
+
+  if(!it.r){
+    return[{kind:'gather',id,qty:missing,have,depth,location:routeLocationText(id)}];
+  }
+
+  // If every direct ingredient is ready, next useful action is crafting this item.
+  const directReady=Object.entries(it.r).every(([mid,n])=>ownedCountForRoute(p,mid)>=n*missing);
+  if(directReady){
+    return[{kind:'craft',id,qty:missing,have,depth}];
+  }
+
+  const out=[];
+  for(const[mid,n]of Object.entries(it.r)){
+    const need=n*missing;
+    const mhave=ownedCountForRoute(p,mid);
+    if(mhave>=need){
+      out.push({kind:'done',id:mid,qty:need,have:mhave,depth:depth+1});
+    }else{
+      const sub=collectRouteNeeds(p,mid,need,depth+1,new Set(seen));
+      out.push(...sub);
+    }
+  }
+  return out;
+}
+function routeTargetComplete(p,id){
+  return ownedCountForRoute(p,id)>0;
+}
+function toggleFavoriteItem(id){
+  const i=favoriteItems.indexOf(id);
+  if(i>=0){
+    favoriteItems.splice(i,1);
+    if(routeFavoriteIndex>=favoriteItems.length)routeFavoriteIndex=Math.max(0,favoriteItems.length-1);
+    toast('즐겨찾기 해제',I(id)?.n||id,'아이템 루트 추적에서 제거됨','item',1400);
+  }else{
+    favoriteItems.push(id);routeFavoriteIndex=favoriteItems.length-1;
+    toast('아이템 루트 등록',I(id)?.n||id,'오른쪽 위에서 필요한 재료와 획득처를 안내합니다.','good',1800);
+  }
+  renderCraft();renderRouteGuide();
+}
+function renderRouteGuide(){
+  const empty=$('#routeGuideEmpty'),body=$('#routeGuideBody');
+  if(!empty||!body)return;
+  if(!M||!favoriteItems.length){
+    empty.classList.remove('hidden');body.classList.add('hidden');return;
+  }
+  routeFavoriteIndex=Math.max(0,Math.min(routeFavoriteIndex,favoriteItems.length-1));
+  const id=favoriteItems[routeFavoriteIndex],it=I(id),p=me();
+  if(!it){favoriteItems.splice(routeFavoriteIndex,1);renderRouteGuide();return}
+  empty.classList.add('hidden');body.classList.remove('hidden');
+  $('#routeTargetName').textContent=it.n;
+  const completed=routeTargetComplete(p,id);
+  $('#routeProgressText').textContent=completed?'완성/보유 중 · 다른 즐겨찾기로 전환 가능':'현재 필요한 행동을 순서대로 표시합니다.';
+  const root=$('#routeSteps');root.innerHTML='';
+  const steps=collectRouteNeeds(p,id).filter((s,i,a)=>i===a.findIndex(x=>x.kind===s.kind&&x.id===s.id));
+  if(completed){
+    const d=document.createElement('div');d.className='route-step done';d.innerHTML='<div class="route-step-title"><b>✓ '+it.n+'</b><span class="route-have">보유 완료</span></div>';root.appendChild(d);return;
+  }
+  const active=steps.filter(s=>s.kind!=='done');
+  const display=active.length?active:steps;
+  display.slice(0,6).forEach((s,idx)=>{
+    const sit=I(s.id),d=document.createElement('div');d.className='route-step'+(idx===0?' current':'')+(s.kind==='done'?' done':'');
+    if(s.kind==='gather'){
+      d.innerHTML='<div class="route-step-title"><b>'+(idx===0?'▶ ':'')+sit.n+' ×'+s.qty+' 획득</b><span>보유 '+s.have+'</span></div><small class="route-loc">'+s.location+'</small>';
+    }else if(s.kind==='blocked'){
+      d.innerHTML='<div class="route-step-title"><b>× '+sit.n+'</b><span>획득 불가</span></div><small class="route-loc">'+s.location+'</small>';
+    }else if(s.kind==='craft'){
+      d.innerHTML='<div class="route-step-title"><b>'+(idx===0?'▶ ':'')+sit.n+' 제작</b><span>'+s.qty+'회</span></div><small>필요 재료가 준비됨 · 제작창에서 1.8초 제작</small>';
+    }else{
+      d.innerHTML='<div class="route-step-title"><b>✓ '+sit.n+'</b><span class="route-have">충족</span></div>';
+    }
+    root.appendChild(d)
+  });
+  if(display.length>6){
+    const more=document.createElement('div');more.className='route-step';more.innerHTML='<small>추가 단계 '+(display.length-6)+'개</small>';root.appendChild(more)
+  }
+}
+
+function craftTypeLabel(id,it){
+  if(it.t==='m')return '재료';
+  if(it.t==='c')return '소모품';
+  if((it.atk||0)>0)return '무기';
+  if((it.def||0)>0)return '장비';
+  return it.r?'제작품':'기타';
+}
+function craftStatsText(it){
+  const a=[];
+  if(it.atk)a.push('공격력 +'+it.atk);
+  if(it.def)a.push('방어력 +'+it.def);
+  if(it.heal)a.push('HP 회복 '+it.heal);
+  if(it.sp)a.push('SP 회복 '+it.sp);
+  if(it.effectText)a.push(it.effectText);
+  return a.length?a.join(' · '):'별도 전투 수치 없음';
+}
+function recommendedGearScore(p,id,it){return M?.recommendations?.find(x=>x.id===id)?.score??-999}
+function isRecommendedGear(p,id,it){return !!M?.recommendations?.some(x=>x.id===id)}
+function recommendedReason(p,id,it){return M?.recommendations?.find(x=>x.id===id)?.reason||''}
+function craftCategoryMatch(id,it,cat){
+  if(cat==='all')return true;
+  if(cat==='recommended')return isRecommendedGear(me(),id,it);
+  if(cat==='craftable')return !!it.r&&canCraft(me(),id);
+  if(cat==='weapon')return (it.atk||0)>0;
+  if(cat==='armor')return (it.def||0)>0;
+  if(cat==='consumable')return it.t==='c';
+  if(cat==='material')return it.t==='m';
+  return true;
+}
+function nextUpgradeItems(id){
+  return Object.entries(D.items)
+    .filter(([nid,nit])=>nid!==id&&nit.r&&Object.prototype.hasOwnProperty.call(nit.r,id))
+    .sort((a,b)=>{
+      const order={'일반':0,'고급':1,'희귀':2,'희귀 시너지':3,'준최종':4,'최종':5,'특수':6};
+      return (order[a[1].tier]??99)-(order[b[1].tier]??99)||a[1].n.localeCompare(b[1].n,'ko');
+    });
+}
+function renderCraft(force=false){
+  if(!force&&craftSearchEditing&&document.activeElement?.classList?.contains('craft-search'))return;
+  const p=me(),root=$('#craft');
+  const oldGrid=root?.querySelector('.craft-grid');
+  const oldDetail=root?.querySelector('.craft-detail');
+  const oldSide=root?.querySelector('.craft-sidebar');
+  if(oldGrid)craftGridScrollTop=oldGrid.scrollTop;
+  if(oldDetail)craftDetailScrollTop=oldDetail.scrollTop;
+  if(oldSide)craftSideScrollTop=oldSide.scrollTop;
+  const entries=Object.entries(D.items);if(!p||!root)return;
+  if(!craftShopSelected||!D.items[craftShopSelected])craftShopSelected=(entries.find(([id,it])=>it.r)?.[0]||entries[0]?.[0]||null);
+
+  const filtered=entries.filter(([id,it])=>{
+    const q=craftShopQuery.trim().toLowerCase();
+    const searchOk=!q||it.n.toLowerCase().includes(q)||id.toLowerCase().includes(q);
+    return searchOk&&craftCategoryMatch(id,it,craftShopCategory);
+  }).sort((a,b)=>craftShopCategory==='recommended'?(recommendedGearScore(p,b[0],b[1])-recommendedGearScore(p,a[0],a[1])):0);
+
+  const editing=oldGrid&&document.activeElement?.classList?.contains('craft-search');const oldInput=root.querySelector('.craft-search');const selection=oldInput?[oldInput.selectionStart,oldInput.selectionEnd]:null;
+  root.innerHTML='';
+  const shop=document.createElement('div');shop.className='craft-shop';
+
+  const side=document.createElement('div');side.className='craft-sidebar';
+  side.innerHTML='<div class="craft-sidebar-title">아이템 분류</div>';
+  const cats=[['recommended','★ 추천 장비'],['all','전체'],['craftable','제작 가능'],['weapon','무기'],['armor','장비'],['consumable','소모품'],['material','재료']];
+  for(const[cid,label]of cats){
+    const b=document.createElement('button');b.className='craft-cat'+(craftShopCategory===cid?' active':'');b.textContent=label;
+    b.onclick=()=>{craftShopCategory=cid;renderCraft()};side.appendChild(b)
+  }
+
+  const center=document.createElement('div');center.className='craft-center';
+  const toolbar=document.createElement('div');toolbar.className='craft-toolbar';
+  const input=oldInput||document.createElement('input');input.className='craft-search';input.placeholder='아이템 검색';input.value=craftShopQuery;
+  input.onfocus=()=>{craftSearchEditing=true};
+  input.onblur=()=>{craftSearchEditing=false;clearTimeout(craftSearchTimer)};
+  input.oncompositionstart=()=>{craftSearchComposing=true};
+  input.oncompositionend=e=>{craftSearchComposing=false;craftShopQuery=e.target.value;scheduleCraftSearchRender()};
+  input.oninput=e=>{craftShopQuery=e.target.value;if(e.isComposing||craftSearchComposing)return;scheduleCraftSearchRender()};
+  const count=document.createElement('div');count.className='craft-count';count.textContent=filtered.length+'개';
+  toolbar.append(input,count);
+  const grid=document.createElement('div');grid.className='craft-grid';
+  if(!filtered.length){grid.innerHTML='<div class="craft-empty">조건에 맞는 아이템이 없습니다.</div>'}
+  for(const[id,it]of filtered){
+    const card=document.createElement('div');
+    card.className='craft-item-card'+(craftShopSelected===id?' selected':'')+(it.r&&canCraft(p,id)?' craftable':'');
+    const owned=it.t==='m'?(p.mat[id]||0):it.t==='c'?(p.con[id]||0):p.eq.filter(x=>x===id).length;
+    const rec=isRecommendedGear(p,id,it);
+    card.innerHTML='<button class="craft-fav-btn '+(favoriteItems.includes(id)?'active':'')+'" title="아이템 루트 즐겨찾기">'+(favoriteItems.includes(id)?'★':'☆')+'</button><div class="craft-item-icon">'+(it.t==='m'?'M':it.t==='c'?'C':(it.atk?'W':'E'))+'</div><div class="craft-item-name">'+it.n+'</div><div class="craft-item-meta">'+craftTypeLabel(id,it)+(rec?' · 추천 '+recommendedGearScore(p,id,it).toFixed(0):'')+(owned?' · 보유 '+owned:'')+'</div>';
+    card.onclick=e=>{if(e.target.closest('.craft-fav-btn'))return;craftShopSelected=id;renderCraft()};
+    card.querySelector('.craft-fav-btn').onclick=e=>{e.stopPropagation();toggleFavoriteItem(id)};
+    grid.appendChild(card)
+  }
+  center.append(toolbar,grid);
+
+  const detail=document.createElement('div');detail.className='craft-detail';
+  const id=craftShopSelected,it=id?I(id):null;
+  if(!it){detail.innerHTML='<div class="craft-empty">아이템을 선택하십시오.</div>'}
+  else{
+    const owned=it.t==='m'?(p.mat[id]||0):it.t==='c'?(p.con[id]||0):p.eq.filter(x=>x===id).length;
+    detail.innerHTML='<div class="craft-detail-head"><div class="craft-detail-icon">'+(it.t==='m'?'M':it.t==='c'?'C':(it.atk?'W':'E'))+'</div><div><div class="craft-detail-name">'+it.n+'</div><div class="craft-detail-type">'+craftTypeLabel(id,it)+' · 보유 '+owned+'</div></div></div><div class="craft-statbox">'+craftStatsText(it)+(isRecommendedGear(p,id,it)?'<br><b>추천 이유:</b> '+recommendedReason(p,id,it):'')+'</div>';
+    const fav=document.createElement('button');fav.className='craft-detail-fav'+(favoriteItems.includes(id)?' active':'');fav.textContent=favoriteItems.includes(id)?'★ 루트 추적 중':'☆ 아이템 루트 즐겨찾기';fav.onclick=()=>toggleFavoriteItem(id);detail.appendChild(fav);
+
+    const title=document.createElement('div');title.className='recipe-title';title.textContent=it.r?'제작 재료':'제작 정보';detail.appendChild(title);
+    const tree=document.createElement('div');tree.className='recipe-tree';
+    if(it.r){
+      for(const[mid,need]of Object.entries(it.r)){
+        const have=itemOwnedCount(p,mid),part=document.createElement('div');part.className='recipe-part '+(have>=need?'have':'missing');
+        part.innerHTML='<span>'+I(mid).n+' ×'+need+'</span><span class="recipe-owned">보유 '+have+'</span>';part.style.cursor='pointer';part.onclick=()=>{craftShopSelected=mid;craftDetailScrollTop=0;renderCraft(true)};tree.appendChild(part)
+      }
+    }else{
+      tree.innerHTML='<div class="recipe-part"><span>직접 제작하는 아이템이 아닙니다.</span></div>'
+    }
+    detail.appendChild(tree);
+
+    const action=document.createElement('div');action.className='craft-detail-action';
+    const b=document.createElement('button');b.className='btn primary';
+    if(it.r){const locked=busy()||!M.self.alive||M.encounter||M.pendingEvent;b.textContent=locked?'현재 행동 상태에서는 제작 불가':canCraft(p,id)?'제작 · 1.8초':'재료 부족';b.disabled=!!locked||!canCraft(p,id);b.onclick=()=>craft(p,id)}
+    else{b.textContent='제작 불가';b.disabled=true}
+    action.appendChild(b);detail.appendChild(action);
+
+    const upgrades=nextUpgradeItems(id);
+    if(upgrades.length){
+      const ut=document.createElement('div');ut.className='craft-upgrade-title';ut.textContent='다음 강화 단계';detail.appendChild(ut);
+      const ul=document.createElement('div');ul.className='craft-upgrade-list';
+      for(const[uid,uit]of upgrades){
+        const c=document.createElement('div');c.className='craft-upgrade-card';
+        const need=uit.r[id]||1;
+        c.innerHTML='<div class="craft-upgrade-icon">'+(uit.atk?'W':uit.def?'E':'I')+'</div><div><b>'+uit.n+'</b><small>'+it.n+' ×'+need+' 사용 · '+craftStatsText(uit)+'</small></div><span class="craft-upgrade-tier">'+(uit.tier||'제작품')+'</span>';
+        c.onclick=()=>{craftShopSelected=uid;craftDetailScrollTop=0;renderCraft()};
+        ul.appendChild(c)
+      }
+      detail.appendChild(ul)
+    }
+  }
+
+  shop.append(side,center,detail);root.appendChild(shop);
+  const restoreCraftScroll=()=>{
+    const newGrid=root.querySelector('.craft-grid');
+    const newDetail=root.querySelector('.craft-detail');
+    const newSide=root.querySelector('.craft-sidebar');
+    if(newGrid)newGrid.scrollTop=craftGridScrollTop;
+    if(newDetail)newDetail.scrollTop=craftDetailScrollTop;
+    if(newSide)newSide.scrollTop=craftSideScrollTop;
+  };
+  restoreCraftScroll();
+  requestAnimationFrame(()=>{restoreCraftScroll();if(editing){input.focus();if(selection)input.setSelectionRange(...selection)}})
+}
+
+$('#routeCycleBtn').onclick=()=>{if(favoriteItems.length){routeFavoriteIndex=(routeFavoriteIndex+1)%favoriteItems.length;renderRouteGuide()}};$('#routeUnfavBtn').onclick=()=>{if(favoriteItems.length)toggleFavoriteItem(favoriteItems[routeFavoriteIndex])};
 document.querySelectorAll('[data-open-panel]').forEach(b=>b.onclick=()=>$('#'+b.dataset.openPanel).showModal());
 document.querySelectorAll('[data-close-panel]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('.game-popup').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
@@ -296,12 +699,7 @@ $('#foodQuickSlots').innerHTML=Array.from({length:3},(_,i)=>{const it=foods[i];r
 $('#foodQuickSlots').querySelectorAll('[data-quick-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.quickUse));
 $('#mat').innerHTML=p.inventory.mat.length?p.inventory.mat.map(it=>`<div>${it.name} ×${it.count}</div>`).join(""):'<span class="muted">없음</span>';
 $('#con').innerHTML=p.inventory.con.length?p.inventory.con.map(it=>`<div class="card"><b>${it.n} ×${it.count}</b><button data-use="${it.id}" ${(busy()||inEvent)?'disabled':''}>사용</button></div>`).join(""):'<span class="muted">없음</span>';$('#con').querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.use));
-$('#recommended').innerHTML=m.recommendations?.length?m.recommendations.map(it=>{
-  const miss=(it.missing||[]).slice(0,3).map(x=>`${x.name} ${x.have}/${x.need}`).join(" · ");
-  return `<div class="card"><b>★ ${it.name}</b> <span class="muted">${it.tier||''} · 점수 ${Math.round(it.score)}</span><div>${it.reason}</div><div class="muted">${it.ready?'지금 제작 가능':('재료 '+it.have+'/'+it.need+(miss?' · '+miss:''))}</div>${it.ready?`<button data-rec-craft="${it.id}" ${(busy()||inEncounter||inEvent)?'disabled':''}>추천 장비 제작</button>`:''}</div>`
-}).join(""):'<span class="muted">현재 캐릭터에 대한 추천 제작품이 없습니다.</span>';
-$('#recommended').querySelectorAll('[data-rec-craft]').forEach(b=>b.onclick=()=>net.craft(b.dataset.recCraft));
-$('#craft').innerHTML=m.craftable?.length?m.craftable.map(it=>`<div class="card"><b>${it.name}</b> <span class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</span> <button data-craft="${it.id}" ${(busy()||inEncounter||inEvent)?'disabled':''}>제작</button></div>`).join(""):'<span class="muted">현재 제작 가능 항목 없음</span>';$('#craft').querySelectorAll('[data-craft]').forEach(b=>b.onclick=()=>net.craft(b.dataset.craft));
+renderCraft();renderRouteGuide();
 const intel=p.intel||{};
 const intelRows=[];
 for(const x of intel.playerTraces||[])intelRows.push(`<div class="card"><b>플레이어 흔적</b><div>${x.name||'생존자'} · ${x.regionName||rname(x.region)}</div></div>`);
