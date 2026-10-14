@@ -7,8 +7,6 @@ const indexPath = path.join(publicDir, "index.html");
 const adapterPath = path.join(publicDir, "network_adapter.js");
 const outputPath = path.join(publicDir, "MasodoSurvival.html");
 
-const SERVER_BASE = "https://masodo-survival-server.sunny-d45.workers.dev";
-
 let html = fs.readFileSync(indexPath, "utf8");
 let adapter = fs.readFileSync(adapterPath, "utf8").replace(/^export\s+class\s+MasodoNetworkAdapter/m, "class MasodoNetworkAdapter");
 
@@ -35,13 +33,7 @@ const standingRows = Array.from({length:6}, (_,i)=>dataUrl(`/assets/images/stand
 const profileRows = Array.from({length:6}, (_,i)=>dataUrl(`/assets/images/profile/row${i}.webp`));
 const embeddedRows = { standing: standingRows, profile: profileRows };
 
-html = html.replace(
-  /import\{MasodoNetworkAdapter\}from"\.\/network_adapter\.js";const net=new MasodoNetworkAdapter\(location\.origin\),\$=s=>document\.querySelector\(s\);let M=null;/,
-  `${adapter}\nconst DEFAULT_SERVER_BASE=${JSON.stringify(SERVER_BASE)};\nconst normalizeServerBase=v=>String(v||"").trim().replace(/\\/$/,"");\nlet savedServerBase="";try{savedServerBase=localStorage.getItem("masodo-server-base")||""}catch{}\nconst SERVER_BASE=normalizeServerBase(savedServerBase||DEFAULT_SERVER_BASE);\nconst net=new MasodoNetworkAdapter(SERVER_BASE),$=s=>document.querySelector(s);let M=null;\nasync function retryStandaloneServer(){const entered=prompt("Cloudflare에서 실제로 플레이했던 게임 주소를 붙여넣어 주세요.\\n예: https://....workers.dev",net.baseUrl||DEFAULT_SERVER_BASE);if(!entered)return false;const base=normalizeServerBase(entered);if(!/^https?:\\/\\//i.test(base)){alert("http:// 또는 https:// 로 시작하는 주소를 입력해 주세요.");return false}net.baseUrl=base;try{localStorage.setItem("masodo-server-base",base)}catch{}return true;}`
-);
-
-
-
+html = html.replace('import{MasodoNetworkAdapter}from"./network_adapter.js";', adapter+'\n');
 
 html = html.replace(
   /const SPRITE_ROWS=\{[\s\S]*?\};\nconst STANDING_SPRITES=/,
@@ -57,12 +49,6 @@ html = html.replace(
   "<title>마소도 온라인 알파 · 버전 확인 중</title>",
   "<title>마소도 서바이벌 · 단일 HTML 클라이언트</title>"
 );
-
-html = html.replace(
-  'catch(e){log("카탈로그 불러오기 실패: "+e.message)}})();',
-  'catch(e){log("카탈로그 불러오기 실패: "+e.message);if(await retryStandaloneServer()){try{await net.loadCatalog();renderBuild();fillCatalog();await refreshRooms();log("서버 주소 변경 후 연결 성공: "+net.baseUrl)}catch(e2){log("새 서버 주소 연결 실패: "+e2.message)}}}})();'
-);
-
 
 fs.writeFileSync(outputPath, html);
 console.log(`Built ${outputPath}: ${(fs.statSync(outputPath).size/1024/1024).toFixed(1)} MiB`);
