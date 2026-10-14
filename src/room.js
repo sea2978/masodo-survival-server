@@ -88,6 +88,7 @@ export class GameRoom extends DurableObject{
       })():null,
       aiCount:match.players.filter(p=>p.isAI).length,
       corpses:(match.corpses||[]).filter(c=>c.region===self?.region&&c.expiresAt>now),
+      specialRouteStates:Object.fromEntries(Object.entries(match.uniqueSpecials||{}).map(([id,s])=>[id,{state:s.state,...(s.state==="ground"?{region:s.region}:{})}])),
       recommendations:self?recommendedCrafts(self,12):[],
       craftable:self?Object.entries(ITEMS).filter(([id,it])=>it?.r&&Object.entries(it.r).every(([k,n])=>{
         const src=ITEMS[k];const count=src?.t==="m"?(self.mat[k]||0):src?.t==="c"?(self.con[k]||0):(self.eq||[]).filter(x=>x===k).length;return count>=n
