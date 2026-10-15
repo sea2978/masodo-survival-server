@@ -596,7 +596,36 @@ class MasodoNetworkAdapter {
 }
 
 const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
-function showLobby(){ document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
+let searchLoading=null;
+function stopSearchLoading(){
+  if(!searchLoading)return;
+  clearTimeout(searchLoading.timeout);searchLoading=null;
+  $('#sceneBackground').classList.remove('searching');
+  $('#search').removeAttribute('aria-busy');
+}
+function startSearchLoading(){
+  if(searchLoading||busy()||!M?.self?.alive||M.encounter||M.pendingEvent)return;
+  const bg=$('#sceneBackground');
+  searchLoading={region:M.self.region,accepted:false,timeout:null};
+  bg.style.setProperty('--walk-duration','1.2s');
+  bg.classList.add('searching');
+  $('#search').setAttribute('aria-busy','true');
+  renderMatch(M);
+  searchLoading.timeout=setTimeout(()=>{
+    stopSearchLoading();
+    gameLog('탐색 응답이 지연되고 있습니다. 상태를 다시 확인합니다.');
+    net.requestState();
+    if(M)renderMatch(M);
+  },15000);
+  try{
+    if(!net.search()){stopSearchLoading();if(M)renderMatch(M)}
+  }catch(e){stopSearchLoading();if(M)renderMatch(M);gameLog(String(e.message||e))}
+}
+net.on('action_accepted',m=>{if(searchLoading&&m.action?.type==='search')searchLoading.accepted=true});
+net.on('action_result',()=>{stopSearchLoading()});
+net.on('error',()=>{stopSearchLoading();if(M)renderMatch(M)});
+net.on('close',()=>{stopSearchLoading();if(M)renderMatch(M)});
+function showLobby(){ stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
 function showGame(){ document.body.classList.add("game-active"); $('#lobbyScreen').hidden=true; $('#gameScreen').hidden=false; }
 const gameLog=x=>{const el=$('#gameLog');if(!el)return;el.textContent+=x+"\n";el.scrollTop=999999};
 const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
@@ -666,11 +695,11 @@ function setCharacterSprite(el,fb,charId,label,type="standing"){
 function applyGameVisuals(m,p){
   const screen=$('#gameScreen'),areaName=rname(p.region);
   const sceneBackground=$('#sceneBackground');sceneBackground.style.backgroundImage=`url("${assetUrl(REGION_BG[p.region]||"")}")`;
-  const searching=p.pendingAction?.type==='search';
-  if(searching&&!sceneBackground.classList.contains('searching'))sceneBackground.style.setProperty('--walk-duration',Math.max(.3,(p.pendingAction.completeAt-(m.serverNow||Date.now()))/1000)+'s');
-  sceneBackground.classList.toggle('searching',searching);
-  if(!searching&&sceneBackground.walkTimer){clearTimeout(sceneBackground.walkTimer);sceneBackground.walkTimer=null}
-  if(searching&&!sceneBackground.walkTimer){sceneBackground.walkTimer=setTimeout(()=>{sceneBackground.classList.remove('searching');sceneBackground.walkTimer=null},Math.max(0,p.pendingAction.completeAt-(m.serverNow||Date.now())))}
+  // Server state may finish a local loading animation, but never starts one.
+  if(searchLoading){
+    if(p.pendingAction?.type==='search')searchLoading.accepted=true;
+    else if(searchLoading.accepted||!p.alive||m.encounter||m.pendingEvent||p.region!==searchLoading.region)stopSearchLoading();
+  }
   $('#areaTitle').textContent=areaName;
 
   const pc=charInfo(p.charId),pLabel=pc?.name||p.charId;
@@ -974,7 +1003,7 @@ $('#routeCycleBtn').onclick=()=>{if(favoriteItems.length){routeFavoriteIndex=(ro
 document.querySelectorAll('[data-open-panel]').forEach(b=>b.onclick=()=>$('#'+b.dataset.openPanel).showModal());
 document.querySelectorAll('[data-close-panel]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('.game-popup').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
-function busy(){return!!M?.self?.pendingAction}
+function busy(){return!!searchLoading||!!M?.self?.pendingAction}
 function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);
 $('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
 $('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
@@ -1030,5 +1059,5 @@ $('#connectServer').onclick=async()=>{
 };
 $('#serverAddress').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('#connectServer').disabled)$('#connectServer').click()});
 $('#refreshRooms').onclick=()=>refreshRooms();
-$('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성 "+r.code);await refreshRooms()}catch(e){log(e.message)}};$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value});await refreshRooms()}catch(e){log(e.message)}};$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=()=>net.search();$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
+$('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성 "+r.code);await refreshRooms()}catch(e){log(e.message)}};$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value});await refreshRooms()}catch(e){log(e.message)}};$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
 </script></body></html>
