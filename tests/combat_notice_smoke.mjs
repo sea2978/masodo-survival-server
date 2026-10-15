@@ -13,5 +13,8 @@ const w=m.wilds.find(w=>w.region==='city');w.hp=99999;p.encounter={kind:'wild',w
 assert(wild.hit);const hit=m.combatNotices.find(e=>e.targetId===w.id);const counter=m.combatNotices.find(e=>e.sourceId===w.id);assert(hit.targetName);assert.equal(counter.sourceName,hit.targetName);assert.equal(counter.damage,wild.counter);assert.equal(counter.targetId,p.playerId);
 q.statuses.poison={stacks:1,until:now+10000,sourceId:p.playerId};q.nextStatusTick=now;updatePassiveTime(m,now+2000);const poison=m.combatNotices.find(e=>e.kind==='독');assert.equal(poison.sourceName,'공격자');assert.equal(poison.targetName,'방어자');assert(poison.damage>0);
 assert.equal(new Set(m.combatNotices.map(e=>e.id)).size,m.combatNotices.length);assert.deepEqual(JSON.parse(JSON.stringify(m.combatNotices)),m.combatNotices);
+Math.random=()=>.999;
+p.encounter={kind:'player',targetId:q.playerId};p.pendingAction={type:'attack',payload:{},completeAt:now+3000};const miss=completeAction(m,p,now+3000);assert.equal(miss.hit,false);assert(m.combatNotices.some(e=>e.hit===false&&e.targetId===q.playerId&&e.damage===0));
+p.encounter={kind:'wild',wildId:w.id};p.pendingAction={type:'attack',payload:{},completeAt:now+4000};const wildMiss=completeAction(m,p,now+4000);assert.equal(wildMiss.hit,false);assert(m.combatNotices.some(e=>e.hit===false&&e.targetId===w.id));
 console.log('combat notice PASS: player attack damage and names, wild attack and counter, poison source, unique IDs, persistence');
 }finally{Math.random=random}

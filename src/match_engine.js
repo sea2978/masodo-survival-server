@@ -409,13 +409,13 @@ function killPlayer(match,a,b,now){
   createDeathCorpse(match,b,now);
   return {killed:true}
 }
-function recordCombatNotice(match,source,target,damage,kind,now){
-  if(!(damage>0))return;
+function recordCombatNotice(match,source,target,damage,kind,now,hit=true){
+  if(!(damage>0)&&hit)return;
   if(typeof source==='string')source=match.players.find(p=>p.playerId===source)||(match.wilds||[]).find(w=>w.id===source);
   const label=x=>x?.playerName||(x?.templateId?wildTemplate(x)?.n:null)||'알 수 없는 대상';
   match.combatNoticeSeq=(match.combatNoticeSeq||0)+1;
   (match.combatNotices??=[]).push({id:match.combatNoticeSeq,at:now,sourceId:source?.playerId||source?.id||null,
-    targetId:target?.playerId||target?.id||null,sourceName:label(source),targetName:label(target),damage,kind});
+    targetId:target?.playerId||target?.id||null,sourceName:label(source),targetName:label(target),damage,kind,hit});
   match.combatNotices=match.combatNotices.slice(-100);
 }
 function wildCounter(match,p,w,now){
@@ -471,6 +471,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!hitRoll(p,skill,bonus,match,now)){
+    recordCombatNotice(match,p,t,0,skill?'전투 스킬':'일반 공격',now,false);
     gainProf(p,.5,match,now);p.attackChainTarget=t.playerId;p.attackChainHits=0;
     if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
     const bleedDamage=triggerBleedAction(match,p,now);
@@ -530,6 +531,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!hitRoll(p,skill,bonus,match,now)){
+    recordCombatNotice(match,p,w,0,skill?'전투 스킬':'일반 공격',now,false);
     gainProf(p,.5,match,now);p.attackChainTarget=w.id;p.attackChainHits=0;
     if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
     const bleedDamage=triggerBleedAction(match,p,now);
