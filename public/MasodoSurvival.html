@@ -737,7 +737,16 @@ function craft(p,id){if(busy()||!M?.self?.alive||M.encounter||M.pendingEvent||!c
 function toast(title,name,detail='',kind='item',duration=2400){const root=$('#toastStack');if(!root)return;while(root.children.length>=3)root.firstElementChild.remove();const el=document.createElement('div');el.className='top-toast '+kind;for(const [cls,text]of [['top-toast-title',title],['top-toast-main',name],['top-toast-sub',detail]]){const part=document.createElement('div');part.className=cls;part.textContent=text;el.appendChild(part)}root.appendChild(el);requestAnimationFrame(()=>el.classList.add('show'));setTimeout(()=>{el.classList.add('hide');setTimeout(()=>el.remove(),220)},duration)}
 let noticeSnapshot=null;
 function notifyMatchChanges(m){const p=m.self;if(!p)return;const counts=new Map();for(const group of [p.inventory.eq,p.inventory.mat,p.inventory.con])for(const it of group){const prev=counts.get(it.id);counts.set(it.id,{count:(prev?.count||0)+(it.count??1),name:it.n||it.name||I(it.id)?.n||it.id})}
-const key=(m.matchId||'')+'|'+(p.playerId||p.charId);if(noticeSnapshot?.key===key){const gained=[];for(const[id,it]of counts){const delta=it.count-(noticeSnapshot.counts.get(id)?.count||0);if(delta>0)gained.push(it.name+' ×'+delta)}if(gained.length)toast('아이템 획득',gained.join(' · '),'인벤토리에 반영되었습니다.','item');const damage=noticeSnapshot.hp-p.hp;if(damage>0)toast('피격 / 피해','HP -'+Math.round(damage*10)/10,'현재 HP '+Math.max(0,Math.round(p.hp))+'/'+p.maxHp,'combat',2200)}noticeSnapshot={key,counts,hp:p.hp}}
+const key=(m.matchId||'')+'|'+(p.playerId||p.charId);if(noticeSnapshot?.key===key){const gained=[];for(const[id,it]of counts){const delta=it.count-(noticeSnapshot.counts.get(id)?.count||0);if(delta>0)gained.push(it.name+' ×'+delta)}if(gained.length)toast('아이템 획득',gained.join(' · '),'인벤토리에 반영되었습니다.','item');const events=(m.combatNotices||[]).filter(e=>e.id>(noticeSnapshot.combatSeq||0));
+for(const e of events){
+  const dealt=e.sourceId===p.playerId&&e.targetId!==p.playerId;
+  const amount=Math.round(e.damage*10)/10;
+  toast(dealt?'공격 적중':'피격 / 피해',dealt?e.targetName+'에게 '+amount+' 피해':e.sourceName+'에게 '+amount+' 피해를 받음',e.kind,'combat',3000);
+}
+const damage=noticeSnapshot.hp-p.hp;
+if(damage>0&&!events.some(e=>e.targetId===p.playerId))toast('피해','HP -'+Math.round(damage*10)/10,'환경·이벤트 또는 자신의 효과로 인한 HP 감소','combat',2200);
+}noticeSnapshot={key,counts,hp:p.hp,combatSeq:m.combatNoticeSeq||0}}
+
 
 let craftShopCategory='recommended',craftShopQuery='',craftShopSelected=null;
 let craftGridScrollTop=0,craftDetailScrollTop=0,craftSideScrollTop=0;
