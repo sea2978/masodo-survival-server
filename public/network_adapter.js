@@ -10,6 +10,7 @@ export class MasodoNetworkAdapter {
     this.build = null;
     this.connectOptions = null;
     this.manualClose = false;
+    this.connectionEpoch = 0;
     this.reconnectTimer = null;
     this.reconnectAttempts = 0;
     this.reconnectChannels = new Map();
@@ -126,10 +127,25 @@ export class MasodoNetworkAdapter {
     return data;
   }
 
+  scheduleReconnect() {
+    if(this.manualClose||this.reconnectTimer||!this.roomCode||!this.connectOptions)return;
+    const delay=Math.min(30000,1500*(2**Math.min(this.reconnectAttempts,5)));
+    this.reconnectAttempts++;
+    this.emit('reconnect_scheduled',{attempt:this.reconnectAttempts,delay});
+    this.reconnectTimer=setTimeout(()=>{
+      this.reconnectTimer=null;
+      if(this.manualClose)return;
+      this.emit('reconnecting',{attempt:this.reconnectAttempts});
+      this.connect(this.roomCode,this.connectOptions).catch(error=>{if(!this.reconnectTimer&&!this.manualClose){this.emit("reconnect_error",{error:String(error.message||error)});this.scheduleReconnect()}});
+    },delay);
+  }
+
   async connect(code, { playerName = "Player", charId = "c01", startRegion = "city" } = {}) {
+    const epoch=++this.connectionEpoch;
     const roomCode = String(code).trim().toUpperCase();
     const storageKey = `masodo-session-${roomCode}`;
     const reconnectToken = await this.getReconnectToken(roomCode);
+    if(epoch!==this.connectionEpoch)return this;
     const resumeSessionId = reconnectToken ? (this.sessionId || sessionStorage.getItem(storageKey) || null) : null;
     if (this.ws) { const old=this.ws; this.ws=null; try { old.close(1000,"reconnect"); } catch {} }
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
@@ -140,17 +156,27 @@ export class MasodoNetworkAdapter {
     const ws = new WebSocket(`${wsBase}/api/room/${encodeURIComponent(this.roomCode)}/ws`);
     this.ws = ws;
 
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("websocket_timeout")), 10000);
-      ws.addEventListener("open", () => { clearTimeout(timer); resolve(); }, { once: true });
-      ws.addEventListener("error", () => { clearTimeout(timer); reject(new Error("websocket_error")); }, { once: true });
-    });
+    try {
+      await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>finish(new Error('websocket_timeout')),10000);
+        const onOpen=()=>finish(),onError=()=>finish(new Error('websocket_error')),onClose=()=>finish(new Error('websocket_closed'));
+        const finish=error=>{clearTimeout(timer);ws.removeEventListener('open',onOpen);ws.removeEventListener('error',onError);ws.removeEventListener('close',onClose);error?reject(error):resolve()};
+        ws.addEventListener('open',onOpen);ws.addEventListener('error',onError);ws.addEventListener('close',onClose);
+      });
+    }catch(error){
+      if(this.ws===ws){this.ws=null;try{ws.close()}catch{};this.emit('reconnect_error',{error:String(error.message||error)});this.scheduleReconnect()}
+      throw error;
+    }
+    if(this.ws!==ws||this.manualClose){try{ws.close()}catch{};return this}
+    let handshakeTimer=setTimeout(()=>{if(this.ws===ws)ws.close(4000,'session_timeout')},10000);
 
     ws.addEventListener("message", (event) => {
+      if(this.ws!==ws)return;
       if (event.data === "pong") { this.emit("pong", {}); return; }
       try {
         const msg = JSON.parse(event.data);
         if (msg.sessionId && msg.type === "hello_ok") {
+          clearTimeout(handshakeTimer);handshakeTimer=null;
           this.sessionId = msg.sessionId;
           this.reconnectAttempts = 0;
           try { sessionStorage.setItem(storageKey, msg.sessionId); } catch {}
@@ -167,17 +193,12 @@ export class MasodoNetworkAdapter {
     });
 
     ws.addEventListener("close", (event) => {
+      clearTimeout(handshakeTimer);
       if (this.ws !== ws) return;
       this.ws = null;
       this.emit("close", { code: event.code, reason: event.reason });
-      if (!this.manualClose && this.roomCode && this.connectOptions) {
-        const delay = Math.min(30000, 1500 * (2 ** Math.min(this.reconnectAttempts, 5)));
-        this.reconnectAttempts += 1;
-        this.reconnectTimer = setTimeout(() => {
-          this.reconnectTimer = null;
-          this.connect(this.roomCode, this.connectOptions).catch(error => this.emit("reconnect_error", { error:String(error?.message||error) }));
-        }, delay);
-      }
+      clearTimeout(handshakeTimer);
+      this.scheduleReconnect();
     });
 
     this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId });
@@ -210,6 +231,7 @@ export class MasodoNetworkAdapter {
   ping() { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send("ping"); }
 
   close() {
+    this.connectionEpoch++;
     this.manualClose = true;
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
     const ws=this.ws;this.ws=null;

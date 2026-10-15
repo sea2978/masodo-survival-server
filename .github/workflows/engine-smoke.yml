@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Reconnection flow
+        run: node tests/reconnect_smoke.mjs
       - name: Combat notifications
         run: node tests/combat_notice_smoke.mjs
       - name: Match results
