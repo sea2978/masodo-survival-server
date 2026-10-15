@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>마소도 서바이벌 · 단일 HTML 클라이언트</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#0b0e12;color:#e8ecf1;font-family:system-ui,sans-serif}.wrap{max-width:1180px;margin:auto;padding:16px}.panel{background:#151a21;border:1px solid #303844;border-radius:12px;padding:14px;margin-bottom:12px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}button,input,select{background:#0d1117;color:#eee;border:1px solid #46515f;border-radius:8px;padding:9px 11px;min-height:40px}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.good{color:#9bd69b}.bad{color:#ef9a9a}.muted{color:#9ca7b4}.host{color:#ffd66b}.stat{display:inline-block;margin-right:14px}.actions button{min-width:120px}.card{background:#0f141a;border:1px solid #2a333e;border-radius:9px;padding:10px;margin:7px 0}.enemy{border-color:#734b4b}.event{border-color:#6e6239}.invcols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.scroll{max-height:280px;overflow:auto}#log{height:220px;overflow:auto;background:#080b0f;padding:10px;white-space:pre-wrap;font-size:12px}@media(max-width:800px){.grid,.invcols{grid-template-columns:1fr}}
@@ -228,6 +228,36 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 #resultPanel::backdrop{background:#03070bd9}#resultPanel h2{font-size:30px;margin:10px 0;color:#e4bc70}#resultPanel .result-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}#resultPanel .result-stat{padding:12px;background:#080f16;border:1px solid #31404f;border-radius:8px}#resultPanel .result-stat b{display:block;font-size:23px;margin-top:6px}#resultPanel .result-actions{display:flex;gap:10px;justify-content:center}#resultPanel .result-actions button{flex:1}#resultPanel .result-kicker{color:#aebdcb;letter-spacing:3px;font-size:12px}
 
 #actionLoading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;pointer-events:none;padding:15px 24px;border:1px solid #8398af;border-radius:10px;background:#09121cdb;color:#f0f5fa;font-size:clamp(18px,3.8vw,26px);font-weight:700;box-shadow:0 8px 30px #0008;text-align:center;max-width:calc(100vw - 32px)}#actionLoading[hidden]{display:none}#actionLoading::after{content:".";display:inline-block;width:1.4em;text-align:left;animation:action-loading-dots 1.2s steps(1,end) infinite}@keyframes action-loading-dots{0%{content:"."}33.333%{content:".."}66.667%{content:"..."}100%{content:"."}}
+
+/* Character status at the lower left. */
+#gameScreen .player-hud{left:14px;right:auto;top:auto;bottom:14px;width:var(--left-w);max-height:calc(100dvh - 108px);overflow:auto}
+
+.mobile-only,#rotateGuide{display:none}
+@media (pointer:coarse) and (max-width:1400px){
+ .mobile-only{display:block}#mobileFullscreen{position:fixed;z-index:30;right:max(8px,env(safe-area-inset-right));top:max(6px,env(safe-area-inset-top));min-height:36px;padding:7px 12px;font-size:12px}
+ #mobileScreenHint{position:fixed;z-index:31;top:48px;left:50%;transform:translateX(-50%);padding:8px 12px;background:#101923f2;border:1px solid #65809c;border-radius:7px;width:max-content;max-width:90vw;text-align:center;font-size:12px;pointer-events:none}
+ #mobileScreenHint[hidden]{display:none}
+ body.game-active #gameScreen{--mobile-left:clamp(132px,23vw,210px);--mobile-right:clamp(158px,26vw,230px);position:fixed;inset:0;width:100vw;height:100dvh;min-height:0;padding:0;overflow:hidden}
+ #gameScreen .game-topbar{height:48px;padding:4px max(12px,env(safe-area-inset-left));display:flex;gap:12px;align-items:center}
+ #gameScreen .game-area-name{font-size:17px}#gameScreen .eyebrow{font-size:8px}#gameScreen .connection-box{display:none}#gameScreen .match-summary{display:flex;gap:8px;font-size:10px;margin-right:100px}#gameScreen .match-summary span{white-space:nowrap}
+ #gameScreen .inventory-hud{position:absolute;left:auto;right:max(6px,env(safe-area-inset-right));top:54px;bottom:calc(2 * clamp(44px,13dvh,64px) + 24px);width:var(--mobile-right);max-height:none;margin:0;padding:8px;overflow:auto}
+ #gameScreen .inventory-head b{font-size:13px}#gameScreen .inventory-head span{font-size:8px}#gameScreen .consumable-quick-slots{gap:3px;margin-bottom:6px}#gameScreen .consumable-quick-slots button{min-height:44px;padding:4px;font-size:10px}#gameScreen .consumable-quick-slots small{font-size:8px}#gameScreen .utility-panel-buttons{gap:4px;margin:6px 0;display:grid;grid-template-columns:1fr 1fr}#gameScreen .utility-panel-buttons .btn{font-size:10px;padding:5px;min-height:34px}#gameScreen .route-guide-hud{max-height:none}
+ #gameScreen .player-hud{position:absolute;left:max(6px,env(safe-area-inset-left));right:auto;top:auto;bottom:max(6px,env(safe-area-inset-bottom));width:var(--mobile-left);max-height:calc(100dvh - 60px);margin:0;padding:8px;overflow:auto}
+ #gameScreen .player-profile-block{grid-template-columns:42px 1fr;gap:6px;margin-bottom:4px}#gameScreen .profile-frame{width:42px;height:42px}#gameScreen .player-name-row{font-size:14px;display:block}#gameScreen .player-name-row span{display:block;font-size:10px}#gameScreen .player-region{font-size:11px;margin:3px 0 5px}#gameScreen .stat-line{padding:4px 6px;margin:3px 0;font-size:12px}#gameScreen .combat-stat-row,#gameScreen .cooldown-row{font-size:9px;padding:4px 0;gap:4px}#gameScreen .pending-line{font-size:10px;padding:5px;margin:3px 0 0}
+ #gameScreen .visual-stage{position:absolute;left:calc(var(--mobile-left) + 10px);right:calc(var(--mobile-right) + 10px);top:48px;bottom:76px;min-height:0;height:auto;max-height:none}#gameScreen .standing-slot{width:100%;height:100%}#gameScreen .standing-sprite{height:100%;max-height:100%;max-width:100%;object-fit:contain}
+ #gameScreen .scene-action-dock{position:absolute;left:calc(var(--mobile-left) + 10px);right:max(6px,env(safe-area-inset-right));top:48px;bottom:max(6px,env(safe-area-inset-bottom));--action-diameter:clamp(44px,13dvh,64px);--action-gap:6px;--action-edge:0px}
+ #gameScreen .scene-action-dock button.btn{font-size:11px;padding:5px}#gameScreen .scene-action-dock .scene-main-btn b{font-size:9px}#gameScreen .scene-action-dock .btn-kicker{font-size:8px}
+ #gameScreen #game.encounter-layer{left:calc(var(--mobile-left) + 14px);right:calc(var(--mobile-right) + 14px);width:auto;transform:none;bottom:calc(2 * clamp(44px,13dvh,64px) + 24px);max-height:calc(100dvh - 210px);font-size:12px}
+ #gameScreen #game .enemy,#gameScreen #game .event{padding:8px}#gameScreen #game button{min-height:34px;font-size:12px}
+ .top-toast-stack{top:52px;width:min(360px,calc(100vw - 320px));max-height:26dvh}.top-toast{padding:6px 9px}.top-toast-main{font-size:12px}.top-toast-title,.top-toast-sub{font-size:9px}
+ .game-popup{max-height:90dvh}#craftPanel{height:90dvh}#craftPanel .craft-shop{grid-template-columns:90px minmax(0,1fr) minmax(150px,27%);grid-template-rows:minmax(0,1fr)}#craftPanel .craft-detail{grid-column:auto;border-top:0;border-left:1px solid #373b42;max-height:none}.craft-sidebar{padding:5px}.craft-cat{font-size:11px;padding:7px}.craft-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}.craft-item-card{min-height:85px}
+ #actionLoading{font-size:18px;padding:10px 16px}
+}
+@media (pointer:coarse) and (max-width:1400px) and (orientation:portrait){
+ body.game-active #rotateGuide{position:fixed;inset:0;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;background:#080e17f5;padding:28px;color:#e8ecf1}
+ #rotateGuide h2{margin:0;font-size:23px}#rotateGuide p{margin:0;line-height:1.7;color:#b4c3d5}#rotateGuide button{padding:12px 22px}
+}
+
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -380,6 +410,9 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
   </section>
 </div>
 <div id="toastStack" class="top-toast-stack" role="status" aria-live="polite"></div>
+<button id="mobileFullscreen" class="mobile-only" type="button">전체화면</button>
+<div id="mobileScreenHint" class="mobile-only" role="status" hidden></div>
+<div id="rotateGuide"><h2>기기를 가로로 돌려주세요</h2><p>가로 화면에서 플레이할 수 있습니다.<br>자동 회전이 꺼져 있다면 켜주세요.</p><button id="rotateFullscreen" type="button">전체화면으로 시작</button></div>
 <div id="actionLoading" role="status" aria-live="polite" hidden></div>
 <dialog id="resultPanel" aria-labelledby="resultTitle">
 <div class="result-kicker">MATCH RESULT</div><h2 id="resultTitle">경기 결산</h2>
@@ -607,6 +640,29 @@ class MasodoNetworkAdapter {
 }
 
 const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
+const mobileScreenQuery=matchMedia('(pointer: coarse) and (max-width: 1400px)');
+let mobileHintTimer=null;
+function mobileScreenHint(text){const el=$('#mobileScreenHint');el.textContent=text;el.hidden=false;clearTimeout(mobileHintTimer);mobileHintTimer=setTimeout(()=>el.hidden=true,4500)}
+async function enterMobileFullscreen(){
+  const root=document.documentElement;
+  try{
+    if(!document.fullscreenElement&&!document.webkitFullscreenElement){
+      const request=root.requestFullscreen||root.webkitRequestFullscreen;
+      if(!request){mobileScreenHint('기기를 가로로 돌려 플레이해 주세요. 이 브라우저는 전체화면을 지원하지 않습니다.');return}
+      await request.call(root);
+    }
+    try{if(mobileScreenQuery.matches&&screen.orientation?.lock)await screen.orientation.lock('landscape')}catch{mobileScreenHint('전체화면입니다. 기기를 가로로 돌려주세요.')}
+  }catch{mobileScreenHint('전체화면 전환이 제한되어 있습니다. 기기를 가로로 돌려 플레이해 주세요.')}
+}
+function updateMobileFullscreen(){const full=!!(document.fullscreenElement||document.webkitFullscreenElement);$('#mobileFullscreen').textContent=full?'전체화면 해제':'전체화면'}
+$('#mobileFullscreen').onclick=async()=>{
+  if(document.fullscreenElement||document.webkitFullscreenElement){try{screen.orientation?.unlock?.();const exit=document.exitFullscreen||document.webkitExitFullscreen;if(exit)await exit.call(document)}catch{mobileScreenHint('브라우저의 뒤로가기 버튼으로 전체화면을 종료할 수 있습니다.')}}
+  else await enterMobileFullscreen();
+  updateMobileFullscreen();
+};
+$('#rotateFullscreen').onclick=enterMobileFullscreen;
+document.addEventListener('fullscreenchange',updateMobileFullscreen);
+document.addEventListener('webkitfullscreenchange',updateMobileFullscreen);
 let searchLoading=null;
 function stopSearchLoading(){
   if(!searchLoading)return;
