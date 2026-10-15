@@ -268,6 +268,7 @@ function applyStatusTicks(match,p,now){
   }
 }
 export function updatePassiveTime(match,now=Date.now()){
+  if(match.phase==="finished")return;
   for(const p of match.players){
     if(!p.alive)continue;
     processDelayedEffects(p,now);cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
@@ -387,6 +388,7 @@ function wildDamage(a,w,match,now){
   return Math.max(1,Math.round(wa*100/(100+def(a,match,now))*incomingMult(a,match,now)));
 }
 function createDeathCorpse(match,p,now){
+  p.diedAt??=now;p.finishRank??=match.players.filter(x=>x.alive).length+1;
   dropSpecialsFromPlayer(match,p,p.region);
   const corpse={id:"corpse_"+p.playerId+"_"+now,name:p.playerName,region:p.region,eq:[...p.eq],mat:Object.fromEntries(Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id))),con:{...p.con},expiresAt:now+75000};
   match.corpses.push(corpse);p.eq=[];p.mat={};p.con={};return corpse;

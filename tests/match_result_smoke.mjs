@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {settleMatch,playerResult} from '../src/match_result.js';
+const m={matchId:'qa',phase:'playing',startedAt:1000,players:[{playerId:'a',alive:true,kills:2,region:'city'},{playerId:'b',alive:true,kills:0,region:'church'},{playerId:'c',alive:false,kills:1,region:'factory',diedAt:11000,finishRank:3}]};
+assert.equal(settleMatch(m,21000),false);assert.equal(playerResult(m,m.players[0]),null);
+assert.deepEqual(playerResult(m,m.players[2]),{outcome:'defeat',rank:3,total:3,kills:1,survivalSeconds:10,region:'factory',endedAt:11000});
+m.players[1].alive=false;m.players[1].diedAt=21000;m.players[1].finishRank=2;
+assert.equal(settleMatch(m,21000),true);assert.equal(m.phase,'finished');assert.equal(m.winnerId,'a');assert.equal(playerResult(m,m.players[0]).outcome,'victory');assert.equal(playerResult(m,m.players[0]).survivalSeconds,20);
+assert.equal(settleMatch(m,99999),false);assert.equal(playerResult(m,m.players[2],99999).survivalSeconds,10);
+const restored=JSON.parse(JSON.stringify(m));assert.deepEqual(playerResult(restored,restored.players[0]),playerResult(m,m.players[0]));
+const draw={phase:'playing',startedAt:1000,players:[{playerId:'x',alive:false},{playerId:'y',alive:false}]};assert(settleMatch(draw,3000));assert.equal(draw.winnerId,null);
+const solo={phase:'playing',players:[{alive:true}]};assert.equal(settleMatch(solo),false);
+console.log('match results PASS: elimination, victory, fixed survival time, repeated updates, persisted reload, no survivors, solo guard');

@@ -1,3 +1,4 @@
+import {settleMatch,playerResult} from "./match_result.js";
 import { DurableObject } from "cloudflare:workers";
 import { MAX_HUMANS, json, parseJsonMessage, safeText, send } from "./protocol.js";
 import { ADJACENCY, CHARACTERS, REGIONS, createAIPlayer, createServerPlayer, isValidCharacter, isValidRegion } from "./game_data.js";
@@ -24,7 +25,11 @@ export class GameRoom extends DurableObject{
   async getMeta(){return(await this.ctx.storage.get(ROOM_META_KEY))||null}
   async saveMeta(v){await this.ctx.storage.put(ROOM_META_KEY,v)}
   async getMatch(){return(await this.ctx.storage.get(MATCH_KEY))||null}
-  async saveMatch(v){await this.ctx.storage.put(MATCH_KEY,v)}
+  async saveMatch(v){
+    const finished=settleMatch(v);
+    await this.ctx.storage.put(MATCH_KEY,v);
+    if(finished){const meta=await this.getMeta();if(meta){meta.phase="finished";await this.saveMeta(meta);await this.updateDirectory(meta)}}
+  }
   joinedSessions(){return[...this.sessions.values()].filter(s=>s.joined).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0))}
   reconnectRecords(meta){return Array.isArray(meta?.reconnectRecords)?meta.reconnectRecords:[]}
   connectedPlayers(meta){return this.joinedSessions().map(s=>({sessionId:s.sessionId,playerName:s.playerName,charId:s.charId,startRegion:s.startRegion||"city",ready:!!s.ready,joinedAt:s.joinedAt,host:meta.hostSessionId===s.sessionId}))}
@@ -73,7 +78,7 @@ export class GameRoom extends DurableObject{
   async broadcastRoomState(meta){this.broadcast("room_state",{room:this.roomState(meta)});await this.updateDirectory(meta)}
   matchPlayerForSession(match,sid){return match?.players?.find(p=>p.sessionId===sid)||null}
   snapshot(match,sid,now=Date.now()){
-    updatePassiveTime(match,now);
+    if(match.phase==="playing")updatePassiveTime(match,now);
     const self=this.matchPlayerForSession(match,sid);
     const others=match.players.filter(p=>p.sessionId!==sid).map(p=>({playerId:p.playerId,playerName:p.playerName,charId:p.charId,alive:p.alive,kills:p.kills,isAI:!!p.isAI}));
     const encounter=self?.encounter?(()=>{
@@ -81,7 +86,7 @@ export class GameRoom extends DurableObject{
       const w=match.wilds.find(x=>x.id===self.encounter.wildId);if(!w?.alive||w.region!==self.region)return null;
       const t=(match.wildTemplates||[]).find(x=>x.id===w.templateId);return{kind:"wild",wildId:w.id,name:t?.n||w.templateId,hp:w.hp,maxHp:t?.hp||w.hp,skillText:t?.skillText||""}
     })():null;
-    return{matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.elapsed||0,self:self?publicPlayer(match,self,now):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
+    return{result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.elapsed||0,self:self?publicPlayer(match,self,now):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
       pendingEvent:self?.pendingEvent?(()=>{
         const e=match.eventCatalog.find(e=>e.id===self.pendingEvent);if(!e)return null;
         return {...e,choices:(e.choices||[]).map((choice,index)=>({...choice,...eventChoiceAvailability(e,self,index)}))}
@@ -134,12 +139,12 @@ export class GameRoom extends DurableObject{
     const m=await this.getMatch();
     if(!m||m.phase!=="playing"){await this.saveMeta(meta);await this.updateDirectory(meta);await this.scheduleNextAlarm(null,meta);return}
     await this.completeDueActions(m,now);
-    if((m.nextAiTickAt||0)<=now){
+    if(m.phase==="playing"&&(m.nextAiTickAt||0)<=now){
       const changed=runAITick(m,now);
       await this.saveMatch(m);
       if(changed)this.broadcastMatchState(m);
     }
-    await this.saveMeta(meta);await this.scheduleNextAlarm(m,meta)
+    meta.phase=m.phase;await this.saveMeta(meta);await this.scheduleNextAlarm(m,meta)
   }
 
   async fetch(request){

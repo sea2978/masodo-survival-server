@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Match results
+        run: node tests/match_result_smoke.mjs
       - name: Core engine
         run: npm run test:engine
       - name: Catalog and version

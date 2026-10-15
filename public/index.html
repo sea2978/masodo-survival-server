@@ -223,6 +223,9 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 .scene-action-dock button.btn,.scene-action-dock button.scene-main-btn.primary-float,.scene-action-dock button.scene-main-btn.skill-float{width:var(--action-diameter);height:var(--action-diameter);min-width:var(--action-diameter);min-height:var(--action-diameter);max-width:var(--action-diameter);max-height:var(--action-diameter);flex:0 0 var(--action-diameter);border-radius:50%;box-sizing:border-box;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:13px;line-height:1.2;white-space:normal;overflow-wrap:anywhere}
 .scene-action-dock .scene-main-btn b{font-size:11px;line-height:1.25}.scene-action-dock .btn-kicker{font-size:9px}
 @media(max-width:820px){.scene-action-dock{--action-diameter:76px;--action-gap:8px;--action-edge:10px}}
+
+#resultPanel{width:min(440px,calc(100vw - 28px));max-height:88dvh;overflow:auto;color:#e8ecf1;background:#101820;border:1px solid #75879a;border-radius:14px;padding:26px;box-shadow:0 20px 80px #000b;text-align:center}
+#resultPanel::backdrop{background:#03070bd9}#resultPanel h2{font-size:30px;margin:10px 0;color:#e4bc70}#resultPanel .result-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}#resultPanel .result-stat{padding:12px;background:#080f16;border:1px solid #31404f;border-radius:8px}#resultPanel .result-stat b{display:block;font-size:23px;margin-top:6px}#resultPanel .result-actions{display:flex;gap:10px;justify-content:center}#resultPanel .result-actions button{flex:1}#resultPanel .result-kicker{color:#aebdcb;letter-spacing:3px;font-size:12px}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -375,6 +378,11 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
   </section>
 </div>
 <div id="toastStack" class="top-toast-stack" role="status" aria-live="polite"></div>
+<dialog id="resultPanel" aria-labelledby="resultTitle">
+<div class="result-kicker">MATCH RESULT</div><h2 id="resultTitle">경기 결산</h2>
+<p id="resultPlayer"></p><p id="resultCharacter" class="muted"></p>
+<div class="result-stats"><div class="result-stat">순위<b id="resultRank"></b></div><div class="result-stat">처치<b id="resultKills"></b></div><div class="result-stat">생존 시간<b id="resultTime"></b></div><div class="result-stat">마지막 지역<b id="resultRegion"></b></div></div>
+<p id="resultNote" class="muted"></p><div class="result-actions"><button id="resultWatch">화면 보기</button><button id="resultLobby">로비로 돌아가기</button></div></dialog>
 <script type="module">
 import{MasodoNetworkAdapter}from"./network_adapter.js";const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
 let searchLoading=null;
@@ -787,8 +795,27 @@ $('#routeCycleBtn').onclick=()=>{if(favoriteItems.length){routeFavoriteIndex=(ro
 document.querySelectorAll('[data-open-panel]').forEach(b=>b.onclick=()=>$('#'+b.dataset.openPanel).showModal());
 document.querySelectorAll('[data-close-panel]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('.game-popup').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
-function busy(){return!!searchLoading||!!M?.self?.pendingAction}
-function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);
+const shownResults=new Set();
+function renderResult(m){
+  const result=m.result;if(!result||!m.self)return;
+  const key=m.matchId+':'+m.self.playerId;
+  if(shownResults.has(key))return;
+  shownResults.add(key);stopSearchLoading();
+  document.querySelectorAll('.game-popup[open]').forEach(d=>d.close());
+  $('#resultTitle').textContent=result.outcome==='victory'?'최후의 생존자 · 승리':result.outcome==='defeat'?'생존 실패':'경기 종료';
+  $('#resultPlayer').textContent=m.self.playerName;
+  $('#resultCharacter').textContent=charInfo(m.self.charId)?.name||m.self.charId;
+  $('#resultRank').textContent=(result.rank?result.rank+'위':'—')+' / '+result.total+'명';
+  $('#resultKills').textContent=result.kills+'명';
+  const sec=result.survivalSeconds;$('#resultTime').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
+  $('#resultRegion').textContent=rname(result.region);
+  $('#resultNote').textContent=m.phase==='finished'?'경기가 종료되었습니다.': '탈락 시점의 기록입니다. 남은 경기는 계속 진행됩니다.';
+  $('#resultPanel').showModal();
+}
+$('#resultWatch').onclick=()=>$('#resultPanel').close();
+$('#resultLobby').onclick=()=>{net.close();$('#resultPanel').close();M=null;showLobby();refreshRooms()};
+function busy(){return M?.phase==="finished"||!!searchLoading||!!M?.self?.pendingAction}
+function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderResult(m);
 $('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
 $('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
