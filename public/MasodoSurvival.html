@@ -797,11 +797,31 @@ function fillCatalog(){
   renderCharInfo();
 }
 function renderRoom(r){$('#roomState').innerHTML=`<p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${p.playerName} / ${p.charId} / ${rname(p.startRegion)}</div>`).join("")}
+let roomEntryBusy=false;
+async function connectRoom(code,create=false){
+  if(roomEntryBusy)return;
+  const options={playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value};
+  if(!create&&!String(code||'').trim()){toast('방 접속','방 코드를 입력해 주세요.','','combat');return}
+  roomEntryBusy=true;
+  const controls=[$('#create'),$('#join'),...$('#roomsList').querySelectorAll('[data-roomjoin]')];
+  const states=controls.map(b=>b.disabled);controls.forEach(b=>b.disabled=true);
+  $('#status').textContent=create?'방 생성 및 접속 중…':'방 접속 중…';
+  try{
+    if(create){const room=await net.createRoom();code=room.code;log('방 생성 '+code)}
+    code=String(code).trim().toUpperCase();$('#room').value=code;
+    await net.connect(code,options);
+  }catch(e){
+    $('#status').textContent='방 접속 실패';$('#status').className='bad';
+    toast('방 접속 실패',String(e.message||e),'다시 시도하거나 방 상태를 확인해 주세요.','combat',4000);log(String(e.message||e));
+  }finally{
+    roomEntryBusy=false;controls.forEach((b,i)=>b.disabled=states[i]);await refreshRooms();
+  }
+}
 async function refreshRooms(){
   try{
     const data=await net.listRooms(),rooms=data.rooms||[];
     $('#roomsList').innerHTML=rooms.length?rooms.map(r=>`<div class="room-card"><div><b><code>${r.code}</code></b> · ${r.phase}<div class="meta">접속 ${r.humanCount}/${r.maxHumans} · 자리 보존 ${r.reservedCount??r.humanCount}</div></div><button data-roomjoin="${r.code}" ${r.phase!=="lobby"||r.humanCount>=r.maxHumans?"disabled":""}>참가</button></div>`).join(""):'<span class="muted">현재 표시할 방이 없습니다.</span>';
-    $('#roomsList').querySelectorAll('[data-roomjoin]').forEach(b=>b.onclick=()=>{$('#room').value=b.dataset.roomjoin});
+    $('#roomsList').querySelectorAll('[data-roomjoin]').forEach(b=>b.onclick=()=>connectRoom(b.dataset.roomjoin));
   }catch(e){$('#roomsList').innerHTML='<span class="bad">방 목록 불러오기 실패: '+String(e.message||e)+'</span>'}
 }
 
@@ -1228,5 +1248,5 @@ $('#connectServer').onclick=async()=>{
 };
 $('#serverAddress').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('#connectServer').disabled)$('#connectServer').click()});
 $('#refreshRooms').onclick=()=>refreshRooms();
-$('#create').onclick=async()=>{try{const r=await net.createRoom();$('#room').value=r.code;log("방 생성 "+r.code);await refreshRooms()}catch(e){log(e.message)}};$('#join').onclick=async()=>{try{await net.connect($('#room').value,{playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value});await refreshRooms()}catch(e){log(e.message)}};$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
+$('#create').onclick=()=>connectRoom(null,true);$('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
 </script></body></html>
