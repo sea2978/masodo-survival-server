@@ -226,6 +226,8 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
 #resultPanel{width:min(440px,calc(100vw - 28px));max-height:88dvh;overflow:auto;color:#e8ecf1;background:#101820;border:1px solid #75879a;border-radius:14px;padding:26px;box-shadow:0 20px 80px #000b;text-align:center}
 #resultPanel::backdrop{background:#03070bd9}#resultPanel h2{font-size:30px;margin:10px 0;color:#e4bc70}#resultPanel .result-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}#resultPanel .result-stat{padding:12px;background:#080f16;border:1px solid #31404f;border-radius:8px}#resultPanel .result-stat b{display:block;font-size:23px;margin-top:6px}#resultPanel .result-actions{display:flex;gap:10px;justify-content:center}#resultPanel .result-actions button{flex:1}#resultPanel .result-kicker{color:#aebdcb;letter-spacing:3px;font-size:12px}
+
+#actionLoading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;pointer-events:none;padding:15px 24px;border:1px solid #8398af;border-radius:10px;background:#09121cdb;color:#f0f5fa;font-size:clamp(18px,3.8vw,26px);font-weight:700;box-shadow:0 8px 30px #0008;text-align:center;max-width:calc(100vw - 32px)}#actionLoading[hidden]{display:none}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -378,6 +380,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
   </section>
 </div>
 <div id="toastStack" class="top-toast-stack" role="status" aria-live="polite"></div>
+<div id="actionLoading" role="status" aria-live="polite" hidden></div>
 <dialog id="resultPanel" aria-labelledby="resultTitle">
 <div class="result-kicker">MATCH RESULT</div><h2 id="resultTitle">경기 결산</h2>
 <p id="resultPlayer"></p><p id="resultCharacter" class="muted"></p>
@@ -633,7 +636,36 @@ net.on('action_accepted',m=>{if(searchLoading&&m.action?.type==='search')searchL
 net.on('action_result',()=>{stopSearchLoading()});
 net.on('error',()=>{stopSearchLoading();if(M)renderMatch(M)});
 net.on('close',()=>{stopSearchLoading();if(M)renderMatch(M)});
-function showLobby(){ stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
+let localAction=null,loadingDisconnected=false;
+const ACTION_LOADING_TEXT={search:'탐색하는 중~',move:'이동하는 중~',rest:'휴식하는 중~',craft:'제작하는 중~',use_item:'아이템 사용하는 중~',attack:'공격하는 중~',skill:'스킬 사용하는 중~',char_action:'추가 행동 하는 중~',flee:'도주하는 중~',loot_corpse:'전리품 수집하는 중~'};
+function clearLocalAction(){if(localAction)clearTimeout(localAction.timer);localAction=null;$('#actionLoading').hidden=true}
+function renderActionLoading(m){
+  const p=m.self;
+  if(loadingDisconnected||!p?.alive||m.phase==='finished'){clearLocalAction();return}
+  if(localAction){
+    if(p.pendingAction?.type===localAction.type)localAction.accepted=true;
+    else if(localAction.accepted)clearLocalAction();
+  }
+  const type=localAction?.type||p.pendingAction?.type||(searchLoading?'search':null);
+  const el=$('#actionLoading');el.textContent=ACTION_LOADING_TEXT[type]||'행동하는 중~';el.hidden=!type;
+}
+for(const [method,type] of Object.entries({move:'move',rest:'rest',craft:'craft',useItem:'use_item',attack:'attack',skill:'skill',charAction:'char_action',flee:'flee',lootCorpse:'loot_corpse'})){
+  const send=net[method].bind(net);
+  net[method]=(...args)=>{
+    if(localAction||busy()||!M?.self?.alive)return false;
+    localAction={type,accepted:false,timer:null};loadingDisconnected=false;
+    localAction.timer=setTimeout(()=>{clearLocalAction();net.requestState();if(M)renderMatch(M)},15000);
+    renderMatch(M);
+    try{const sent=send(...args);if(!sent){clearLocalAction();renderMatch(M)}return sent}
+    catch(e){clearLocalAction();renderMatch(M);gameLog(String(e.message||e));return false}
+  };
+}
+net.on('action_accepted',m=>{if(localAction?.type===m.action?.type)localAction.accepted=true});
+net.on('action_result',()=>clearLocalAction());
+net.on('error',()=>{clearLocalAction();if(M)renderMatch(M)});
+net.on('close',()=>{loadingDisconnected=true;clearLocalAction()});
+net.on('connected',()=>{loadingDisconnected=false});
+function showLobby(){ clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
 function showGame(){ document.body.classList.add("game-active"); $('#lobbyScreen').hidden=true; $('#gameScreen').hidden=false; }
 const gameLog=x=>{const el=$('#gameLog');if(!el)return;el.textContent+=x+"\n";el.scrollTop=999999};
 const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
@@ -740,6 +772,7 @@ function notifyMatchChanges(m){const p=m.self;if(!p)return;const counts=new Map(
 const key=(m.matchId||'')+'|'+(p.playerId||p.charId);if(noticeSnapshot?.key===key){const gained=[];for(const[id,it]of counts){const delta=it.count-(noticeSnapshot.counts.get(id)?.count||0);if(delta>0)gained.push(it.name+' ×'+delta)}if(gained.length)toast('아이템 획득',gained.join(' · '),'인벤토리에 반영되었습니다.','item');const events=(m.combatNotices||[]).filter(e=>e.id>(noticeSnapshot.combatSeq||0));
 for(const e of events){
   const dealt=e.sourceId===p.playerId&&e.targetId!==p.playerId;
+  if(e.hit===false){toast(dealt?'공격 빗나감':'공격 회피',dealt?e.targetName+'에게 한 공격이 빗나갔습니다.':e.sourceName+'의 공격이 빗나갔습니다.',e.kind+' · 피해 0','combat',3000);continue}
   const amount=Math.round(e.damage*10)/10;
   toast(dealt?'공격 적중':'피격 / 피해',dealt?e.targetName+'에게 '+amount+' 피해':e.sourceName+'에게 '+amount+' 피해를 받음',e.kind,'combat',3000);
 }
@@ -1039,8 +1072,8 @@ function renderResult(m){
 }
 $('#resultWatch').onclick=()=>$('#resultPanel').close();
 $('#resultLobby').onclick=()=>{net.close();$('#resultPanel').close();M=null;showLobby();refreshRooms()};
-function busy(){return M?.phase==="finished"||!!searchLoading||!!M?.self?.pendingAction}
-function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderResult(m);
+function busy(){return M?.phase==="finished"||!!localAction||!!searchLoading||!!M?.self?.pendingAction}
+function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderActionLoading(m);renderResult(m);
 $('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
 $('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
