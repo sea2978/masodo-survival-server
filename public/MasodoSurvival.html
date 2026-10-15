@@ -258,6 +258,9 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
  #rotateGuide h2{margin:0;font-size:23px}#rotateGuide p{margin:0;line-height:1.7;color:#b4c3d5}#rotateGuide button{padding:12px 22px}
 }
 
+
+/* Hide diagnostic log windows while retaining their data sinks. */
+.log-panel,#log,#gameLog{display:none!important}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -296,7 +299,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       <div id="roomsList" class="room-browser"><span class="muted">불러오는 중...</span></div>
     </div>
 
-    <div class="panel">
+    <div class="panel log-panel" hidden>
       <h2>로비 로그</h2>
       <div id="log"></div>
     </div>
@@ -382,7 +385,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
     <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 장비</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
     <dialog id="craftPanel" class="game-popup"><div class="popup-head"><h2>제작</h2><button data-close-panel>닫기</button></div><div id="craft"></div></dialog>
 
-    <section class="intel-hud glass-panel">
+    <section class="intel-hud glass-panel log-panel" hidden>
       <div class="intel-tabs"><b>전투/행동 로그</b></div>
       <div id="gameLog" class="scroll game-log"></div>
     </section>
