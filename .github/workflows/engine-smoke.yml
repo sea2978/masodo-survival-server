@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Combat notifications
+        run: node tests/combat_notice_smoke.mjs
       - name: Match results
         run: node tests/match_result_smoke.mjs
       - name: Core engine

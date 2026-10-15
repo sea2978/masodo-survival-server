@@ -261,7 +261,8 @@ function applyStatusTicks(match,p,now){
     p.nextStatusTick+=2000;
     const poison=p.statuses?.poison;
     if(poison?.until>p.nextStatusTick){
-      p.hp-=Math.max(1,Math.round(maxHp(p,match,p.nextStatusTick)*.02*(poison.stacks||1)));
+      const damage=Math.max(1,Math.round(maxHp(p,match,p.nextStatusTick)*.02*(poison.stacks||1)));
+      p.hp-=damage;recordCombatNotice(match,poison.sourceId,p,damage,'독',p.nextStatusTick);
       wakeOnDamage(p,p.nextStatusTick);
       if(p.hp<=0){awardStatusKill(match,p,poison.sourceId,p.nextStatusTick);break}
     }
@@ -330,7 +331,7 @@ function onTargetDetected(seeker,target,match,now){
 }
 function triggerBleedAction(match,p,now){
   const s=status(p,"bleed",now);if(!s||!p.alive)return 0;
-  const d=2*(s.stacks||1);p.hp-=d;wakeOnDamage(p,now);
+  const d=2*(s.stacks||1);p.hp-=d;recordCombatNotice(match,s.sourceId,p,d,'출혈',now);wakeOnDamage(p,now);
   if(p.hp<=0)awardStatusKill(match,p,s.sourceId,now);
   return d;
 }
@@ -408,9 +409,18 @@ function killPlayer(match,a,b,now){
   createDeathCorpse(match,b,now);
   return {killed:true}
 }
+function recordCombatNotice(match,source,target,damage,kind,now){
+  if(!(damage>0))return;
+  if(typeof source==='string')source=match.players.find(p=>p.playerId===source)||(match.wilds||[]).find(w=>w.id===source);
+  const label=x=>x?.playerName||(x?.templateId?wildTemplate(x)?.n:null)||'알 수 없는 대상';
+  match.combatNoticeSeq=(match.combatNoticeSeq||0)+1;
+  (match.combatNotices??=[]).push({id:match.combatNoticeSeq,at:now,sourceId:source?.playerId||source?.id||null,
+    targetId:target?.playerId||target?.id||null,sourceName:label(source),targetName:label(target),damage,kind});
+  match.combatNotices=match.combatNotices.slice(-100);
+}
 function wildCounter(match,p,w,now){
   if(!p.alive||!w.alive)return 0;
-  const t=wildTemplate(w),d=wildDamage(p,w,match,now);p.hp-=d;wakeOnDamage(p,now);
+  const t=wildTemplate(w),d=wildDamage(p,w,match,now);p.hp-=d;recordCombatNotice(match,w,p,d,'반격',now);wakeOnDamage(p,now);
   if(t.skill==="bite_bleed"&&Math.random()<.20)applyStatus(p,"bleed",1,10,w.id,now,null,match);
   else if(t.skill==="harass"&&Math.random()<.25)p.nextHitBonus=(p.nextHitBonus||0)-.06;
   else if(t.skill==="scan_delay"&&Math.random()<.20)applyStatus(p,"actionDelay",1,3,w.id,now,null,match);
@@ -477,7 +487,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   const crit=canSkillCrit&&Math.random()<clamp(.05+(skill?(sd.crit||0):0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,t,d,ctx,now);
-  t.hp-=d;wakeOnDamage(t,now);recordBattle(match,p,t,now);gainProf(p,1.5,match,now);
+  t.hp-=d;recordCombatNotice(match,p,t,d,skill?'전투 스킬':'일반 공격',now);wakeOnDamage(t,now);recordBattle(match,p,t,now);gainProf(p,1.5,match,now);
 
   if(skill){
     for(const row of sd.statuses||[]){
@@ -535,7 +545,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,w,d,ctx,now);
   if(t.skill==="guard"&&w.guardReady){w.guardReady=false;d=Math.max(1,Math.round(d*.8))}
-  w.hp-=d;gainProf(p,1.5,match,now);
+  w.hp-=d;recordCombatNotice(match,p,w,d,skill?'전투 스킬':'일반 공격',now);gainProf(p,1.5,match,now);
 
   let drop=null,extra=[],killed=false;
   if(w.hp<=0){
