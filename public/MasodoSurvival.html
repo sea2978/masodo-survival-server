@@ -261,6 +261,8 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
 /* Hide diagnostic log windows while retaining their data sinks. */
 .log-panel,#log,#gameLog{display:none!important}
+
+#reconnectPanel{width:min(420px,calc(100vw - 32px));padding:30px 24px;text-align:center;background:#0d1825;color:#e8f0f9;border:1px solid #7491ad;border-radius:12px;box-shadow:0 16px 60px #000b}#reconnectPanel::backdrop{background:#03080ed9}#reconnectPanel h2{font-size:24px;margin:8px 0 18px}#reconnectPanel h2::after{content:".";display:inline-block;width:1.4em;text-align:left;animation:action-loading-dots 1.2s steps(1,end) infinite}#reconnectPanel p{line-height:1.7;color:#b4c5d7}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -417,6 +419,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 <div id="mobileScreenHint" class="mobile-only" role="status" hidden></div>
 <div id="rotateGuide"><h2>기기를 가로로 돌려주세요</h2><p>가로 화면에서 플레이할 수 있습니다.<br>자동 회전이 꺼져 있다면 켜주세요.</p><button id="rotateFullscreen" type="button">전체화면으로 시작</button></div>
 <div id="actionLoading" role="status" aria-live="polite" hidden></div>
+<dialog id="reconnectPanel" aria-labelledby="reconnectTitle"><h2 id="reconnectTitle">서버 연결 중</h2><p id="reconnectDetail" role="status" aria-live="polite">연결이 끊어졌습니다. 기존 경기로 다시 접속하고 있습니다.</p></dialog>
 <dialog id="resultPanel" aria-labelledby="resultTitle">
 <div class="result-kicker">MATCH RESULT</div><h2 id="resultTitle">경기 결산</h2>
 <p id="resultPlayer"></p><p id="resultCharacter" class="muted"></p>
@@ -435,6 +438,7 @@ class MasodoNetworkAdapter {
     this.build = null;
     this.connectOptions = null;
     this.manualClose = false;
+    this.connectionEpoch = 0;
     this.reconnectTimer = null;
     this.reconnectAttempts = 0;
     this.reconnectChannels = new Map();
@@ -551,10 +555,25 @@ class MasodoNetworkAdapter {
     return data;
   }
 
+  scheduleReconnect() {
+    if(this.manualClose||this.reconnectTimer||!this.roomCode||!this.connectOptions)return;
+    const delay=Math.min(30000,1500*(2**Math.min(this.reconnectAttempts,5)));
+    this.reconnectAttempts++;
+    this.emit('reconnect_scheduled',{attempt:this.reconnectAttempts,delay});
+    this.reconnectTimer=setTimeout(()=>{
+      this.reconnectTimer=null;
+      if(this.manualClose)return;
+      this.emit('reconnecting',{attempt:this.reconnectAttempts});
+      this.connect(this.roomCode,this.connectOptions).catch(error=>{if(!this.reconnectTimer&&!this.manualClose){this.emit("reconnect_error",{error:String(error.message||error)});this.scheduleReconnect()}});
+    },delay);
+  }
+
   async connect(code, { playerName = "Player", charId = "c01", startRegion = "city" } = {}) {
+    const epoch=++this.connectionEpoch;
     const roomCode = String(code).trim().toUpperCase();
     const storageKey = `masodo-session-${roomCode}`;
     const reconnectToken = await this.getReconnectToken(roomCode);
+    if(epoch!==this.connectionEpoch)return this;
     const resumeSessionId = reconnectToken ? (this.sessionId || sessionStorage.getItem(storageKey) || null) : null;
     if (this.ws) { const old=this.ws; this.ws=null; try { old.close(1000,"reconnect"); } catch {} }
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
@@ -565,17 +584,27 @@ class MasodoNetworkAdapter {
     const ws = new WebSocket(`${wsBase}/api/room/${encodeURIComponent(this.roomCode)}/ws`);
     this.ws = ws;
 
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("websocket_timeout")), 10000);
-      ws.addEventListener("open", () => { clearTimeout(timer); resolve(); }, { once: true });
-      ws.addEventListener("error", () => { clearTimeout(timer); reject(new Error("websocket_error")); }, { once: true });
-    });
+    try {
+      await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>finish(new Error('websocket_timeout')),10000);
+        const onOpen=()=>finish(),onError=()=>finish(new Error('websocket_error')),onClose=()=>finish(new Error('websocket_closed'));
+        const finish=error=>{clearTimeout(timer);ws.removeEventListener('open',onOpen);ws.removeEventListener('error',onError);ws.removeEventListener('close',onClose);error?reject(error):resolve()};
+        ws.addEventListener('open',onOpen);ws.addEventListener('error',onError);ws.addEventListener('close',onClose);
+      });
+    }catch(error){
+      if(this.ws===ws){this.ws=null;try{ws.close()}catch{};this.emit('reconnect_error',{error:String(error.message||error)});this.scheduleReconnect()}
+      throw error;
+    }
+    if(this.ws!==ws||this.manualClose){try{ws.close()}catch{};return this}
+    let handshakeTimer=setTimeout(()=>{if(this.ws===ws)ws.close(4000,'session_timeout')},10000);
 
     ws.addEventListener("message", (event) => {
+      if(this.ws!==ws)return;
       if (event.data === "pong") { this.emit("pong", {}); return; }
       try {
         const msg = JSON.parse(event.data);
         if (msg.sessionId && msg.type === "hello_ok") {
+          clearTimeout(handshakeTimer);handshakeTimer=null;
           this.sessionId = msg.sessionId;
           this.reconnectAttempts = 0;
           try { sessionStorage.setItem(storageKey, msg.sessionId); } catch {}
@@ -592,17 +621,12 @@ class MasodoNetworkAdapter {
     });
 
     ws.addEventListener("close", (event) => {
+      clearTimeout(handshakeTimer);
       if (this.ws !== ws) return;
       this.ws = null;
       this.emit("close", { code: event.code, reason: event.reason });
-      if (!this.manualClose && this.roomCode && this.connectOptions) {
-        const delay = Math.min(30000, 1500 * (2 ** Math.min(this.reconnectAttempts, 5)));
-        this.reconnectAttempts += 1;
-        this.reconnectTimer = setTimeout(() => {
-          this.reconnectTimer = null;
-          this.connect(this.roomCode, this.connectOptions).catch(error => this.emit("reconnect_error", { error:String(error?.message||error) }));
-        }, delay);
-      }
+      clearTimeout(handshakeTimer);
+      this.scheduleReconnect();
     });
 
     this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId });
@@ -635,6 +659,7 @@ class MasodoNetworkAdapter {
   ping() { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send("ping"); }
 
   close() {
+    this.connectionEpoch++;
     this.manualClose = true;
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
     const ws=this.ws;this.ws=null;
@@ -666,6 +691,22 @@ $('#mobileFullscreen').onclick=async()=>{
 $('#rotateFullscreen').onclick=enterMobileFullscreen;
 document.addEventListener('fullscreenchange',updateMobileFullscreen);
 document.addEventListener('webkitfullscreenchange',updateMobileFullscreen);
+function showReconnectLoading(detail){
+  if(!M||net.manualClose)return;
+  stopSearchLoading();clearLocalAction();
+  document.querySelectorAll('.game-popup[open]').forEach(d=>d.close());
+  $('#reconnectDetail').textContent=detail||'연결이 끊어졌습니다. 기존 경기로 다시 접속하고 있습니다.';
+  if(!$('#reconnectPanel').open)$('#reconnectPanel').showModal();
+}
+function hideReconnectLoading(){if($('#reconnectPanel').open)$('#reconnectPanel').close()}
+$('#reconnectPanel').addEventListener('cancel',e=>e.preventDefault());
+net.on('close',()=>showReconnectLoading());
+net.on('reconnect_scheduled',e=>showReconnectLoading(Math.ceil(e.delay/1000)+'초 후 재연결을 시도합니다. · '+e.attempt+'회차'));
+net.on('reconnecting',e=>showReconnectLoading('기존 방으로 다시 접속하고 있습니다. · '+e.attempt+'회차'));
+net.on('reconnect_error',()=>showReconnectLoading('서버에 연결하지 못했습니다. 잠시 후 다시 시도합니다.'));
+net.on('hello_ok',()=>{if($('#reconnectPanel').open){$('#reconnectDetail').textContent='연결되었습니다. 경기 상태를 불러오고 있습니다.';net.requestState()}});
+net.on('match_state',()=>hideReconnectLoading());
+net.on('room_state',e=>{if(e.room?.phase==='lobby'&&$('#reconnectPanel').open){hideReconnectLoading();M=null;showLobby()}});
 let searchLoading=null;
 function stopSearchLoading(){
   if(!searchLoading)return;
@@ -724,7 +765,7 @@ net.on('action_result',()=>clearLocalAction());
 net.on('error',()=>{clearLocalAction();if(M)renderMatch(M)});
 net.on('close',()=>{loadingDisconnected=true;clearLocalAction()});
 net.on('connected',()=>{loadingDisconnected=false});
-function showLobby(){ clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
+function showLobby(){ hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
 function showGame(){ document.body.classList.add("game-active"); $('#lobbyScreen').hidden=true; $('#gameScreen').hidden=false; }
 const gameLog=x=>{const el=$('#gameLog');if(!el)return;el.textContent+=x+"\n";el.scrollTop=999999};
 const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
