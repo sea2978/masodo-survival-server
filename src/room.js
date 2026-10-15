@@ -116,6 +116,7 @@ export class GameRoom extends DurableObject{
     if(future.length)await this.ctx.storage.setAlarm(Math.min(...future));else await this.ctx.storage.deleteAlarm();
   }
   async completeDueActions(match,now=Date.now()){
+    const aliveBefore=match.players.filter(p=>p.alive).length;
     let changed=false;
     for(const p of match.players){
       if(!p.pendingAction||p.pendingAction.completeAt>now)continue;
@@ -124,6 +125,7 @@ export class GameRoom extends DurableObject{
       if(ws)send(ws,"action_result",{result});
     }
     updatePassiveTime(match,now);
+    changed ||= aliveBefore!==match.players.filter(p=>p.alive).length;
     if(changed){match.updatedAt=now;await this.saveMatch(match);this.broadcastMatchState(match)}
     return changed;
   }
@@ -226,7 +228,7 @@ export class GameRoom extends DurableObject{
     const commandMap={command_move:"move",command_search:"search",command_rest:"rest",command_craft:"craft",command_use_item:"use_item",command_attack:"attack",command_skill:"skill",command_flee:"flee",command_char_action:"char_action",command_loot_corpse:"loot_corpse"};
     if(commandMap[msg.type]){
       const m=await this.getMatch();if(!m||m.phase!=="playing"){send(ws,"error",{error:"match_not_playing"});return}
-      await this.completeDueActions(m,Date.now());const p=this.matchPlayerForSession(m,session.sessionId);const type=commandMap[msg.type],payload={to:msg.to,id:msg.id};
+      await this.completeDueActions(m,Date.now());if(m.phase!=="playing"){send(ws,"error",{error:"match_not_playing"});this.sendMatchState(ws,m);return}const p=this.matchPlayerForSession(m,session.sessionId);const type=commandMap[msg.type],payload={to:msg.to,id:msg.id};
       if(type==="loot_corpse"){payload.corpseId=msg.corpseId;payload.kind=msg.kind;payload.qty=msg.qty;payload.replace=!!msg.replace}
       const r=beginServerAction(m,p,type,payload,Date.now());if(!r.ok){if(r.error==="no_encounter"){await this.saveMatch(m);this.broadcastMatchState(m)}send(ws,"error",{error:r.error});return}
       await this.saveMatch(m);await this.scheduleNextAlarm(m,meta);send(ws,"action_accepted",{action:r.action});this.broadcastMatchState(m);return
