@@ -227,7 +227,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 #resultPanel{width:min(440px,calc(100vw - 28px));max-height:88dvh;overflow:auto;color:#e8ecf1;background:#101820;border:1px solid #75879a;border-radius:14px;padding:26px;box-shadow:0 20px 80px #000b;text-align:center}
 #resultPanel::backdrop{background:#03070bd9}#resultPanel h2{font-size:30px;margin:10px 0;color:#e4bc70}#resultPanel .result-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}#resultPanel .result-stat{padding:12px;background:#080f16;border:1px solid #31404f;border-radius:8px}#resultPanel .result-stat b{display:block;font-size:23px;margin-top:6px}#resultPanel .result-actions{display:flex;gap:10px;justify-content:center}#resultPanel .result-actions button{flex:1}#resultPanel .result-kicker{color:#aebdcb;letter-spacing:3px;font-size:12px}
 
-#actionLoading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;pointer-events:none;padding:15px 24px;border:1px solid #8398af;border-radius:10px;background:#09121cdb;color:#f0f5fa;font-size:clamp(18px,3.8vw,26px);font-weight:700;box-shadow:0 8px 30px #0008;text-align:center;max-width:calc(100vw - 32px)}#actionLoading[hidden]{display:none}
+#actionLoading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;pointer-events:none;padding:15px 24px;border:1px solid #8398af;border-radius:10px;background:#09121cdb;color:#f0f5fa;font-size:clamp(18px,3.8vw,26px);font-weight:700;box-shadow:0 8px 30px #0008;text-align:center;max-width:calc(100vw - 32px)}#actionLoading[hidden]{display:none}#actionLoading::after{content:".";display:inline-block;width:1.4em;text-align:left;animation:action-loading-dots 1.2s steps(1,end) infinite}@keyframes action-loading-dots{0%{content:"."}33.333%{content:".."}66.667%{content:"..."}100%{content:"."}}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -418,7 +418,7 @@ net.on('action_result',()=>{stopSearchLoading()});
 net.on('error',()=>{stopSearchLoading();if(M)renderMatch(M)});
 net.on('close',()=>{stopSearchLoading();if(M)renderMatch(M)});
 let localAction=null,loadingDisconnected=false;
-const ACTION_LOADING_TEXT={search:'탐색하는 중~',move:'이동하는 중~',rest:'휴식하는 중~',craft:'제작하는 중~',use_item:'아이템 사용하는 중~',attack:'공격하는 중~',skill:'스킬 사용하는 중~',char_action:'추가 행동 하는 중~',flee:'도주하는 중~',loot_corpse:'전리품 수집하는 중~'};
+const ACTION_LOADING_TEXT={search:'탐색 중',move:'이동 중',rest:'휴식 중',craft:'제작 중',use_item:'아이템 사용 중',attack:'공격 중',skill:'스킬 사용 중',char_action:'추가 행동 중',flee:'도주 중',loot_corpse:'전리품 수집 중'};
 function clearLocalAction(){if(localAction)clearTimeout(localAction.timer);localAction=null;$('#actionLoading').hidden=true}
 function renderActionLoading(m){
   const p=m.self;
@@ -428,7 +428,7 @@ function renderActionLoading(m){
     else if(localAction.accepted)clearLocalAction();
   }
   const type=localAction?.type||p.pendingAction?.type||(searchLoading?'search':null);
-  const el=$('#actionLoading');el.textContent=ACTION_LOADING_TEXT[type]||'행동하는 중~';el.hidden=!type;
+  const el=$('#actionLoading');el.textContent=ACTION_LOADING_TEXT[type]||'행동 중';el.hidden=!type;
 }
 for(const [method,type] of Object.entries({move:'move',rest:'rest',craft:'craft',useItem:'use_item',attack:'attack',skill:'skill',charAction:'char_action',flee:'flee',lootCorpse:'loot_corpse'})){
   const send=net[method].bind(net);
