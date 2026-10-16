@@ -394,10 +394,10 @@ function createDeathCorpse(match,p,now){
   const corpse={id:"corpse_"+p.playerId+"_"+now,name:p.playerName,region:p.region,eq:[...p.eq],mat:Object.fromEntries(Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id))),con:{...p.con},expiresAt:now+75000};
   match.corpses.push(corpse);p.eq=[];p.mat={};p.con={};return corpse;
 }
-function environmentDeath(match,p,now){
+function environmentDeath(match,p,now,forced=false){
   if(!p.alive)return false;
   const fx=PASSIVE_FX[p.charId]||{};
-  if(fx.revive&&!p.rev){p.rev=true;p.hp=Math.min(18,maxHp(p,match,now));p.statuses={};return false}
+  if(!forced&&fx.revive&&!p.rev){p.rev=true;p.hp=Math.min(18,maxHp(p,match,now));p.statuses={};return false}
   p.alive=false;p.encounter=null;p.pendingAction=null;createDeathCorpse(match,p,now);return true;
 }
 function killPlayer(match,a,b,now){
@@ -646,6 +646,10 @@ function searchResult(match,p,now){
 }
 function useConsumable(match,p,id,now){
   const it=item(id);if(!it||it.t!=="c"||owned(p,id)<=0)return {ok:false,error:"item_missing"};
+  if(id==="carbonara_mint_fish"&&p.charId!=="c49"){
+    consumeItem(p,id,1);p.hp=0;environmentDeath(match,p,now,true);
+    return {ok:true,itemId:id,itemName:it.n,special:"아바돈 이외의 캐릭터 섭취 시 즉사",dead:true};
+  }
   const inCombat=!!p.encounter,combat=inCombat?(it.combatEff??.75):1,repeat=foodRepeatMultiplier(p,id,it,now);
   const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.08:1,healMult=repeat*combat*recoveryMult*(1+(fx.heal||0)),spMult=repeat*combat;
   if(it.consumableBuff)addTemp(p,it.consumableBuff.fx,it.consumableBuff.duration,now);

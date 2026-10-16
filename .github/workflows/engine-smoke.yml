@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Carbonara instant death
+        run: node tests/carbonara_death_audit.mjs
       - name: Consumable crafting
         run: node tests/consumable_crafting_smoke.mjs
       - name: Reconnection flow
