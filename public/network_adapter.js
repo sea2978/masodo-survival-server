@@ -6,6 +6,7 @@ export class MasodoNetworkAdapter {
     this.roomCode = null;
     this.sessionId = null;
     this.lastMatch = null;
+    this.networkState=null;this.stateRevision=0;this.itemCatalog={};this.resyncPending=false;
     this.catalog = null;
     this.build = null;
     this.connectOptions = null;
@@ -95,6 +96,35 @@ export class MasodoNetworkAdapter {
     return this.catalog;
   }
 
+  decodeMatch(state){
+    const match={...state,self:state.self?{...state.self}:null},inv=state.self?.inventory;
+    if(inv){const item=id=>this.itemCatalog[id]||{};match.self.inventory={eq:inv.eq.map(x=>({...item(x.id),...x})),mat:inv.mat.map(x=>({name:item(x.id).n||x.id,...x})),con:inv.con.map(x=>({...item(x.id),...x}))}}
+    return match;
+  }
+  acceptStateMessage(msg){
+    if(msg.type==='match_state'){
+      if(msg.itemCatalog)this.itemCatalog=msg.itemCatalog;
+      this.networkState=msg.match;this.stateRevision=msg.stateRevision||0;this.resyncPending=false;
+      const match=msg.stateRevision?this.decodeMatch(msg.match):msg.match;
+      this.lastMatch=match;return {...msg,match};
+    }
+    if(msg.type!=='match_delta')return msg;
+    if(this.resyncPending)return null;
+    if(!this.networkState||msg.baseRevision!==this.stateRevision||msg.stateRevision!==this.stateRevision+1){
+      this.resyncPending=true;this.requestState();return null;
+    }
+    const state=JSON.parse(JSON.stringify(this.networkState));
+    const target=path=>{if(!Array.isArray(path)||!path.length||path.some(k=>typeof k!=='string'||['__proto__','prototype','constructor'].includes(k)))throw Error('invalid_state_path');let at=state;for(const k of path.slice(0,-1)){if(!at[k]||typeof at[k]!=='object')at[k]={};at=at[k]}return [at,path.at(-1)]};
+    try{
+      for(const path of msg.patch.remove){const [at,key]=target(path);delete at[key]}
+      for(const [path,value]of msg.patch.set){const [at,key]=target(path);at[key]=value}
+      state.combatNotices=[...(state.combatNotices||[]),...(msg.combatNotices||[])].slice(-100);
+      this.networkState=state;this.stateRevision=msg.stateRevision;
+      const match=this.decodeMatch(state);this.lastMatch=match;
+      return {type:'match_state',match,stateRevision:msg.stateRevision};
+    }catch{this.resyncPending=true;this.requestState();return null}
+  }
+
   async listRooms() {
     const res = await fetch(`${this.baseUrl}/api/rooms`, { cache: "no-store" });
     const data = await res.json();
@@ -150,6 +180,7 @@ export class MasodoNetworkAdapter {
     if (this.ws) { const old=this.ws; this.ws=null; try { old.close(1000,"reconnect"); } catch {} }
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
     this.manualClose = false;
+    this.networkState=null;this.stateRevision=0;this.resyncPending=false;
     this.roomCode = roomCode;
     this.connectOptions = { playerName, charId, startRegion };
     const wsBase = this.baseUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
@@ -174,7 +205,8 @@ export class MasodoNetworkAdapter {
       if(this.ws!==ws)return;
       if (event.data === "pong") { this.emit("pong", {}); return; }
       try {
-        const msg = JSON.parse(event.data);
+        let msg=JSON.parse(event.data);
+        msg=this.acceptStateMessage(msg);if(!msg)return;
         if (msg.sessionId && msg.type === "hello_ok") {
           clearTimeout(handshakeTimer);handshakeTimer=null;
           this.sessionId = msg.sessionId;
@@ -201,7 +233,7 @@ export class MasodoNetworkAdapter {
       this.scheduleReconnect();
     });
 
-    this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId });
+    this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId, features:["state_delta_v1"] });
     return this;
   }
 

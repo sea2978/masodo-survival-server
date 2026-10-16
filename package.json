@@ -28,7 +28,8 @@
     "test:all-events": "node tests/all_event_choices_audit.mjs",
     "test:static-audit": "node tests/client_server_static_audit.mjs",
     "test:craft-preflight": "node tests/craft_preflight_audit.mjs",
-    "test:audit": "npm run test:engine && npm run test:catalog && npm run test:full-audit && npm run test:phase2p-runtime && npm run test:all-combat && npm run test:all-actions && npm run test:all-consumables && npm run test:all-events && npm run test:static-audit && npm run test:craft-preflight && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:phase2o"
+    "test:network": "node tests/state_transport_smoke.mjs",
+    "test:audit": "npm run test:network && npm run test:engine && npm run test:catalog && npm run test:full-audit && npm run test:phase2p-runtime && npm run test:all-combat && npm run test:all-actions && npm run test:all-consumables && npm run test:all-events && npm run test:static-audit && npm run test:craft-preflight && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:phase2o"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

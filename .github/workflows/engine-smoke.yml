@@ -21,6 +21,8 @@ jobs:
         run: node tests/carbonara_death_audit.mjs
       - name: Consumable crafting
         run: node tests/consumable_crafting_smoke.mjs
+      - name: State deltas, full-room traffic and recovery
+        run: node tests/state_transport_smoke.mjs
       - name: Reconnection flow
         run: node tests/reconnect_smoke.mjs
       - name: Combat notifications

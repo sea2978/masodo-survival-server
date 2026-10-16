@@ -852,8 +852,8 @@ function recordMaterialHintIntel(p,now){
   const ids=rec.missing.map(x=>x.id),row={kind:"material_hint",targetId:rec.id,targetName:rec.name,regions:materialTargetRegions(ids),at:now};
   pushIntel(ensureIntel(p).materialHints,row);return row;
 }
-export function publicPlayer(match,p,now=Date.now()){
-  updatePassiveTime(match,now);ensureIntel(p);
+export function publicPlayer(match,p,now=Date.now(),advance=true){
+  if(advance)updatePassiveTime(match,now);else p={...p,intel:p.intel?{...p.intel}:undefined};ensureIntel(p);
   return {...p,nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
     inventory:{eq:(p.eq||[]).map(id=>({id,...item(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };

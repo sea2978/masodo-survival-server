@@ -1,3 +1,4 @@
+import {STATE_DELTA_FEATURE,stateDiff,substantivePatch,compactSnapshot} from "./state_transport.js";
 import {settleMatch,playerResult} from "./match_result.js";
 import { DurableObject } from "cloudflare:workers";
 import { MAX_HUMANS, json, parseJsonMessage, safeText, send } from "./protocol.js";
@@ -18,17 +19,28 @@ async function sha256Hex(value){
 
 export class GameRoom extends DurableObject{
   constructor(ctx,env){
-    super(ctx,env);this.env=env;this.sessions=new Map();
+    super(ctx,env);this.env=env;this.sessions=new Map();this.sentStates=new WeakMap();this.recipeCache=new Map();
     for(const ws of this.ctx.getWebSockets()){const a=ws.deserializeAttachment();if(a?.sessionId)this.sessions.set(ws,a)}
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping","pong"));
   }
-  async getMeta(){return(await this.ctx.storage.get(ROOM_META_KEY))||null}
-  async saveMeta(v){await this.ctx.storage.put(ROOM_META_KEY,v)}
-  async getMatch(){return(await this.ctx.storage.get(MATCH_KEY))||null}
+  async getMeta(){const value=(await this.ctx.storage.get(ROOM_META_KEY))||null;this.metaJson=JSON.stringify(value);return value}
+  async saveMeta(v){const json=JSON.stringify(v);if(json===this.metaJson)return;await this.ctx.storage.put(ROOM_META_KEY,v);this.metaJson=json}
+  async getMatch(){
+    const v=(await this.ctx.storage.get(MATCH_KEY))||null;this.matchJson=JSON.stringify(v);
+    if(v){
+      if(!v.eventCatalog||JSON.stringify(v.eventCatalog)===JSON.stringify(ENCOUNTER_EVENTS))v.eventCatalog=ENCOUNTER_EVENTS;
+      if(!v.wildTemplates||JSON.stringify(v.wildTemplates)===JSON.stringify(WILD_TEMPLATES))v.wildTemplates=WILD_TEMPLATES;
+    }
+    return v;
+  }
   async saveMatch(v){
-    const finished=settleMatch(v);
-    await this.ctx.storage.put(MATCH_KEY,v);
-    if(finished){const meta=await this.getMeta();if(meta){meta.phase="finished";await this.saveMeta(meta);await this.updateDirectory(meta)}}
+    settleMatch(v);const stored={...v};
+    if(v.eventCatalog===ENCOUNTER_EVENTS)delete stored.eventCatalog;
+    if(v.wildTemplates===WILD_TEMPLATES)delete stored.wildTemplates;
+    stored.definitionVersion=GAME_VERSION;
+    const json=JSON.stringify(stored);
+    if(json!==this.matchJson){await this.ctx.storage.put(MATCH_KEY,stored);this.matchJson=json}
+    if(v.phase==="finished"){const meta=await this.getMeta();if(meta&&meta.phase!=="finished"){meta.phase="finished";await this.saveMeta(meta);await this.updateDirectory(meta)}}
   }
   joinedSessions(){return[...this.sessions.values()].filter(s=>s.joined).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0))}
   reconnectRecords(meta){return Array.isArray(meta?.reconnectRecords)?meta.reconnectRecords:[]}
@@ -77,8 +89,15 @@ export class GameRoom extends DurableObject{
   }
   async broadcastRoomState(meta){this.broadcast("room_state",{room:this.roomState(meta)});await this.updateDirectory(meta)}
   matchPlayerForSession(match,sid){return match?.players?.find(p=>p.sessionId===sid)||null}
+  recipeView(p){
+    const key=JSON.stringify([p.charId,p.eq,p.mat,p.con]),cached=this.recipeCache.get(p.playerId);
+    if(cached?.key===key)return cached.value;
+    const value={recommendations:recommendedCrafts(p,12),craftable:Object.entries(ITEMS).filter(([,it])=>it?.r&&Object.entries(it.r).every(([k,n])=>{
+      const src=ITEMS[k];return (src?.t==="m"?(p.mat[k]||0):src?.t==="c"?(p.con[k]||0):(p.eq||[]).filter(x=>x===k).length)>=n;
+    })).slice(0,80).map(([id,it])=>({id,name:it.n,t:it.t,tier:it.tier||"",atk:it.atk||0,def:it.def||0,r:it.r}))};
+    this.recipeCache.set(p.playerId,{key,value});return value;
+  }
   snapshot(match,sid,now=Date.now()){
-    if(match.phase==="playing")updatePassiveTime(match,now);
     const self=this.matchPlayerForSession(match,sid);
     const others=match.players.filter(p=>p.sessionId!==sid).map(p=>({playerId:p.playerId,playerName:p.playerName,charId:p.charId,alive:p.alive,kills:p.kills,isAI:!!p.isAI}));
     const encounter=self?.encounter?(()=>{
@@ -86,7 +105,7 @@ export class GameRoom extends DurableObject{
       const w=match.wilds.find(x=>x.id===self.encounter.wildId);if(!w?.alive||w.region!==self.region)return null;
       const t=(match.wildTemplates||[]).find(x=>x.id===w.templateId);return{kind:"wild",wildId:w.id,name:t?.n||w.templateId,hp:w.hp,maxHp:t?.hp||w.hp,skillText:t?.skillText||""}
     })():null;
-    return{combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.elapsed||0,self:self?publicPlayer(match,self,now):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
+    return{combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.elapsed||0,self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
       pendingEvent:self?.pendingEvent?(()=>{
         const e=match.eventCatalog.find(e=>e.id===self.pendingEvent);if(!e)return null;
         return {...e,choices:(e.choices||[]).map((choice,index)=>({...choice,...eventChoiceAvailability(e,self,index)}))}
@@ -94,13 +113,26 @@ export class GameRoom extends DurableObject{
       aiCount:match.players.filter(p=>p.isAI).length,
       corpses:(match.corpses||[]).filter(c=>c.region===self?.region&&c.expiresAt>now),
       specialRouteStates:Object.fromEntries(Object.entries(match.uniqueSpecials||{}).map(([id,s])=>[id,{state:s.state,...(s.state==="ground"?{region:s.region}:{})}])),
-      recommendations:self?recommendedCrafts(self,12):[],
-      craftable:self?Object.entries(ITEMS).filter(([id,it])=>it?.r&&Object.entries(it.r).every(([k,n])=>{
-        const src=ITEMS[k];const count=src?.t==="m"?(self.mat[k]||0):src?.t==="c"?(self.con[k]||0):(self.eq||[]).filter(x=>x===k).length;return count>=n
-      })).slice(0,80).map(([id,it])=>({id,name:it.n,t:it.t,tier:it.tier||"",atk:it.atk||0,def:it.def||0,r:it.r})):[]}
+      ...(self?this.recipeView(self):{recommendations:[],craftable:[]})}
   }
-  sendMatchState(ws,match){const s=this.sessions.get(ws)||ws.deserializeAttachment();if(s?.sessionId)send(ws,"match_state",{match:this.snapshot(match,s.sessionId)})}
-  broadcastMatchState(match){for(const ws of this.sessions.keys())this.sendMatchState(ws,match)}
+  sendMatchState(ws,match,{force=false,now=Date.now()}={}){
+    const session=this.sessions.get(ws)||ws.deserializeAttachment();if(!session?.joined)return;
+    const snapshot=this.snapshot(match,session.sessionId,now);
+    if(!session.deltaState){send(ws,"match_state",{match:snapshot});return}
+    const state=compactSnapshot(snapshot),previous=this.sentStates.get(ws);
+    if(force||!previous||previous.state.matchId!==state.matchId){
+      const revision=(previous?.revision||0)+1;
+      if(send(ws,"match_state",{match:state,stateRevision:revision,itemCatalog:ITEMS}))this.sentStates.set(ws,{state,revision});
+      return;
+    }
+    const events=state.combatNotices.filter(e=>e.id>(previous.state.combatNoticeSeq||0));
+    const before={...previous.state,combatNotices:[]},after={...state,combatNotices:[]},patch=stateDiff(before,after);
+    if(!substantivePatch(patch)&&!events.length)return;
+    const revision=previous.revision+1;
+    if(send(ws,"match_delta",{baseRevision:previous.revision,stateRevision:revision,patch,combatNotices:events}))this.sentStates.set(ws,{state,revision});
+  }
+  broadcastMatchState(match){const now=Date.now();for(const ws of this.sessions.keys())this.sendMatchState(ws,match,{now})}
+
   async scheduleNextAlarm(match,meta=null){
     const now=Date.now(),times=[];
     if(this.joinedSessions().length>0&&match){
@@ -113,10 +145,13 @@ export class GameRoom extends DurableObject{
     if(meta?.emptySince)times.push(meta.emptySince+EMPTY_ROOM_TTL_MS);
     for(const r of this.reconnectRecords(meta))if(r.disconnectedAt)times.push(r.disconnectedAt+RECONNECT_GRACE_MS);
     const future=times.filter(Number.isFinite).map(t=>Math.max(now+250,t));
-    if(future.length)await this.ctx.storage.setAlarm(Math.min(...future));else await this.ctx.storage.deleteAlarm();
+    const current=await this.ctx.storage.getAlarm();
+    if(future.length){const next=Math.min(...future);if(current!==next&&!(current>now&&current<next))await this.ctx.storage.setAlarm(next)}
+    else if(current!==null)await this.ctx.storage.deleteAlarm();
   }
-  async completeDueActions(match,now=Date.now()){
-    const aliveBefore=match.players.filter(p=>p.alive).length;
+  async completeDueActions(match,now=Date.now(),{defer=false}={}){
+    const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects]),match.noises]);
+    const before=passiveView();
     let changed=false;
     for(const p of match.players){
       if(!p.pendingAction||p.pendingAction.completeAt>now)continue;
@@ -125,8 +160,8 @@ export class GameRoom extends DurableObject{
       if(ws)send(ws,"action_result",{result});
     }
     updatePassiveTime(match,now);
-    changed ||= aliveBefore!==match.players.filter(p=>p.alive).length;
-    if(changed){match.updatedAt=now;await this.saveMatch(match);this.broadcastMatchState(match)}
+    changed ||= before!==passiveView();
+    if(changed){match.updatedAt=now;if(!defer){await this.saveMatch(match);this.broadcastMatchState(match)}}
     return changed;
   }
   async alarm(){
@@ -140,12 +175,11 @@ export class GameRoom extends DurableObject{
     if(meta.emptySince){delete meta.emptySince;await this.saveMeta(meta)}
     const m=await this.getMatch();
     if(!m||m.phase!=="playing"){await this.saveMeta(meta);await this.updateDirectory(meta);await this.scheduleNextAlarm(null,meta);return}
-    await this.completeDueActions(m,now);
-    if(m.phase==="playing"&&(m.nextAiTickAt||0)<=now){
-      const changed=runAITick(m,now);
-      await this.saveMatch(m);
-      if(changed)this.broadcastMatchState(m);
-    }
+    let changed=await this.completeDueActions(m,now,{defer:true}),ticked=false;
+    changed=settleMatch(m)||changed;
+    if(m.phase==="playing"&&(m.nextAiTickAt||0)<=now){changed=runAITick(m,now)||changed;ticked=true}
+    if(changed||ticked)await this.saveMatch(m);
+    if(changed)this.broadcastMatchState(m);
     meta.phase=m.phase;await this.saveMeta(meta);await this.scheduleNextAlarm(m,meta)
   }
 
@@ -197,11 +231,12 @@ export class GameRoom extends DurableObject{
         session.sessionId=p.sessionId;session.playerName=p.playerName;session.charId=p.charId;session.startRegion=p.region;session.ready=true;session.joinedAt=now;resumed=true;
       }
       for(const[other,os]of this.sessions.entries())if(other!==ws&&os?.sessionId===session.sessionId){this.sessions.delete(other);try{other.close(4002,"Session resumed elsewhere")}catch{}}
+      session.deltaState=Array.isArray(msg.features)&&msg.features.includes(STATE_DELTA_FEATURE);
       session.joined=true;ws.serializeAttachment(session);this.sessions.set(ws,session);
       record.playerName=session.playerName;record.charId=session.charId;record.startRegion=session.startRegion;record.ready=!!session.ready;record.disconnectedAt=null;
       meta.reconnectRecords=records;if(meta.emptySince)delete meta.emptySince;if(!meta.hostSessionId)meta.hostSessionId=session.sessionId;await this.saveMeta(meta);
       send(ws,"hello_ok",{sessionId:session.sessionId,reconnectToken,resumed,reconnected:resumed,host:meta.hostSessionId===session.sessionId});
-      if(meta.phase!=="lobby"){this.sendMatchState(ws,m);await this.updateDirectory(meta);await this.scheduleNextAlarm(m,meta)}else await this.broadcastRoomState(meta);
+      if(meta.phase!=="lobby"){const changed=await this.completeDueActions(m,now,{defer:true});await this.saveMatch(m);this.sendMatchState(ws,m,{force:true});if(changed)for(const other of this.sessions.keys())if(other!==ws)this.sendMatchState(other,m,{now});meta.phase=m.phase;await this.updateDirectory(meta);await this.scheduleNextAlarm(m,meta)}else await this.broadcastRoomState(meta);
       return
     }
     if(!session.joined){send(ws,"error",{error:"hello_required"});return}
@@ -217,20 +252,21 @@ export class GameRoom extends DurableObject{
         const r=REGIONS[Math.floor(Math.random()*REGIONS.length)];
         players.push(createAIPlayer(players.length,c.id,r.id,profiles[Math.floor(Math.random()*profiles.length)]));
       }
+      this.recipeCache.clear();
       const match={matchId:crypto.randomUUID(),phase:"playing",createdAt:Date.now(),startedAt:Date.now(),updatedAt:Date.now(),players,nextAiTickAt:Date.now()+1000};
       for(const p of match.players){p.tempEffects=[];p.statusImmunity={};p.cdCUntil=0;p.cdAUntil=0;p.lastSatietyAt=match.startedAt;p.nextStatusTick=match.startedAt}
       match.wildTemplates=WILD_TEMPLATES;match.eventCatalog=ENCOUNTER_EVENTS;initWorld(match);
       meta.phase="playing";meta.startedAt=match.startedAt;await Promise.all([this.saveMeta(meta),this.saveMatch(match)]);await this.scheduleNextAlarm(match,meta);await this.updateDirectory(meta);this.broadcast("match_started",{matchId:match.matchId,serverNow:Date.now(),competitors:match.players.length,aiCount:match.players.filter(p=>p.isAI).length});this.broadcastMatchState(match);return
     }
-    if(msg.type==="request_state"){const m=await this.getMatch();if(!m){send(ws,"error",{error:"match_not_started"});return}await this.completeDueActions(m,Date.now());this.sendMatchState(ws,m);return}
+    if(msg.type==="request_state"){const m=await this.getMatch();if(!m){send(ws,"error",{error:"match_not_started"});return}const changed=await this.completeDueActions(m,Date.now(),{defer:true});if(changed){await this.saveMatch(m);this.broadcastMatchState(m)}this.sendMatchState(ws,m,{force:true});return}
     if(msg.type==="chat"){const text=safeText(msg.text,120,"");if(text)this.broadcast("chat",{from:session.sessionId,playerName:session.playerName,text,at:Date.now()});return}
 
     const commandMap={command_move:"move",command_search:"search",command_rest:"rest",command_craft:"craft",command_use_item:"use_item",command_attack:"attack",command_skill:"skill",command_flee:"flee",command_char_action:"char_action",command_loot_corpse:"loot_corpse"};
     if(commandMap[msg.type]){
       const m=await this.getMatch();if(!m||m.phase!=="playing"){send(ws,"error",{error:"match_not_playing"});return}
-      await this.completeDueActions(m,Date.now());if(m.phase!=="playing"){send(ws,"error",{error:"match_not_playing"});this.sendMatchState(ws,m);return}const p=this.matchPlayerForSession(m,session.sessionId);const type=commandMap[msg.type],payload={to:msg.to,id:msg.id};
+      const dueChanged=await this.completeDueActions(m,Date.now(),{defer:true});settleMatch(m);if(m.phase!=="playing"){await this.saveMatch(m);send(ws,"error",{error:"match_not_playing"});this.broadcastMatchState(m);return}const p=this.matchPlayerForSession(m,session.sessionId);const type=commandMap[msg.type],payload={to:msg.to,id:msg.id};
       if(type==="loot_corpse"){payload.corpseId=msg.corpseId;payload.kind=msg.kind;payload.qty=msg.qty;payload.replace=!!msg.replace}
-      const r=beginServerAction(m,p,type,payload,Date.now());if(!r.ok){if(r.error==="no_encounter"){await this.saveMatch(m);this.broadcastMatchState(m)}send(ws,"error",{error:r.error});return}
+      const r=beginServerAction(m,p,type,payload,Date.now());if(!r.ok){if(dueChanged||r.error==="no_encounter"){await this.saveMatch(m);this.broadcastMatchState(m)}send(ws,"error",{error:r.error});return}
       await this.saveMatch(m);await this.scheduleNextAlarm(m,meta);send(ws,"action_accepted",{action:r.action});this.broadcastMatchState(m);return
     }
     if(msg.type==="event_choice"){
