@@ -1,3 +1,4 @@
+import {inventoryOperation} from "./inventory_ops.js";
 import {STATE_DELTA_FEATURE,stateDiff,substantivePatch,compactSnapshot} from "./state_transport.js";
 import {settleMatch,playerResult} from "./match_result.js";
 import { DurableObject } from "cloudflare:workers";
@@ -232,6 +233,8 @@ export class GameRoom extends DurableObject{
       }
       for(const[other,os]of this.sessions.entries())if(other!==ws&&os?.sessionId===session.sessionId){this.sessions.delete(other);try{other.close(4002,"Session resumed elsewhere")}catch{}}
       session.deltaState=Array.isArray(msg.features)&&msg.features.includes(STATE_DELTA_FEATURE);
+      session.pickupChoices=Array.isArray(msg.features)&&msg.features.includes("inventory_choice_v1");
+      if(p){p.pickupChoices=session.pickupChoices;if(!p.pickupChoices)p.pendingPickup=null}
       session.joined=true;ws.serializeAttachment(session);this.sessions.set(ws,session);
       record.playerName=session.playerName;record.charId=session.charId;record.startRegion=session.startRegion;record.ready=!!session.ready;record.disconnectedAt=null;
       meta.reconnectRecords=records;if(meta.emptySince)delete meta.emptySince;if(!meta.hostSessionId)meta.hostSessionId=session.sessionId;await this.saveMeta(meta);
@@ -245,7 +248,7 @@ export class GameRoom extends DurableObject{
     if(msg.type==="set_start_region"){if(meta.phase!=="lobby"||!isValidRegion(msg.region)){send(ws,"error",{error:"invalid_region"});return}session.startRegion=msg.region;session.ready=false;const rr=this.reconnectRecords(meta).find(r=>r.sessionId===session.sessionId);if(rr){rr.startRegion=session.startRegion;rr.ready=false}await this.saveMeta(meta);ws.serializeAttachment(session);this.sessions.set(ws,session);await this.broadcastRoomState(meta);return}
     if(msg.type==="request_start"){
       const room=this.roomState(meta);if(meta.hostSessionId!==session.sessionId){send(ws,"error",{error:"host_only"});return}if(!room.allReady){send(ws,"error",{error:"not_all_ready"});return}if(meta.phase!=="lobby"){send(ws,"error",{error:"already_started"});return}
-      const humans=this.joinedSessions(),players=humans.map((s,i)=>createServerPlayer(s,i));
+      const humans=this.joinedSessions(),players=humans.map((s,i)=>({...createServerPlayer(s,i),pickupChoices:!!s.pickupChoices}));
       const profiles=["balanced","craft","aggro","safe"];
       while(players.length<11){
         const c=CHARACTERS[Math.floor(Math.random()*CHARACTERS.length)];
@@ -259,6 +262,16 @@ export class GameRoom extends DurableObject{
       meta.phase="playing";meta.startedAt=match.startedAt;await Promise.all([this.saveMeta(meta),this.saveMatch(match)]);await this.scheduleNextAlarm(match,meta);await this.updateDirectory(meta);this.broadcast("match_started",{matchId:match.matchId,serverNow:Date.now(),competitors:match.players.length,aiCount:match.players.filter(p=>p.isAI).length});this.broadcastMatchState(match);return
     }
     if(msg.type==="request_state"){const m=await this.getMatch();if(!m){send(ws,"error",{error:"match_not_started"});return}const changed=await this.completeDueActions(m,Date.now(),{defer:true});if(changed){await this.saveMatch(m);this.broadcastMatchState(m)}this.sendMatchState(ws,m,{force:true});return}
+    if(msg.type==="command_inventory"){
+      const m=await this.getMatch();if(!m){send(ws,"inventory_result",{result:{ok:false,error:"match_not_playing"}});return}
+      const changed=await this.completeDueActions(m,Date.now(),{defer:true});settleMatch(m);
+      const p=this.matchPlayerForSession(m,session.sessionId),result=inventoryOperation(m,p,msg);
+      if(result.ok){updatePassiveTime(m,Date.now());m.updatedAt=Date.now()}
+      if(result.ok||changed||m.phase!=="playing")await this.saveMatch(m);
+      send(ws,"inventory_result",{result});
+      if(result.ok||changed||m.phase!=="playing")this.broadcastMatchState(m);
+      return;
+    }
     if(msg.type==="chat"){const text=safeText(msg.text,120,"");if(text)this.broadcast("chat",{from:session.sessionId,playerName:session.playerName,text,at:Date.now()});return}
 
     const commandMap={command_move:"move",command_search:"search",command_rest:"rest",command_craft:"craft",command_use_item:"use_item",command_attack:"attack",command_skill:"skill",command_flee:"flee",command_char_action:"char_action",command_loot_corpse:"loot_corpse"};

@@ -8,7 +8,7 @@ export function settleMatch(match,now=Date.now()){
   if(alive.length>1)return false;
   match.phase="finished";match.endedAt=now;match.elapsed=Math.max(0,Math.floor((now-match.startedAt)/1000));
   match.winnerId=alive[0]?.playerId||null;
-  for(const p of match.players){p.pendingAction=null;p.encounter=null;p.pendingEvent=null}
+  for(const p of match.players){p.pendingAction=null;p.encounter=null;p.pendingEvent=null;p.pendingPickup=null}
   return true;
 }
 export function playerResult(match,p,now=Date.now()){

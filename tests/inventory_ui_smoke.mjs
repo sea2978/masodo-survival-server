@@ -1,0 +1,26 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {inventoryOperation,offerSearchConsumable} from '../src/inventory_ops.js';
+import {ITEMS} from '../src/offline_content.js';
+const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),els=new Map(),listeners=new Map();
+const element=()=>({children:[],open:false,disabled:false,textContent:'',addEventListener(name,fn){this[name]=fn},replaceChildren(){this.children=[]},appendChild(x){this.children.push(x)},showModal(){this.open=true},close(){this.open=false}});
+const $=id=>{if(!els.has(id))els.set(id,element());return els.get(id)};
+const p={playerId:'p',alive:true,eq:['plate'],con:{bread:3,water:2,medicine:1},mat:{},pendingAction:null},match={phase:'playing',players:[p]},messages=[],toasts=[];
+const context={$,document:{createElement:element,querySelectorAll:()=>[...els.values()].filter(e=>e.open)},I:id=>ITEMS[id],toast:(...args)=>toasts.push(args),M:null,net:{on:(name,fn)=>listeners.set(name,fn),inventoryOperation(payload){messages.push(payload);return true}}};
+context.renderMatch=m=>{context.M=m;context.renderPickup(m)};
+const state=()=>({phase:match.phase,self:{alive:p.alive,pendingPickup:p.pendingPickup,inventory:{con:Object.entries(p.con).map(([id,count])=>({id,count,n:ITEMS[id].n}))}}});
+vm.createContext(context);vm.runInContext(source.slice(source.indexOf('let inventoryPending='),source.indexOf('const shownResults=')),context);
+vm.runInContext('function busy(){return inventoryPending||!!M?.self?.pendingPickup}',context);
+const respond=()=>{const result=inventoryOperation(match,p,messages.at(-1));listeners.get('inventory_result')({result});context.renderMatch(state());return result};
+offerSearchConsumable(match,p,'chocolate');context.renderMatch(state());assert($('#pickupPanel').open);assert.equal($('#pickupChoices').children.length,3);assert($('#pickupChoices').children[0].textContent.includes('빵 ×3 전부'));
+let prevented=false;$('#pickupPanel').cancel({preventDefault(){prevented=true}});assert(prevented);
+$('#pickupChoices').children[0].onclick();assert($('#discardPickup').disabled);assert($('#pickupChoices').children.every(x=>x.disabled));assert(respond().ok);assert.equal(p.con.bread,undefined);assert.equal(p.con.chocolate,1);assert(!$('#pickupPanel').open);
+offerSearchConsumable(match,p,'bread');context.renderMatch(state());$('#discardPickup').onclick();assert(respond().ok);assert.equal(p.con.bread,undefined);assert(!$('#pickupPanel').open);
+context.confirmInventory({mode:'dismantle_equipment',index:0,id:'plate'},'장비 분해','강철판 ×1 · 고무 ×1 반환');assert($('#inventoryConfirmPanel').open);$('#inventoryConfirmApply').onclick();assert(respond().ok);assert.deepEqual(p.eq,[]);assert.equal(p.mat.steel,1);
+// Failed sends must not lock the UI; server errors must re-enable the decision.
+context.net.inventoryOperation=()=>false;context.sendInventory({mode:'drop_consumable',id:'water'});assert(toasts.some(x=>x[0]==='아이템 관리 실패'));
+context.net.inventoryOperation=payload=>(messages.push(payload),true);offerSearchConsumable(match,p,'bread');context.renderMatch(state());$('#discardPickup').onclick();listeners.get('inventory_result')({result:{ok:false,error:'replacement_missing'}});assert(!$('#discardPickup').disabled);assert($('#pickupPanel').open);
+p.alive=false;context.renderMatch(state());assert(!$('#pickupPanel').open);
+assert(source.includes("if(d.id==='pickupPanel')return"));assert(!source.includes("$('#equippedHud').innerHTML=$('#eq').innerHTML"));
+console.log('inventory UI state-machine PASS: choices, stack labels, Escape guard, in-flight lock, confirmation, real engine operation results, error recovery and death cleanup (DOM mocks, no visual browser assertion)');

@@ -370,6 +370,8 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
     </aside>
     <dialog id="movePanel" class="game-popup"><div class="popup-head"><h2>지역 이동</h2><button data-close-panel>닫기</button></div><div id="moves" class="move-buttons"></div></dialog>
     <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 장비</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
+    <dialog id="inventoryConfirmPanel" class="game-popup"><div class="popup-head"><h2 id="inventoryConfirmTitle">아이템 관리</h2><button data-close-panel>취소</button></div><p id="inventoryConfirmDetail"></p><button id="inventoryConfirmApply">확인</button></dialog>
+    <dialog id="pickupPanel" class="game-popup"><div class="popup-head"><h2>소모품 칸이 가득 찼습니다</h2></div><p id="pickupDescription"></p><p class="muted">기존 소모품 한 종류를 수량 전체와 함께 버리고 획득하거나, 새 소모품을 포기하세요.</p><div id="pickupChoices" class="compact-list"></div><button id="discardPickup">새로 발견한 소모품 버리기</button></dialog>
     <dialog id="craftPanel" class="game-popup"><div class="popup-head"><h2>제작</h2><button data-close-panel>닫기</button></div><div id="craft"></div></dialog>
 
     <section class="intel-hud glass-panel log-panel" hidden>
@@ -919,7 +921,7 @@ function renderCraft(force=false){
 $('#routeCycleBtn').onclick=()=>{if(favoriteItems.length){routeFavoriteIndex=(routeFavoriteIndex+1)%favoriteItems.length;renderRouteGuide()}};$('#routeUnfavBtn').onclick=()=>{if(favoriteItems.length)toggleFavoriteItem(favoriteItems[routeFavoriteIndex])};
 document.querySelectorAll('[data-open-panel]').forEach(b=>b.onclick=()=>$('#'+b.dataset.openPanel).showModal());
 document.querySelectorAll('[data-close-panel]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
-document.querySelectorAll('.game-popup').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
+document.querySelectorAll('.game-popup').forEach(d=>d.addEventListener('click',e=>{if(d.id==='pickupPanel')return;if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
 let matchClockFrame=null,matchClockAnchor=null;
 function clearMatchClock(){if(matchClockFrame!==null)cancelAnimationFrame(matchClockFrame);matchClockFrame=null;matchClockAnchor=null}
 function paintMatchClock(){
@@ -957,6 +959,42 @@ function updateSkillCooldowns(m){
   if(skillCooldownFrame!==null)cancelAnimationFrame(skillCooldownFrame);
   paintSkillCooldowns();
 }
+let inventoryPending=false,inventoryConfirmation=null,pickupViewKey='';
+const inventoryErrors={action_in_progress:'현재 행동이 끝난 뒤 관리할 수 있습니다.',player_not_active:'사망하거나 종료된 경기에서는 관리할 수 없습니다.',match_not_playing:'진행 중인 경기가 아닙니다.',item_missing:'아이템이 이미 변경되었습니다.',cannot_dismantle:'분해할 수 없는 장비입니다.',equipment_full:'분해 재료를 받을 장비 칸이 부족합니다. 장비를 보존했습니다.',inventory_full:'분해 재료를 받을 소모품 칸이 부족합니다. 장비를 보존했습니다.',pickup_choice_required:'발견한 소모품을 먼저 선택해 주세요.',pickup_missing:'이미 처리된 보상입니다.',replacement_missing:'버릴 소모품을 다시 선택해 주세요.',special_already_exists:'고유 재료가 이미 존재하여 분해할 수 없습니다.'};
+function sendInventory(payload){
+  if(inventoryPending)return;
+  if(!net.inventoryOperation(payload)){toast('아이템 관리 실패','서버에 연결되어 있지 않습니다.','','combat');return}
+  inventoryPending=true;renderMatch(M);
+}
+function confirmInventory(payload,name,detail){
+  inventoryConfirmation=payload;$('#inventoryConfirmTitle').textContent=name;$('#inventoryConfirmDetail').textContent=detail;
+  $('#inventoryConfirmApply').disabled=busy()||!M?.self?.alive;if(!$('#inventoryConfirmPanel').open)$('#inventoryConfirmPanel').showModal();
+}
+$('#inventoryConfirmApply').onclick=()=>{if(!inventoryConfirmation)return;const payload=inventoryConfirmation;inventoryConfirmation=null;$('#inventoryConfirmPanel').close();sendInventory(payload)};
+$('#pickupPanel').addEventListener('cancel',e=>e.preventDefault());
+function renderPickup(m){
+  const pickup=m.self?.alive&&m.phase==='playing'?m.self.pendingPickup:null,dialog=$('#pickupPanel');
+  if(!pickup){pickupViewKey='';if(dialog.open)dialog.close();return}
+  const key=JSON.stringify([pickup,m.self.inventory.con,inventoryPending]);
+  if(key!==pickupViewKey){
+    pickupViewKey=key;$('#pickupDescription').textContent='발견: '+pickup.name+' ×'+pickup.count;
+    $('#pickupChoices').replaceChildren();
+    for(const it of m.self.inventory.con){const b=document.createElement('button');b.textContent=it.n+' ×'+it.count+' 전부 버리고 '+pickup.name+' 획득';b.disabled=inventoryPending;b.onclick=()=>sendInventory({mode:'resolve_pickup',token:pickup.token,choice:'replace',replaceId:it.id});$('#pickupChoices').appendChild(b)}
+    const free=m.self.inventory.con.length<3||m.self.inventory.con.some(it=>it.id===pickup.id);
+    if(free){const b=document.createElement('button');b.textContent='빈 칸에 획득';b.disabled=inventoryPending;b.onclick=()=>sendInventory({mode:'resolve_pickup',token:pickup.token,choice:'replace'});$('#pickupChoices').appendChild(b)}
+    $('#discardPickup').disabled=inventoryPending;$('#discardPickup').onclick=()=>sendInventory({mode:'resolve_pickup',token:pickup.token,choice:'discard'});
+  }
+  if(!dialog.open){document.querySelectorAll('.game-popup[open]').forEach(d=>d.close());dialog.showModal()}
+}
+net.on('inventory_result',e=>{
+  inventoryPending=false;const r=e.result||{};
+  if(!r.ok){toast('아이템 관리 실패',inventoryErrors[r.error]||r.error,'','combat',3500);if(M)renderMatch(M);return}
+  const name=I(r.itemId)?.n||r.itemId;
+  if(r.mode==='dismantle_equipment')toast('장비 분해',name,(r.rewards||[]).map(x=>x.name+' ×'+x.count).join(' · '));
+  else if(r.mode==='resolve_pickup')toast(r.discarded===true?'발견한 소모품 포기':'소모품 획득 선택',name,r.discarded?.id?(I(r.discarded.id)?.n||r.discarded.id)+' ×'+r.discarded.count+' 버림':'');
+  else toast('아이템 버림',name,r.count?'×'+r.count+' 전체 버림':'장비 한 칸을 비웠습니다.');
+});
+net.on('close',()=>{inventoryPending=false;pickupViewKey=''});
 const shownResults=new Set();
 function renderResult(m){
   const result=m.result;if(!result||!m.self)return;
@@ -976,8 +1014,8 @@ function renderResult(m){
 }
 $('#resultWatch').onclick=()=>$('#resultPanel').close();
 $('#resultLobby').onclick=()=>{net.close();$('#resultPanel').close();M=null;showLobby();refreshRooms()};
-function busy(){return M?.phase==="finished"||!!localAction||!!searchLoading||!!M?.self?.pendingAction}
-function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderActionLoading(m);renderResult(m);
+function busy(){return !!inventoryPending||!!M?.self?.pendingPickup||M?.phase==="finished"||!!localAction||!!searchLoading||!!M?.self?.pendingAction}
+function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderActionLoading(m);renderResult(m);renderPickup(m);
 $('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
 $('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
@@ -990,13 +1028,16 @@ $('#skill').disabled=dis||!inEncounter||inEvent;
 $('#flee').disabled=dis||!inEncounter||inEvent;
 updateSkillCooldowns(m);syncMatchClock(m);
 $('#moves').innerHTML=(m.adjacency?.[p.region]||[]).map(id=>`<button data-move="${id}" ${(dis||inEncounter||inEvent)?'disabled':''}>${rname(id)}</button>`).join("");$('#moves').querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{net.move(b.dataset.move);$('#movePanel').close()});
-$('#eq').innerHTML=p.inventory.eq.length?p.inventory.eq.map(it=>`<div class="card"><b>${it.n}</b><div class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</div></div>`).join(""):'<span class="muted">없음</span>';
-$('#equippedHud').innerHTML=$('#eq').innerHTML;
+const equipSummary=it=>`<b>${it.n}</b><div class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</div>`;
+$('#eq').innerHTML=p.inventory.eq.length?p.inventory.eq.map((it,index)=>`<div class="card">${equipSummary(it)}<div class="muted">분해: ${(it.salvage||[]).map(x=>x.name+' ×'+x.count).join(' · ')||'분해 불가'}</div><button data-eq-drop="${index}" ${dis?'disabled':''}>버리기</button><button data-eq-dismantle="${index}" ${(dis||!it.salvage?.length)?'disabled':''}>분해</button></div>`).join(''):'<span class="muted">없음</span>';
+$('#equippedHud').innerHTML=p.inventory.eq.length?p.inventory.eq.map(it=>`<div class="card">${equipSummary(it)}</div>`).join(''):'<span class="muted">없음</span>';
+for(const [attr,mode,label]of [['data-eq-drop','drop_equipment','장비 버리기'],['data-eq-dismantle','dismantle_equipment','장비 분해']])$('#eq').querySelectorAll('['+attr+']').forEach(b=>b.onclick=()=>{const index=Number(b.getAttribute(attr)),it=p.inventory.eq[index];confirmInventory({mode,index,id:it.id},label,it.n+(mode==='drop_equipment'?' 장비 한 개를 버립니다.':': '+it.salvage.map(x=>x.name+' ×'+x.count).join(' · ')+' 반환. 칸이 부족하면 장비는 보존됩니다.'))});
+if($('#inventoryConfirmPanel').open)$('#inventoryConfirmApply').disabled=dis;
 const consumables=p.inventory.con.slice(0,3);
 $('#consumableQuickSlots').innerHTML=Array.from({length:3},(_,i)=>{const it=consumables[i];return it?`<button data-quick-use="${it.id}" ${(dis||inEvent)?'disabled':''}><b>${it.n}</b><small>×${it.count} · 사용</small></button>`:'<button disabled>빈 슬롯</button>'}).join('');
 $('#consumableQuickSlots').querySelectorAll('[data-quick-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.quickUse));
 $('#mat').innerHTML=p.inventory.mat.length?p.inventory.mat.map(it=>`<div>${it.name} ×${it.count}</div>`).join(""):'<span class="muted">없음</span>';
-$('#con').innerHTML=p.inventory.con.length?p.inventory.con.map(it=>`<div class="card"><b>${it.n} ×${it.count}</b><button data-use="${it.id}" ${(busy()||inEvent)?'disabled':''}>사용</button></div>`).join(""):'<span class="muted">없음</span>';$('#con').querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.use));
+$('#con').innerHTML=p.inventory.con.length?p.inventory.con.map(it=>`<div class="card"><b>${it.n} ×${it.count}</b><button data-use="${it.id}" ${(busy()||inEvent)?'disabled':''}>사용</button><button data-con-drop="${it.id}" ${dis?'disabled':''}>전체 버리기</button></div>`).join(""):'<span class="muted">없음</span>';$('#con').querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.use));$('#con').querySelectorAll('[data-con-drop]').forEach(b=>b.onclick=()=>{const it=p.inventory.con.find(x=>x.id===b.dataset.conDrop);confirmInventory({mode:'drop_consumable',id:it.id},'소모품 버리기',it.n+' ×'+it.count+' 전체를 버리고 한 칸을 비웁니다.')});
 renderCraft();renderRouteGuide();
 const intel=p.intel||{};
 const intelRows=[];
@@ -1019,7 +1060,7 @@ $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{
 $('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,k,id,qty,rep]=b.dataset.loot.split('|');net.lootCorpse(c,k,id,Number(qty)||1,rep==='1')});
 }
 net.on("build",()=>renderBuild());
-net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
+net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",pickup_choice_required:"발견한 소모품을 먼저 선택해 주세요.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
 showLobby();
 let serverReady=false;
 function setServerControls(ready){serverReady=ready;for(const id of ['create','refreshRooms','ready','unready','start'])$('#'+id).disabled=!ready;if(!ready)$('#join').disabled=true}

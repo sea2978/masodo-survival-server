@@ -233,7 +233,7 @@ export class MasodoNetworkAdapter {
       this.scheduleReconnect();
     });
 
-    this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId, features:["state_delta_v1"] });
+    this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId, features:["state_delta_v1","inventory_choice_v1"] });
     return this;
   }
 
@@ -252,6 +252,7 @@ export class MasodoNetworkAdapter {
   search() { return this.send("command_search"); }
   rest() { return this.send("command_rest"); }
   craft(id) { return this.send("command_craft", { id }); }
+  inventoryOperation(payload) { return this.send("command_inventory", payload); }
   useItem(id) { return this.send("command_use_item", { id }); }
   attack() { return this.send("command_attack"); }
   skill() { return this.send("command_skill"); }

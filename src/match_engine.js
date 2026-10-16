@@ -1,3 +1,4 @@
+import {equipmentSalvage,offerSearchConsumable} from "./inventory_ops.js";
 import { CHARACTER_BY_ID, ADJACENCY, movementProfile } from "./game_data.js";
 import { ITEMS, POOLS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
 import { PASSIVE_FX, COMBAT_SKILL_DEFS, ACTION_SKILL_DEFS, NAMED_GEAR_FX } from "./skill_defs.js";
@@ -389,6 +390,7 @@ function wildDamage(a,w,match,now){
   return Math.max(1,Math.round(wa*100/(100+def(a,match,now))*incomingMult(a,match,now)));
 }
 function createDeathCorpse(match,p,now){
+  p.pendingPickup=null;
   p.diedAt??=now;p.finishRank??=match.players.filter(x=>x.alive).length+1;
   dropSpecialsFromPlayer(match,p,p.region);
   const corpse={id:"corpse_"+p.playerId+"_"+now,name:p.playerName,region:p.region,eq:[...p.eq],mat:Object.fromEntries(Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id))),con:{...p.con},expiresAt:now+75000};
@@ -640,7 +642,8 @@ function searchResult(match,p,now){
     const weaponMat=new Set(["iron","steel","alloy","wire","wood","stick","gunpowder","leather","rubber"]);
     const medMagic=new Set(["medicine","toxin","mana_ink","mana_fiber","mana_stone","crystal"]);
     const id=boost?weightedPick(pool,x=>1+(boost.kind==="weapon"&&weaponMat.has(x)?boost.bonus:boost.kind==="medmagic"&&medMagic.has(x)?boost.bonus:0)):pick(pool);
-    if(addItem(p,id))return {kind:"item",itemId:id,itemName:item(id)?.n||id}
+    if(addItem(p,id))return {kind:"item",itemId:id,itemName:item(id)?.n||id};
+    if(item(id)?.t==="c"&&offerSearchConsumable(match,p,id))return {kind:"pending_pickup",itemId:id,itemName:item(id).n}
   }
   return {kind:"nothing"};
 }
@@ -855,7 +858,7 @@ function recordMaterialHintIntel(p,now){
 export function publicPlayer(match,p,now=Date.now(),advance=true){
   if(advance)updatePassiveTime(match,now);else p={...p,intel:p.intel?{...p.intel}:undefined};ensureIntel(p);
   return {...p,nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
-    inventory:{eq:(p.eq||[]).map(id=>({id,...item(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
+    inventory:{eq:(p.eq||[]).map(id=>({id,...item(id),salvage:equipmentSalvage(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
 }
 export function actionDuration(match,p,type,payload={},now=Date.now()){
@@ -880,6 +883,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   updatePassiveTime(match,now);
   if(p?.encounter&&!encounterTarget(match,p))p.encounter=null;
   if(!p?.alive)return {ok:false,error:"player_not_active"};if(p.pendingAction)return {ok:false,error:"action_in_progress"};if(status(p,"sleep",now))return {ok:false,error:"asleep"};
+  if(p.pendingPickup)return {ok:false,error:"pickup_choice_required"};
   if(p.pendingEvent)return {ok:false,error:"event_choice_required"};
   if(type!=="attack"&&type!=="skill"&&type!=="flee"&&p.encounter&&type!=="use_item")return {ok:false,error:"encounter_in_progress"};
   if(type==="move"){if(status(p,"bind",now))return {ok:false,error:"bound"};if(!ADJACENCY[p.region]?.includes(payload.to))return {ok:false,error:"invalid_move"};const mv=movementProfile(p.region,payload.to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp<cost)return {ok:false,error:"not_enough_sp"};return {ok:true,meta:{...mv,spCost:cost}}}
