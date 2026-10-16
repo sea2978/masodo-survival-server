@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Active skill bonus tuning
+        run: node tests/skill_bonus_audit.mjs
       - name: Passive minimum tuning
         run: node tests/passive_minimum_audit.mjs
       - name: Carbonara instant death

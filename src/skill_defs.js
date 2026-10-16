@@ -210,110 +210,909 @@ export const PASSIVE_FX={
   }
 };
 export const COMBAT_SKILL_DEFS={
-  c01:{mult:1.05,cd:58,sp:12,hit:0,statuses:[['bind',.35,2.5],['slow',.55,6]]},
-  c02:{mult:.90,cd:52,sp:11,statuses:[['confusion',.55,5],['silence',.30,3]]},
-  c03:{mult:.70,cd:48,sp:10,heal:14},
-  c04:{mult:1.15,lowHpMult:1.30,cd:50,sp:12},
-  c05:{mult:1.10,cd:52,sp:11,hit:.05,mark:30},
-  c06:{mult:1.25,cd:46,sp:12,hit:.08},
-  c07:{mult:.90,cd:54,sp:10,statuses:[['silence',.60,3]]},
-  c08:{mult:1.00,cd:50,sp:11,restoreSp:6,statuses:[['slow',.40,6]]},
-  c09:{mult:.95,cd:48,sp:10,statuses:[['confusion',.50,5]]},
-  c10:{mult:1.00,cd:50,sp:10,timeScale:true},
-  c11:{mult:1.30,cd:54,sp:13,statuses:[['slow',.45,6]]},
-  c12:{mult:1.15,cd:50,sp:11,statuses:[['bleed',.45,10]]},
-  c13:{mult:.60,cd:45,sp:10,heal:20},
-  c14:{mult:.95,cd:48,sp:10,statuses:[['actionDelay',.55,3]]},
-  c15:{mult:1.20,cd:55,sp:12,statuses:[['fear',.45,5]]},
-  c16:{mult:1.05,cd:47,sp:10,randomStatus:true},
-  c17:{mult:1.00,cd:52,sp:11,forcePoison:2},
-  c18:{mult:1.35,cd:58,sp:14,hit:.06},
-  c19:{mult:1.25,cd:52,sp:12,statuses:[['bleed',.40,10]],killHeal:6},
-  c20:{mult:1.55,cd:72,sp:16,hit:.12},
-  c21:{mult:1.20,cd:44,sp:11,crit:.08,prep:.82},
-  c22:{mult:1.25,cd:56,sp:13,statuses:[['actionDelay',.35,3]]},
-  c23:{mult:.80,cd:52,sp:10,heal:8,tempGuard:.08,tempGuardDuration:8},
-  c24:{mult:1.20,lowHpMult:1.40,cd:50,sp:12},
-  c25:{multMin:.90,multMax:1.45,cd:46,sp:10,crit:.06},
-  c26:{mult:1.05,cd:52,sp:11,statuses:[['bind',.45,2.5]]},
-  c27:{multMin:.85,multMax:1.45,cd:48,sp:11,randomControl:.25},
-  c28:{mult:.90,cd:58,sp:12,statuses:[['bind',.55,2.5],['silence',.35,3]]},
-  c29:{mult:1.05,cd:48,sp:10,drainSp:10},
-  c30:{mult:1.10,cd:50,sp:11,defIgnore:.15},
-  c31:{mult:1.30,cd:54,sp:13,statuses:[['bleed',.35,10]]},
-  c32:{mult:1.00,cd:50,sp:11,statuses:[['poison',.45,8],['slow',.30,6]]},
-  c33:{mult:1.35,cd:50,sp:10,selfDamage:4},
-  c34:{mult:1.20,cd:50,sp:11,statuses:[['actionDelay',.35,3]]},
-  c35:{mult:1.00,cd:48,sp:10,dispelOne:true,dispelBonus:.15},
-  c36:{mult:1.45,cd:60,sp:13,quietBonus:.10},
-  c37:{mult:1.25,lowHpMult:1.45,cd:56,sp:13},
-  c38:{mult:1.40,cd:58,sp:14,hit:.06,crit:.10},
-  c39:{mult:1.50,cd:58,sp:12,selfDamage:6},
-  c40:{mult:1.00,cd:58,sp:12,statuses:[['fear',1,5]]},
-  c41:{mult:1.15,cd:52,sp:12,doubleRandomStatus:true},
-  c42:{mult:1.10,cd:56,sp:12,statuses:[['bind',.45,2.5],['fear',.35,5]]},
-  c43:{mult:1.05,cd:60,sp:13,forcePoison:3},
-  c44:{mult:1.50,cd:62,sp:15,hit:.04,prep:1.10},
-  c45:{mult:.85,cd:60,sp:12,statuses:[['sleep',.65,3]]},
-  c46:{mult:.95,cd:54,sp:11,statuses:[['confusion',.65,5]]},
-  c47:{mult:1.35,cd:52,sp:12,hit:.08,freeMove:true},
-  c48:{mult:1.05,cd:60,sp:12,statuses:[['bind',1,2.5]]},
-  c49:{mult:1.30,cd:58,sp:13,lifesteal:.20},
-  c50:{mult:1.15,cd:50,sp:11,restoreSp:5,statuses:[['slow',.40,6]]},
-  c51:{multMin:1.10,multMax:1.35,cd:50,sp:11,randomControl:.30}
+  "c01": {
+    "mult": 1.05,
+    "cd": 58,
+    "sp": 12,
+    "hit": 0,
+    "statuses": [
+      [
+        "bind",
+        0.35,
+        2.5
+      ],
+      [
+        "slow",
+        0.55,
+        6
+      ]
+    ]
+  },
+  "c02": {
+    "mult": 0.9,
+    "cd": 52,
+    "sp": 11,
+    "statuses": [
+      [
+        "confusion",
+        0.55,
+        5
+      ],
+      [
+        "silence",
+        0.3,
+        3
+      ]
+    ]
+  },
+  "c03": {
+    "mult": 0.7,
+    "cd": 48,
+    "sp": 10,
+    "heal": 14
+  },
+  "c04": {
+    "mult": 1.15,
+    "lowHpMult": 1.3,
+    "cd": 50,
+    "sp": 12
+  },
+  "c05": {
+    "mult": 1.1,
+    "cd": 52,
+    "sp": 11,
+    "hit": 0.15,
+    "mark": 30
+  },
+  "c06": {
+    "mult": 1.25,
+    "cd": 46,
+    "sp": 12,
+    "hit": 0.2
+  },
+  "c07": {
+    "mult": 0.9,
+    "cd": 54,
+    "sp": 10,
+    "statuses": [
+      [
+        "silence",
+        0.6,
+        3
+      ]
+    ]
+  },
+  "c08": {
+    "mult": 1,
+    "cd": 50,
+    "sp": 11,
+    "restoreSp": 6,
+    "statuses": [
+      [
+        "slow",
+        0.4,
+        6
+      ]
+    ]
+  },
+  "c09": {
+    "mult": 0.95,
+    "cd": 48,
+    "sp": 10,
+    "statuses": [
+      [
+        "confusion",
+        0.5,
+        5
+      ]
+    ]
+  },
+  "c10": {
+    "mult": 1,
+    "cd": 50,
+    "sp": 10,
+    "timeScale": true
+  },
+  "c11": {
+    "mult": 1.3,
+    "cd": 54,
+    "sp": 13,
+    "statuses": [
+      [
+        "slow",
+        0.45,
+        6
+      ]
+    ]
+  },
+  "c12": {
+    "mult": 1.15,
+    "cd": 50,
+    "sp": 11,
+    "statuses": [
+      [
+        "bleed",
+        0.45,
+        10
+      ]
+    ]
+  },
+  "c13": {
+    "mult": 0.6,
+    "cd": 45,
+    "sp": 10,
+    "heal": 20
+  },
+  "c14": {
+    "mult": 0.95,
+    "cd": 48,
+    "sp": 10,
+    "statuses": [
+      [
+        "actionDelay",
+        0.55,
+        3
+      ]
+    ]
+  },
+  "c15": {
+    "mult": 1.2,
+    "cd": 55,
+    "sp": 12,
+    "statuses": [
+      [
+        "fear",
+        0.45,
+        5
+      ]
+    ]
+  },
+  "c16": {
+    "mult": 1.05,
+    "cd": 47,
+    "sp": 10,
+    "randomStatus": true
+  },
+  "c17": {
+    "mult": 1,
+    "cd": 52,
+    "sp": 11,
+    "forcePoison": 2
+  },
+  "c18": {
+    "mult": 1.35,
+    "cd": 58,
+    "sp": 14,
+    "hit": 0.15
+  },
+  "c19": {
+    "mult": 1.25,
+    "cd": 52,
+    "sp": 12,
+    "statuses": [
+      [
+        "bleed",
+        0.4,
+        10
+      ]
+    ],
+    "killHeal": 6
+  },
+  "c20": {
+    "mult": 1.55,
+    "cd": 72,
+    "sp": 16,
+    "hit": 0.2
+  },
+  "c21": {
+    "mult": 1.2,
+    "cd": 44,
+    "sp": 11,
+    "crit": 0.2,
+    "prep": 0.82
+  },
+  "c22": {
+    "mult": 1.25,
+    "cd": 56,
+    "sp": 13,
+    "statuses": [
+      [
+        "actionDelay",
+        0.35,
+        3
+      ]
+    ]
+  },
+  "c23": {
+    "mult": 0.8,
+    "cd": 52,
+    "sp": 10,
+    "heal": 8,
+    "tempGuard": 0.2,
+    "tempGuardDuration": 8
+  },
+  "c24": {
+    "mult": 1.2,
+    "lowHpMult": 1.4,
+    "cd": 50,
+    "sp": 12
+  },
+  "c25": {
+    "multMin": 0.9,
+    "multMax": 1.45,
+    "cd": 46,
+    "sp": 10,
+    "crit": 0.15
+  },
+  "c26": {
+    "mult": 1.05,
+    "cd": 52,
+    "sp": 11,
+    "statuses": [
+      [
+        "bind",
+        0.45,
+        2.5
+      ]
+    ]
+  },
+  "c27": {
+    "multMin": 0.85,
+    "multMax": 1.45,
+    "cd": 48,
+    "sp": 11,
+    "randomControl": 0.25
+  },
+  "c28": {
+    "mult": 0.9,
+    "cd": 58,
+    "sp": 12,
+    "statuses": [
+      [
+        "bind",
+        0.55,
+        2.5
+      ],
+      [
+        "silence",
+        0.35,
+        3
+      ]
+    ]
+  },
+  "c29": {
+    "mult": 1.05,
+    "cd": 48,
+    "sp": 10,
+    "drainSp": 10
+  },
+  "c30": {
+    "mult": 1.1,
+    "cd": 50,
+    "sp": 11,
+    "defIgnore": 0.15
+  },
+  "c31": {
+    "mult": 1.3,
+    "cd": 54,
+    "sp": 13,
+    "statuses": [
+      [
+        "bleed",
+        0.35,
+        10
+      ]
+    ]
+  },
+  "c32": {
+    "mult": 1,
+    "cd": 50,
+    "sp": 11,
+    "statuses": [
+      [
+        "poison",
+        0.45,
+        8
+      ],
+      [
+        "slow",
+        0.3,
+        6
+      ]
+    ]
+  },
+  "c33": {
+    "mult": 1.35,
+    "cd": 50,
+    "sp": 10,
+    "selfDamage": 4
+  },
+  "c34": {
+    "mult": 1.2,
+    "cd": 50,
+    "sp": 11,
+    "statuses": [
+      [
+        "actionDelay",
+        0.35,
+        3
+      ]
+    ]
+  },
+  "c35": {
+    "mult": 1,
+    "cd": 48,
+    "sp": 10,
+    "dispelOne": true,
+    "dispelBonus": 0.15
+  },
+  "c36": {
+    "mult": 1.45,
+    "cd": 60,
+    "sp": 13,
+    "quietBonus": 0.2
+  },
+  "c37": {
+    "mult": 1.25,
+    "lowHpMult": 1.45,
+    "cd": 56,
+    "sp": 13
+  },
+  "c38": {
+    "mult": 1.4,
+    "cd": 58,
+    "sp": 14,
+    "hit": 0.15,
+    "crit": 0.2
+  },
+  "c39": {
+    "mult": 1.5,
+    "cd": 58,
+    "sp": 12,
+    "selfDamage": 6
+  },
+  "c40": {
+    "mult": 1,
+    "cd": 58,
+    "sp": 12,
+    "statuses": [
+      [
+        "fear",
+        1,
+        5
+      ]
+    ]
+  },
+  "c41": {
+    "mult": 1.15,
+    "cd": 52,
+    "sp": 12,
+    "doubleRandomStatus": true
+  },
+  "c42": {
+    "mult": 1.1,
+    "cd": 56,
+    "sp": 12,
+    "statuses": [
+      [
+        "bind",
+        0.45,
+        2.5
+      ],
+      [
+        "fear",
+        0.35,
+        5
+      ]
+    ]
+  },
+  "c43": {
+    "mult": 1.05,
+    "cd": 60,
+    "sp": 13,
+    "forcePoison": 3
+  },
+  "c44": {
+    "mult": 1.5,
+    "cd": 62,
+    "sp": 15,
+    "hit": 0.15,
+    "prep": 1.2
+  },
+  "c45": {
+    "mult": 0.85,
+    "cd": 60,
+    "sp": 12,
+    "statuses": [
+      [
+        "sleep",
+        0.65,
+        3
+      ]
+    ]
+  },
+  "c46": {
+    "mult": 0.95,
+    "cd": 54,
+    "sp": 11,
+    "statuses": [
+      [
+        "confusion",
+        0.65,
+        5
+      ]
+    ]
+  },
+  "c47": {
+    "mult": 1.35,
+    "cd": 52,
+    "sp": 12,
+    "hit": 0.2,
+    "freeMove": true
+  },
+  "c48": {
+    "mult": 1.05,
+    "cd": 60,
+    "sp": 12,
+    "statuses": [
+      [
+        "bind",
+        1,
+        2.5
+      ]
+    ]
+  },
+  "c49": {
+    "mult": 1.3,
+    "cd": 58,
+    "sp": 13,
+    "lifesteal": 0.2
+  },
+  "c50": {
+    "mult": 1.15,
+    "cd": 50,
+    "sp": 11,
+    "restoreSp": 5,
+    "statuses": [
+      [
+        "slow",
+        0.4,
+        6
+      ]
+    ]
+  },
+  "c51": {
+    "multMin": 1.1,
+    "multMax": 1.35,
+    "cd": 50,
+    "sp": 11,
+    "randomControl": 0.3
+  }
 };
 export const ACTION_SKILL_DEFS={
-  c01:{cd:45,time:1.0,heal:6,tempFx:{searchLoot:.08},duration:18},
-  c02:{cd:48,time:.8,tempFx:{conceal:.10},duration:18,nextDetect:.08},
-  c03:{cd:50,time:1.0,heal:12,cleanse:['poison','bleed'],cleanseCount:1},
-  c04:{cd:52,time:1.0,tempFx:{defFlat:3},duration:20,nextSkillSpDiscount:2},
-  c05:{cd:48,time:.8,nextDetect:.18,tempFx:{detect:.08},duration:25},
-  c06:{cd:42,time:.7,nextMoveFree:true,tempFx:{moveTime:-.08},duration:12},
-  c07:{cd:44,time:.8,sp:12,nextDetect:.12},
-  c08:{cd:46,time:.9,sp:10,tempFx:{statusChance:.05},duration:20},
-  c09:{cd:50,time:.8,tempFx:{conceal:.15},duration:20},
-  c10:{cd:46,time:.8,sp:8,tempFx:{crit:.04},duration:20},
-  c11:{cd:44,time:.8,tempFx:{moveSp:2},duration:12,nextDamage:.06},
-  c12:{cd:50,time:1.1,trap:true,nextHit:.08},
-  c13:{cd:48,time:1.0,heal:16,cleanseSpecific:{bleed:2}},
-  c14:{cd:55,time:.7,reduceCombatCd:12,refundActionCd:6},
-  c15:{cd:46,time:.8,nextDetect:.20,tempFx:{woundedDetect:.08},duration:20},
-  c16:{cd:50,time:1.2,material:'iron',materialQty:1,nextCraftTimeMult:.80},
-  c17:{cd:50,time:1.0,consumable:'antidote',tempFx:{poisonChance:.08},duration:20},
-  c18:{cd:44,time:.7,nextMoveFree:true,nextDamage:.08},
-  c19:{cd:48,time:1.0,corpseHeal:15,noCorpseSp:8},
-  c20:{cd:52,time:.8,nextDetect:.25,nextHit:.10},
-  c21:{cd:42,time:.7,sp:8,tempFx:{prep:-.10},duration:16},
-  c22:{cd:46,time:.8,tempFx:{hit:.05,detect:.08},duration:20},
-  c23:{cd:52,time:.9,tempFx:{taken:-.08},duration:20},
-  c24:{cd:48,time:.9,heal:8,tempFx:{lowDef:4},duration:20},
-  c25:{cd:44,time:.7,luckAction:true},
-  c26:{cd:46,time:.9,heal:6,tempFx:{statusChance:.05},duration:18},
-  c27:{cd:50,time:.7,sp:14,nextDamage:.10,skillOnlyDamage:true},
-  c28:{cd:54,time:.9,tempFx:{incomingStatusDuration:-.20,conceal:.05},duration:20},
-  c29:{cd:44,time:.7,sp:10,nextSkillSpDiscount:3},
-  c30:{cd:50,time:.8,tempFx:{profGain:.25,detect:.06},duration:25},
-  c31:{cd:50,time:1.1,randomMetal:true,tempFx:{defFlat:2},duration:18},
-  c32:{cd:48,time:1.0,material:'medicine',materialQty:1,heal:6},
-  c33:{cd:46,time:.8,selfDamage:5,nextSearch:.18,nextDamage:.10},
-  c34:{cd:50,time:.8,tempFx:{taken:-.05},duration:20,nextHit:.05},
-  c35:{cd:48,time:.8,cleanseAny:1,tempFx:{incomingStatusDuration:-.15},duration:18},
-  c36:{cd:52,time:.7,tempFx:{conceal:.18},duration:20,nextDamage:.10},
-  c37:{cd:55,time:1.0,heal:8,healIfRevUsed:8},
-  c38:{cd:46,time:.7,tempFx:{hit:.06,crit:.06},duration:18},
-  c39:{cd:46,time:.7,selfDamage:4,tempFx:{damage:.10},duration:18},
-  c40:{cd:50,time:.8,tempFx:{detect:.10},duration:20,nextStatus:{fear:.12}},
-  c41:{cd:48,time:.9,heal:8,tempFx:{incomingStatusDuration:-.15},duration:18},
-  c42:{cd:48,time:.8,nextDetect:.20,tempFx:{statusChance:.06},duration:18},
-  c43:{cd:50,time:1.0,material:'toxin',materialQty:1,tempFx:{poisonChance:.10},duration:20},
-  c44:{cd:52,time:.8,tempFx:{taken:-.10,moveTime:.05},duration:18},
-  c45:{cd:50,time:.8,sp:10,tempFx:{sleepChance:.10},duration:20},
-  c46:{cd:48,time:.8,tempFx:{conceal:.10},duration:20,nextStatus:{confusion:.12}},
-  c47:{cd:42,time:.7,nextMoveFree:true,tempFx:{moveTime:-.10},duration:15},
-  c48:{cd:50,time:.8,tempFx:{bindChance:.10},duration:20,nextHit:.05},
-  c49:{cd:54,time:1.0,consumeCorpse:true,corpseHeal:18,noCorpseHeal:6},
-  c50:{cd:48,time:.9,heal:6,sp:10,cleanseAny:1},
-  c51:{cd:50,time:.8,sp:12,tempFx:{profGain:.30,statusChance:.04},duration:25}
+  "c01": {
+    "cd": 45,
+    "time": 1,
+    "heal": 6,
+    "tempFx": {
+      "searchLoot": 0.2
+    },
+    "duration": 18
+  },
+  "c02": {
+    "cd": 48,
+    "time": 0.8,
+    "tempFx": {
+      "conceal": 0.2
+    },
+    "duration": 18,
+    "nextDetect": 0.2
+  },
+  "c03": {
+    "cd": 50,
+    "time": 1,
+    "heal": 12,
+    "cleanse": [
+      "poison",
+      "bleed"
+    ],
+    "cleanseCount": 1
+  },
+  "c04": {
+    "cd": 52,
+    "time": 1,
+    "tempFx": {
+      "defFlat": 3
+    },
+    "duration": 20,
+    "nextSkillSpDiscount": 2
+  },
+  "c05": {
+    "cd": 48,
+    "time": 0.8,
+    "nextDetect": 0.18,
+    "tempFx": {
+      "detect": 0.2
+    },
+    "duration": 25
+  },
+  "c06": {
+    "cd": 42,
+    "time": 0.7,
+    "nextMoveFree": true,
+    "tempFx": {
+      "moveTime": -0.2
+    },
+    "duration": 12
+  },
+  "c07": {
+    "cd": 44,
+    "time": 0.8,
+    "sp": 12,
+    "nextDetect": 0.2
+  },
+  "c08": {
+    "cd": 46,
+    "time": 0.9,
+    "sp": 10,
+    "tempFx": {
+      "statusChance": 0.15
+    },
+    "duration": 20
+  },
+  "c09": {
+    "cd": 50,
+    "time": 0.8,
+    "tempFx": {
+      "conceal": 0.15
+    },
+    "duration": 20
+  },
+  "c10": {
+    "cd": 46,
+    "time": 0.8,
+    "sp": 8,
+    "tempFx": {
+      "crit": 0.15
+    },
+    "duration": 20
+  },
+  "c11": {
+    "cd": 44,
+    "time": 0.8,
+    "tempFx": {
+      "moveSp": 2
+    },
+    "duration": 12,
+    "nextDamage": 0.15
+  },
+  "c12": {
+    "cd": 50,
+    "time": 1.1,
+    "trap": true,
+    "nextHit": 0.2
+  },
+  "c13": {
+    "cd": 48,
+    "time": 1,
+    "heal": 16,
+    "cleanseSpecific": {
+      "bleed": 2
+    }
+  },
+  "c14": {
+    "cd": 55,
+    "time": 0.7,
+    "reduceCombatCd": 12,
+    "refundActionCd": 6
+  },
+  "c15": {
+    "cd": 46,
+    "time": 0.8,
+    "nextDetect": 0.2,
+    "tempFx": {
+      "woundedDetect": 0.2
+    },
+    "duration": 20
+  },
+  "c16": {
+    "cd": 50,
+    "time": 1.2,
+    "material": "iron",
+    "materialQty": 1,
+    "nextCraftTimeMult": 0.8
+  },
+  "c17": {
+    "cd": 50,
+    "time": 1,
+    "consumable": "antidote",
+    "tempFx": {
+      "poisonChance": 0.2
+    },
+    "duration": 20
+  },
+  "c18": {
+    "cd": 44,
+    "time": 0.7,
+    "nextMoveFree": true,
+    "nextDamage": 0.2
+  },
+  "c19": {
+    "cd": 48,
+    "time": 1,
+    "corpseHeal": 15,
+    "noCorpseSp": 8
+  },
+  "c20": {
+    "cd": 52,
+    "time": 0.8,
+    "nextDetect": 0.25,
+    "nextHit": 0.2
+  },
+  "c21": {
+    "cd": 42,
+    "time": 0.7,
+    "sp": 8,
+    "tempFx": {
+      "prep": -0.2
+    },
+    "duration": 16
+  },
+  "c22": {
+    "cd": 46,
+    "time": 0.8,
+    "tempFx": {
+      "hit": 0.15,
+      "detect": 0.2
+    },
+    "duration": 20
+  },
+  "c23": {
+    "cd": 52,
+    "time": 0.9,
+    "tempFx": {
+      "taken": -0.2
+    },
+    "duration": 20
+  },
+  "c24": {
+    "cd": 48,
+    "time": 0.9,
+    "heal": 8,
+    "tempFx": {
+      "lowDef": 4
+    },
+    "duration": 20
+  },
+  "c25": {
+    "cd": 44,
+    "time": 0.7,
+    "luckAction": true
+  },
+  "c26": {
+    "cd": 46,
+    "time": 0.9,
+    "heal": 6,
+    "tempFx": {
+      "statusChance": 0.15
+    },
+    "duration": 18
+  },
+  "c27": {
+    "cd": 50,
+    "time": 0.7,
+    "sp": 14,
+    "nextDamage": 0.2,
+    "skillOnlyDamage": true
+  },
+  "c28": {
+    "cd": 54,
+    "time": 0.9,
+    "tempFx": {
+      "incomingStatusDuration": -0.2,
+      "conceal": 0.15
+    },
+    "duration": 20
+  },
+  "c29": {
+    "cd": 44,
+    "time": 0.7,
+    "sp": 10,
+    "nextSkillSpDiscount": 3
+  },
+  "c30": {
+    "cd": 50,
+    "time": 0.8,
+    "tempFx": {
+      "profGain": 0.25,
+      "detect": 0.15
+    },
+    "duration": 25
+  },
+  "c31": {
+    "cd": 50,
+    "time": 1.1,
+    "randomMetal": true,
+    "tempFx": {
+      "defFlat": 2
+    },
+    "duration": 18
+  },
+  "c32": {
+    "cd": 48,
+    "time": 1,
+    "material": "medicine",
+    "materialQty": 1,
+    "heal": 6
+  },
+  "c33": {
+    "cd": 46,
+    "time": 0.8,
+    "selfDamage": 5,
+    "nextSearch": 0.18,
+    "nextDamage": 0.2
+  },
+  "c34": {
+    "cd": 50,
+    "time": 0.8,
+    "tempFx": {
+      "taken": -0.15
+    },
+    "duration": 20,
+    "nextHit": 0.15
+  },
+  "c35": {
+    "cd": 48,
+    "time": 0.8,
+    "cleanseAny": 1,
+    "tempFx": {
+      "incomingStatusDuration": -0.15
+    },
+    "duration": 18
+  },
+  "c36": {
+    "cd": 52,
+    "time": 0.7,
+    "tempFx": {
+      "conceal": 0.18
+    },
+    "duration": 20,
+    "nextDamage": 0.2
+  },
+  "c37": {
+    "cd": 55,
+    "time": 1,
+    "heal": 8,
+    "healIfRevUsed": 8
+  },
+  "c38": {
+    "cd": 46,
+    "time": 0.7,
+    "tempFx": {
+      "hit": 0.15,
+      "crit": 0.15
+    },
+    "duration": 18
+  },
+  "c39": {
+    "cd": 46,
+    "time": 0.7,
+    "selfDamage": 4,
+    "tempFx": {
+      "damage": 0.2
+    },
+    "duration": 18
+  },
+  "c40": {
+    "cd": 50,
+    "time": 0.8,
+    "tempFx": {
+      "detect": 0.2
+    },
+    "duration": 20,
+    "nextStatus": {
+      "fear": 0.2
+    }
+  },
+  "c41": {
+    "cd": 48,
+    "time": 0.9,
+    "heal": 8,
+    "tempFx": {
+      "incomingStatusDuration": -0.15
+    },
+    "duration": 18
+  },
+  "c42": {
+    "cd": 48,
+    "time": 0.8,
+    "nextDetect": 0.2,
+    "tempFx": {
+      "statusChance": 0.15
+    },
+    "duration": 18
+  },
+  "c43": {
+    "cd": 50,
+    "time": 1,
+    "material": "toxin",
+    "materialQty": 1,
+    "tempFx": {
+      "poisonChance": 0.2
+    },
+    "duration": 20
+  },
+  "c44": {
+    "cd": 52,
+    "time": 0.8,
+    "tempFx": {
+      "taken": -0.2,
+      "moveTime": 0.2
+    },
+    "duration": 18
+  },
+  "c45": {
+    "cd": 50,
+    "time": 0.8,
+    "sp": 10,
+    "tempFx": {
+      "sleepChance": 0.2
+    },
+    "duration": 20
+  },
+  "c46": {
+    "cd": 48,
+    "time": 0.8,
+    "tempFx": {
+      "conceal": 0.2
+    },
+    "duration": 20,
+    "nextStatus": {
+      "confusion": 0.2
+    }
+  },
+  "c47": {
+    "cd": 42,
+    "time": 0.7,
+    "nextMoveFree": true,
+    "tempFx": {
+      "moveTime": -0.2
+    },
+    "duration": 15
+  },
+  "c48": {
+    "cd": 50,
+    "time": 0.8,
+    "tempFx": {
+      "bindChance": 0.2
+    },
+    "duration": 20,
+    "nextHit": 0.15
+  },
+  "c49": {
+    "cd": 54,
+    "time": 1,
+    "consumeCorpse": true,
+    "corpseHeal": 18,
+    "noCorpseHeal": 6
+  },
+  "c50": {
+    "cd": 48,
+    "time": 0.9,
+    "heal": 6,
+    "sp": 10,
+    "cleanseAny": 1
+  },
+  "c51": {
+    "cd": 50,
+    "time": 0.8,
+    "sp": 12,
+    "tempFx": {
+      "profGain": 0.3,
+      "statusChance": 0.15
+    },
+    "duration": 25
+  }
 };
 
 export const NAMED_GEAR_FX={

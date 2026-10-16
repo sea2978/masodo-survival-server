@@ -745,11 +745,11 @@ function charAction(match,p,now){
     const r=Math.random();
     if(r<.34)p.hp=clamp(p.hp+10,0,maxHp(p,match,now));
     else if(r<.67)recoverSp(p,12,match,now);
-    else p.nextCritBonus=(p.nextCritBonus||0)+.08;
+    else p.nextCritBonus=(p.nextCritBonus||0)+.20;
   }
   if(d.trap){
     match.regionTraps??={};
-    match.regionTraps[p.region]={ownerId:p.playerId,until:now+45000,hitBonus:.08};
+    match.regionTraps[p.region]={ownerId:p.playerId,until:now+45000,hitBonus:d.nextHit||.20};
   }
   return {ok:true};
 }
