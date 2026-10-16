@@ -465,7 +465,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     const fx=combinedFx(p,match,now);
     spCost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus") ? .95 : 1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
-    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;bonus+=sd.hit||0;
+    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;p.cdCDuration=(p.cdCUntil-now)/1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
@@ -525,7 +525,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     const fx=combinedFx(p,match,now);
     spCost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus") ? .95 : 1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
     if(p.sp<spCost)return {ok:false,error:"not_enough_sp"};
-    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;bonus+=sd.hit||0;
+    p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;p.cdCDuration=(p.cdCUntil-now)/1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
@@ -692,7 +692,7 @@ function removeAnyStatus(p,n=1,now=Date.now()){
 function charAction(match,p,now){
   const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
   if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
-  p.cdAUntil=now+((d.cd||45)/Math.max(.25,1+(combinedFx(p,match,now).cdRate||0)))*1000;
+  p.cdAUntil=now+((d.cd||45)/Math.max(.25,1+(combinedFx(p,match,now).cdRate||0)))*1000;p.cdADuration=(p.cdAUntil-now)/1000;
 
   if(d.heal)p.hp=clamp(p.hp+d.heal,0,maxHp(p,match,now));
   if(d.sp)recoverSp(p,d.sp,match,now);

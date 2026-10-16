@@ -263,6 +263,11 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 .log-panel,#log,#gameLog{display:none!important}
 
 #reconnectPanel{width:min(420px,calc(100vw - 32px));padding:30px 24px;text-align:center;background:#0d1825;color:#e8f0f9;border:1px solid #7491ad;border-radius:12px;box-shadow:0 16px 60px #000b}#reconnectPanel::backdrop{background:#03080ed9}#reconnectPanel h2{font-size:24px;margin:8px 0 18px}#reconnectPanel h2::after{content:".";display:inline-block;width:1.4em;text-align:left;animation:action-loading-dots 1.2s steps(1,end) infinite}#reconnectPanel p{line-height:1.7;color:#b4c5d7}
+
+.cooldown-row{display:none!important}
+#skill,#charAction{position:relative;isolation:isolate;overflow:hidden}
+#skill.cooling::after,#charAction.cooling::after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:50%;background:conic-gradient(rgba(155,161,170,.62) 0deg var(--cooldown-angle),transparent var(--cooldown-angle) 360deg)}
+#skill.cooling:disabled,#charAction.cooling:disabled{opacity:1;cursor:not-allowed}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -524,7 +529,7 @@ net.on('action_result',()=>clearLocalAction());
 net.on('error',()=>{clearLocalAction();if(M)renderMatch(M)});
 net.on('close',()=>{loadingDisconnected=true;clearLocalAction()});
 net.on('connected',()=>{loadingDisconnected=false});
-function showLobby(){ hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
+function showLobby(){ clearSkillCooldowns();hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
 function showGame(){ document.body.classList.add("game-active"); $('#lobbyScreen').hidden=true; $('#gameScreen').hidden=false; }
 const gameLog=x=>{const el=$('#gameLog');if(!el)return;el.textContent+=x+"\n";el.scrollTop=999999};
 const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
@@ -935,6 +940,31 @@ $('#routeCycleBtn').onclick=()=>{if(favoriteItems.length){routeFavoriteIndex=(ro
 document.querySelectorAll('[data-open-panel]').forEach(b=>b.onclick=()=>$('#'+b.dataset.openPanel).showModal());
 document.querySelectorAll('[data-close-panel]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('.game-popup').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
+const skillCooldowns={skill:null,charAction:null};let skillCooldownFrame=null;
+function clearSkillCooldowns(){
+  if(skillCooldownFrame!==null)cancelAnimationFrame(skillCooldownFrame);skillCooldownFrame=null;
+  for(const id of Object.keys(skillCooldowns)){skillCooldowns[id]=null;$('#'+id).classList.remove('cooling');$('#'+id).style.removeProperty('--cooldown-angle')}
+}
+function paintSkillCooldowns(){
+  skillCooldownFrame=null;let running=false;
+  for(const [id,state]of Object.entries(skillCooldowns)){
+    const remaining=state?Math.max(0,(state.end-performance.now())/1000):0,btn=$('#'+id);
+    btn.classList.toggle('cooling',remaining>0);
+    btn.style.setProperty('--cooldown-angle',(state?Math.min(1,remaining/state.total)*360:0)+'deg');
+    if(M?.self){btn.disabled=busy()||!M.self.alive||!!M.pendingEvent||(id==='skill'?!M.encounter:!!M.encounter)||remaining>0}
+    if(remaining>0)running=true;
+  }
+  if(running)skillCooldownFrame=requestAnimationFrame(paintSkillCooldowns);
+}
+function updateSkillCooldowns(m){
+  const key=m.matchId+'|'+m.self.playerId,now=performance.now();
+  for(const [id,remaining,total]of [['skill',m.self.cdC,m.self.cdCDuration],['charAction',m.self.cdA,m.self.cdADuration]]){
+    const old=skillCooldowns[id],seconds=Math.max(0,Number(remaining)||0);
+    skillCooldowns[id]={key,end:now+seconds*1000,total:Math.max(seconds,Number(total)||0,old?.key===key?old.total:0,.001)};
+  }
+  if(skillCooldownFrame!==null)cancelAnimationFrame(skillCooldownFrame);
+  paintSkillCooldowns();
+}
 const shownResults=new Set();
 function renderResult(m){
   const result=m.result;if(!result||!m.self)return;
@@ -966,6 +996,7 @@ $('#charAction').disabled=dis||inEncounter||inEvent;
 $('#attack').disabled=dis||!inEncounter||inEvent;
 $('#skill').disabled=dis||!inEncounter||inEvent;
 $('#flee').disabled=dis||!inEncounter||inEvent;
+updateSkillCooldowns(m);
 $('#moves').innerHTML=(m.adjacency?.[p.region]||[]).map(id=>`<button data-move="${id}" ${(dis||inEncounter||inEvent)?'disabled':''}>${rname(id)}</button>`).join("");$('#moves').querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{net.move(b.dataset.move);$('#movePanel').close()});
 $('#eq').innerHTML=p.inventory.eq.length?p.inventory.eq.map(it=>`<div class="card"><b>${it.n}</b><div class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</div></div>`).join(""):'<span class="muted">없음</span>';
 $('#equippedHud').innerHTML=$('#eq').innerHTML;
