@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Consumable crafting
+        run: node tests/consumable_crafting_smoke.mjs
       - name: Reconnection flow
         run: node tests/reconnect_smoke.mjs
       - name: Combat notifications
@@ -31,7 +33,7 @@ jobs:
         run: npm run test:all-combat
       - name: All 51 additional actions
         run: npm run test:all-actions
-      - name: All 17 consumables
+      - name: All consumables
         run: npm run test:all-consumables
       - name: All 234 event choices
         run: npm run test:all-events

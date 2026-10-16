@@ -5,7 +5,7 @@ import { beginServerAction, completeAction, initWorld, publicPlayer } from "../s
 
 const t0=1_704_000_000_000;
 const consumables=Object.entries(ITEMS).filter(([,it])=>it.t==="c");
-assert.equal(consumables.length,17);
+assert.equal(consumables.length,20);
 
 function matchFor(p,id){const m={matchId:id,phase:"playing",createdAt:t0,startedAt:t0,updatedAt:t0,players:[p],eventPity:{},lastEventId:null,corpses:[],worldLog:[]};initWorld(m);return m}
 

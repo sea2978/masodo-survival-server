@@ -5,7 +5,7 @@ import { beginServerAction, completeAction, initWorld, publicPlayer, resolveEven
 
 assert.equal(CHARACTERS.length,51);
 assert.equal(REGIONS.length,13);
-assert.equal(Object.keys(ITEMS).length,169);
+assert.equal(Object.keys(ITEMS).length,172);
 assert.equal(WILD_TEMPLATES.length,12);
 assert.equal(ENCOUNTER_EVENTS.length,78);
 

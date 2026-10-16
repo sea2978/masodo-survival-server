@@ -190,7 +190,7 @@ function canReceiveCraftOutput(p,id){
   const it=item(id);if(!it)return false;
   if(it.t!=="c")return true;
   if((p.con?.[id]||0)>0)return true;
-  return Object.keys(p.con||{}).filter(k=>(p.con[k]||0)>0).length<3;
+  return Object.keys(p.con||{}).filter(k=>(p.con[k]||0)-(item(k)?.t==="c"?(it.r?.[k]||0):0)>0).length<3;
 }
 
 function craftItem(match,p,id){
@@ -648,6 +648,7 @@ function useConsumable(match,p,id,now){
   const it=item(id);if(!it||it.t!=="c"||owned(p,id)<=0)return {ok:false,error:"item_missing"};
   const inCombat=!!p.encounter,combat=inCombat?(it.combatEff??.75):1,repeat=foodRepeatMultiplier(p,id,it,now);
   const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.08:1,healMult=repeat*combat*recoveryMult*(1+(fx.heal||0)),spMult=repeat*combat;
+  if(it.consumableBuff)addTemp(p,it.consumableBuff.fx,it.consumableBuff.duration,now);
   if(it.heal)p.hp=clamp(p.hp+it.heal*healMult,0,maxHp(p,match,now));
   if(it.sp)recoverSp(p,it.sp*spMult,match,now);
   if(it.sat)p.satiety=clamp(p.satiety+it.sat,0,100);
