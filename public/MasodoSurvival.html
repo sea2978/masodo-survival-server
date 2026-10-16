@@ -419,6 +419,7 @@ class MasodoNetworkAdapter {
     this.roomCode = null;
     this.sessionId = null;
     this.lastMatch = null;
+    this.networkState=null;this.stateRevision=0;this.itemCatalog={};this.resyncPending=false;
     this.catalog = null;
     this.build = null;
     this.connectOptions = null;
@@ -508,6 +509,35 @@ class MasodoNetworkAdapter {
     return this.catalog;
   }
 
+  decodeMatch(state){
+    const match={...state,self:state.self?{...state.self}:null},inv=state.self?.inventory;
+    if(inv){const item=id=>this.itemCatalog[id]||{};match.self.inventory={eq:inv.eq.map(x=>({...item(x.id),...x})),mat:inv.mat.map(x=>({name:item(x.id).n||x.id,...x})),con:inv.con.map(x=>({...item(x.id),...x}))}}
+    return match;
+  }
+  acceptStateMessage(msg){
+    if(msg.type==='match_state'){
+      if(msg.itemCatalog)this.itemCatalog=msg.itemCatalog;
+      this.networkState=msg.match;this.stateRevision=msg.stateRevision||0;this.resyncPending=false;
+      const match=msg.stateRevision?this.decodeMatch(msg.match):msg.match;
+      this.lastMatch=match;return {...msg,match};
+    }
+    if(msg.type!=='match_delta')return msg;
+    if(this.resyncPending)return null;
+    if(!this.networkState||msg.baseRevision!==this.stateRevision||msg.stateRevision!==this.stateRevision+1){
+      this.resyncPending=true;this.requestState();return null;
+    }
+    const state=JSON.parse(JSON.stringify(this.networkState));
+    const target=path=>{if(!Array.isArray(path)||!path.length||path.some(k=>typeof k!=='string'||['__proto__','prototype','constructor'].includes(k)))throw Error('invalid_state_path');let at=state;for(const k of path.slice(0,-1)){if(!at[k]||typeof at[k]!=='object')at[k]={};at=at[k]}return [at,path.at(-1)]};
+    try{
+      for(const path of msg.patch.remove){const [at,key]=target(path);delete at[key]}
+      for(const [path,value]of msg.patch.set){const [at,key]=target(path);at[key]=value}
+      state.combatNotices=[...(state.combatNotices||[]),...(msg.combatNotices||[])].slice(-100);
+      this.networkState=state;this.stateRevision=msg.stateRevision;
+      const match=this.decodeMatch(state);this.lastMatch=match;
+      return {type:'match_state',match,stateRevision:msg.stateRevision};
+    }catch{this.resyncPending=true;this.requestState();return null}
+  }
+
   async listRooms() {
     const res = await fetch(`${this.baseUrl}/api/rooms`, { cache: "no-store" });
     const data = await res.json();
@@ -563,6 +593,7 @@ class MasodoNetworkAdapter {
     if (this.ws) { const old=this.ws; this.ws=null; try { old.close(1000,"reconnect"); } catch {} }
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer=null; }
     this.manualClose = false;
+    this.networkState=null;this.stateRevision=0;this.resyncPending=false;
     this.roomCode = roomCode;
     this.connectOptions = { playerName, charId, startRegion };
     const wsBase = this.baseUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
@@ -587,7 +618,8 @@ class MasodoNetworkAdapter {
       if(this.ws!==ws)return;
       if (event.data === "pong") { this.emit("pong", {}); return; }
       try {
-        const msg = JSON.parse(event.data);
+        let msg=JSON.parse(event.data);
+        msg=this.acceptStateMessage(msg);if(!msg)return;
         if (msg.sessionId && msg.type === "hello_ok") {
           clearTimeout(handshakeTimer);handshakeTimer=null;
           this.sessionId = msg.sessionId;
@@ -614,7 +646,7 @@ class MasodoNetworkAdapter {
       this.scheduleReconnect();
     });
 
-    this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId });
+    this.send("hello", { playerName, charId, startRegion, reconnectToken, resumeSessionId, features:["state_delta_v1"] });
     return this;
   }
 
@@ -689,7 +721,7 @@ net.on('close',()=>showReconnectLoading());
 net.on('reconnect_scheduled',e=>showReconnectLoading(Math.ceil(e.delay/1000)+'초 후 재연결을 시도합니다. · '+e.attempt+'회차'));
 net.on('reconnecting',e=>showReconnectLoading('기존 방으로 다시 접속하고 있습니다. · '+e.attempt+'회차'));
 net.on('reconnect_error',()=>showReconnectLoading('서버에 연결하지 못했습니다. 잠시 후 다시 시도합니다.'));
-net.on('hello_ok',()=>{if($('#reconnectPanel').open){$('#reconnectDetail').textContent='연결되었습니다. 경기 상태를 불러오고 있습니다.';net.requestState()}});
+net.on('hello_ok',()=>{if($('#reconnectPanel').open){$('#reconnectDetail').textContent='연결되었습니다. 경기 상태를 불러오고 있습니다.'}});
 net.on('match_state',()=>hideReconnectLoading());
 net.on('room_state',e=>{if(e.room?.phase==='lobby'&&$('#reconnectPanel').open){hideReconnectLoading();M=null;showLobby()}});
 let searchLoading=null;
@@ -750,7 +782,7 @@ net.on('action_result',()=>clearLocalAction());
 net.on('error',()=>{clearLocalAction();if(M)renderMatch(M)});
 net.on('close',()=>{loadingDisconnected=true;clearLocalAction()});
 net.on('connected',()=>{loadingDisconnected=false});
-function showLobby(){ clearSkillCooldowns();hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
+function showLobby(){ clearMatchClock();clearSkillCooldowns();hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#lobbyScreen').hidden=false; $('#gameScreen').hidden=true; }
 function showGame(){ document.body.classList.add("game-active"); $('#lobbyScreen').hidden=true; $('#gameScreen').hidden=false; }
 const gameLog=x=>{const el=$('#gameLog');if(!el)return;el.textContent+=x+"\n";el.scrollTop=999999};
 const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
@@ -1158,6 +1190,18 @@ $('#routeCycleBtn').onclick=()=>{if(favoriteItems.length){routeFavoriteIndex=(ro
 document.querySelectorAll('[data-open-panel]').forEach(b=>b.onclick=()=>$('#'+b.dataset.openPanel).showModal());
 document.querySelectorAll('[data-close-panel]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('.game-popup').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
+let matchClockFrame=null,matchClockAnchor=null;
+function clearMatchClock(){if(matchClockFrame!==null)cancelAnimationFrame(matchClockFrame);matchClockFrame=null;matchClockAnchor=null}
+function paintMatchClock(){
+  matchClockFrame=null;if(!matchClockAnchor)return;
+  const seconds=matchClockAnchor.elapsed+(matchClockAnchor.running?(performance.now()-matchClockAnchor.at)/1000:0);
+  $('#elapsed').textContent=String(Math.max(0,Math.floor(seconds)));
+  if(matchClockAnchor.running)matchClockFrame=requestAnimationFrame(paintMatchClock);
+}
+function syncMatchClock(m){
+  if(matchClockFrame!==null)cancelAnimationFrame(matchClockFrame);
+  matchClockAnchor={elapsed:m.elapsed||0,at:performance.now(),running:m.phase==='playing'};paintMatchClock();
+}
 const skillCooldowns={skill:null,charAction:null};let skillCooldownFrame=null;
 function clearSkillCooldowns(){
   if(skillCooldownFrame!==null)cancelAnimationFrame(skillCooldownFrame);skillCooldownFrame=null;
@@ -1214,7 +1258,7 @@ $('#charAction').disabled=dis||inEncounter||inEvent;
 $('#attack').disabled=dis||!inEncounter||inEvent;
 $('#skill').disabled=dis||!inEncounter||inEvent;
 $('#flee').disabled=dis||!inEncounter||inEvent;
-updateSkillCooldowns(m);
+updateSkillCooldowns(m);syncMatchClock(m);
 $('#moves').innerHTML=(m.adjacency?.[p.region]||[]).map(id=>`<button data-move="${id}" ${(dis||inEncounter||inEvent)?'disabled':''}>${rname(id)}</button>`).join("");$('#moves').querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{net.move(b.dataset.move);$('#movePanel').close()});
 $('#eq').innerHTML=p.inventory.eq.length?p.inventory.eq.map(it=>`<div class="card"><b>${it.n}</b><div class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</div></div>`).join(""):'<span class="muted">없음</span>';
 $('#equippedHud').innerHTML=$('#eq').innerHTML;
@@ -1245,7 +1289,7 @@ $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{
 $('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,k,id,qty,rep]=b.dataset.loot.split('|');net.lootCorpse(c,k,id,Number(qty)||1,rep==='1')});
 }
 net.on("build",()=>renderBuild());
-net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_started",()=>net.requestState());net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
+net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
 showLobby();
 let serverReady=false;
 function setServerControls(ready){serverReady=ready;for(const id of ['create','refreshRooms','ready','unready','start'])$('#'+id).disabled=!ready;if(!ready)$('#join').disabled=true}
