@@ -1,3 +1,4 @@
+import {normalizeRoomSettings} from "./room_settings.js";
 import { json, randomRoomCode, safeRoomCode } from "./protocol.js";
 import { CHARACTERS, REGIONS } from "./game_data.js";
 import { BUILD_LABEL, GAME_VERSION, PHASE, PROTOCOL_VERSION } from "./version.js";
@@ -55,13 +56,16 @@ export default {
     }
 
     if (url.pathname === "/api/room/create" && request.method === "POST") {
+      const text=await request.text();let body;
+      try{body=text?JSON.parse(text):{}}catch{return withCors(json({ok:false,error:"invalid_room_settings"},400))}
+      const parsed=normalizeRoomSettings(body);if(!parsed.ok)return withCors(json(parsed,400));
       for (let attempt = 0; attempt < 8; attempt++) {
         const code = randomRoomCode();
         const stub = await getRoomStub(env, code);
         const result = await stub.fetch("https://room.internal/init", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code,...parsed.settings }),
         });
         if (result.status === 201) {
           const data = await result.json();

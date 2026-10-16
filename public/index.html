@@ -278,6 +278,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 @media(max-width:520px) and (orientation:portrait){.lobby-main{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1.5fr) minmax(90px,1fr)}.lobby-current{grid-column:1/-1}.lobby-current #roomState{max-height:100px;overflow:auto}.lobby-ready{margin-top:6px;grid-template-columns:1fr 1fr 1.5fr}.lobby-ready #start{grid-column:auto}.lobby-footer>span{display:none}}
 @media(max-height:500px) and (orientation:landscape){#lobbyScreen{padding:6px 12px;gap:5px}.lobby-header h1{font-size:20px}.lobby-header .eyebrow,.lobby-build .muted{display:none}.lobby-server{padding:5px 8px}.lobby-server>span{font-size:9px}.lobby-pane{padding:8px}.lobby-pane h2{font-size:14px;margin-bottom:7px}.lobby-player label{margin:5px 0 3px}.lobby-pane input,.lobby-pane select,.lobby-pane button{min-height:34px;font-size:11px;padding:6px}.lobby-footer{font-size:9px}.lobby-main{gap:6px;grid-template-columns:minmax(155px,1fr) minmax(200px,1.4fr) minmax(155px,1fr)}}
 
+#createRoomForm{display:grid;gap:10px}#createRoomForm input,#createRoomForm select{width:100%}#fixedAIField:not([hidden]){display:grid;gap:8px}
 </style></head><body>
 <div class="wrap">
   <section id="lobbyScreen">
@@ -285,12 +286,14 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
     <div class="lobby-server"><b>서버</b><input id="serverAddress" type="url" placeholder="https://서버주소.workers.dev" aria-label="서버 주소"><button id="connectServer">서버 연결</button><span id="serverConnectMessage" class="muted">서버 주소를 입력하고 연결해 주세요.</span></div>
     <div class="lobby-main">
       <section class="lobby-pane lobby-player"><h2>플레이어 설정</h2><label for="name">이름</label><input id="name" value="Player" placeholder="이름"><label for="char">캐릭터</label><select id="char"><option>캐릭터 목록 불러오는 중...</option></select><label for="startRegion">시작 지역</label><select id="startRegion"><option>지역 목록 불러오는 중...</option></select><div id="charInfo" class="card muted">캐릭터 데이터를 불러오는 중입니다.</div></section>
-      <section class="lobby-pane lobby-rooms"><div class="lobby-pane-head"><h2>방 목록</h2><button id="refreshRooms">새로고침</button></div><div id="roomsList" class="room-browser"><span class="muted">불러오는 중...</span></div><div class="lobby-entry"><button id="create">방 만들고 입장</button><div class="row"><input id="room" placeholder="방 코드" maxlength="6" aria-label="방 코드"><button id="join" disabled>코드로 참가</button></div></div></section>
+      <section class="lobby-pane lobby-rooms"><div class="lobby-pane-head"><h2>방 목록</h2><button id="refreshRooms">새로고침</button></div><div id="roomsList" class="room-browser"><span class="muted">불러오는 중...</span></div><div class="lobby-entry"><button id="create">방 만들기</button><div class="row"><input id="room" placeholder="방 코드" maxlength="6" aria-label="방 코드"><button id="join" disabled>코드로 참가</button></div></div></section>
       <section class="lobby-pane lobby-current"><h2>현재 방</h2><p>연결: <b id="status">미접속</b></p><div id="roomState"><p class="muted">방을 만들거나 목록에서 참가하세요.</p></div><div class="lobby-ready"><button id="ready">준비</button><button id="unready">준비 취소</button><button id="start">방장: 경기 시작</button></div></section>
     </div>
     <footer class="lobby-footer"><span>방 만들기·참가 후 준비를 눌러주세요.</span><div><a href="/offline.html">오프라인 빌드</a> · <a href="/MasodoSurvival.html" download>단일 HTML 다운로드</a></div></footer>
     <div class="log-panel" hidden><div id="log"></div></div>
   </section>
+
+  <dialog id="createRoomPanel" class="game-popup"><form id="createRoomForm"><div class="popup-head"><h2>방 만들기</h2><button id="cancelCreateRoom" type="button">취소</button></div><label for="roomName">방 이름</label><input id="roomName" name="roomName" maxlength="32" placeholder="생존게임 방" autocomplete="off"><label for="aiMode">AI 설정</label><select id="aiMode"><option value="fill">남은 인원 채우기</option><option value="none">없음</option><option value="fixed">직접 지정</option></select><div id="fixedAIField" hidden><label for="aiCountSetting">AI 수</label><input id="aiCountSetting" type="number" min="0" max="10" step="1" value="3" required></div><p id="roomSettingsHint" class="muted">경기 시작 시 총 11명이 되도록 AI를 채웁니다. 플레이어는 최대 10명입니다.</p><button id="createRoomSubmit" type="submit">만들고 입장</button></form></dialog>
 
   <section id="gameScreen" hidden>
     <div id="sceneBackground" class="scene-background" aria-hidden="true"></div>
@@ -542,31 +545,34 @@ function fillCatalog(){
   $('#join').disabled=!(net.catalog?.characters?.length&&net.catalog?.regions?.length);
   renderCharInfo();
 }
-function renderRoom(r){$('#roomState').innerHTML=`<p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${p.playerName} / ${p.charId} / ${rname(p.startRegion)}</div>`).join("")}
+const escapeRoomText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function aiSettingText(r){return r.aiMode==='none'?'AI 없음':r.aiMode==='fixed'?'AI '+r.aiCount+'명':'AI 남은 인원 채우기'}
+function renderRoom(r){$('#roomState').innerHTML=`<p><b>${escapeRoomText(r.name||'생존게임 방')}</b></p><p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p><p class="muted">${aiSettingText(r)}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${p.playerName} / ${p.charId} / ${rname(p.startRegion)}</div>`).join("")}
 let roomEntryBusy=false;
-async function connectRoom(code,create=false){
+async function connectRoom(code,create=false,settings={}){
   if(roomEntryBusy)return;
   const options={playerName:$('#name').value,charId:$('#char').value,startRegion:$('#startRegion').value};
   if(!create&&!String(code||'').trim()){toast('방 접속','방 코드를 입력해 주세요.','','combat');return}
-  roomEntryBusy=true;
+  roomEntryBusy=true;let joined=false;
   const controls=[$('#create'),$('#join'),...$('#roomsList').querySelectorAll('[data-roomjoin]')];
   const states=controls.map(b=>b.disabled);controls.forEach(b=>b.disabled=true);
   $('#status').textContent=create?'방 생성 및 접속 중…':'방 접속 중…';
   try{
-    if(create){const room=await net.createRoom();code=room.code;log('방 생성 '+code)}
+    if(create){const room=await net.createRoom(settings);code=room.code;log('방 생성 '+code)}
     code=String(code).trim().toUpperCase();$('#room').value=code;
-    await net.connect(code,options);
+    await net.connect(code,options);joined=true;
   }catch(e){
     $('#status').textContent='방 접속 실패';$('#status').className='bad';
     toast('방 접속 실패',String(e.message||e),'다시 시도하거나 방 상태를 확인해 주세요.','combat',4000);log(String(e.message||e));
   }finally{
     roomEntryBusy=false;controls.forEach((b,i)=>b.disabled=states[i]);await refreshRooms();
   }
+  return joined;
 }
 async function refreshRooms(){
   try{
     const data=await net.listRooms(),rooms=data.rooms||[];
-    $('#roomsList').innerHTML=rooms.length?rooms.map(r=>`<div class="room-card"><div><b><code>${r.code}</code></b> · ${r.phase}<div class="meta">접속 ${r.humanCount}/${r.maxHumans} · 자리 보존 ${r.reservedCount??r.humanCount}</div></div><button data-roomjoin="${r.code}" ${r.phase!=="lobby"||r.humanCount>=r.maxHumans?"disabled":""}>참가</button></div>`).join(""):'<span class="muted">현재 표시할 방이 없습니다.</span>';
+    $('#roomsList').innerHTML=rooms.length?rooms.map(r=>`<div class="room-card"><div><b>${escapeRoomText(r.name||'생존게임 방')}</b> · ${r.phase}<div class="meta"><code>${r.code}</code> · ${aiSettingText(r)}</div><div class="meta">접속 ${r.humanCount}/${r.maxHumans} · 자리 보존 ${r.reservedCount??r.humanCount}</div></div><button data-roomjoin="${r.code}" ${r.phase!=="lobby"||r.humanCount>=r.maxHumans?"disabled":""}>참가</button></div>`).join(""):'<span class="muted">현재 표시할 방이 없습니다.</span>';
     $('#roomsList').querySelectorAll('[data-roomjoin]').forEach(b=>b.onclick=()=>connectRoom(b.dataset.roomjoin));
   }catch(e){$('#roomsList').innerHTML='<span class="bad">방 목록 불러오기 실패: '+String(e.message||e)+'</span>'}
 }
@@ -1074,5 +1080,10 @@ $('#connectServer').onclick=async()=>{
 };
 $('#serverAddress').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('#connectServer').disabled)$('#connectServer').click()});
 $('#refreshRooms').onclick=()=>refreshRooms();
-$('#create').onclick=()=>connectRoom(null,true);$('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
+$('#create').onclick=()=>{if(serverReady&&!roomEntryBusy)$('#createRoomPanel').showModal()};
+$('#cancelCreateRoom').onclick=()=>$('#createRoomPanel').close();
+function updateRoomSettingsHint(){const mode=$('#aiMode').value,n=Number($('#aiCountSetting').value);$('#fixedAIField').hidden=mode!=='fixed';$('#aiCountSetting').disabled=mode!=='fixed';$('#roomSettingsHint').textContent=mode==='fill'?'경기 시작 시 총 11명이 되도록 AI를 채웁니다. 플레이어는 최대 10명입니다.':mode==='none'?'AI 없이 접속한 플레이어만 참가합니다. 혼자 시작하면 연습할 수 있습니다.':'AI '+n+'명 고정 · 플레이어 최대 '+Math.min(10,11-(Number.isFinite(n)?n:0))+'명 (총 최대 11명)'}
+$('#aiMode').onchange=updateRoomSettingsHint;$('#aiCountSetting').oninput=updateRoomSettingsHint;updateRoomSettingsHint();
+$('#createRoomForm').onsubmit=async e=>{e.preventDefault();if(roomEntryBusy)return;const settings={name:$('#roomName').value,aiMode:$('#aiMode').value,aiCount:Number($('#aiCountSetting').value)};const fields=[$('#roomName'),$('#aiMode'),$('#aiCountSetting'),$('#createRoomSubmit'),$('#cancelCreateRoom')];fields.forEach(x=>x.disabled=true);try{if(await connectRoom(null,true,settings))$('#createRoomPanel').close()}finally{fields.forEach(x=>x.disabled=false);updateRoomSettingsHint()}};
+$('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
 </script></body></html>

@@ -1,7 +1,8 @@
 // Resolve results once on the server; retain elimination records across reconnects.
 export function settleMatch(match,now=Date.now()){
-  if(match.phase!=="playing"||match.players.length<2)return false;
+  if(match.phase!=="playing"||match.players.length===0)return false;
   const alive=match.players.filter(p=>p.alive);
+  if(match.players.length===1&&alive.length===1)return false;
   for(const p of match.players){
     if(!p.alive){p.diedAt??=now;p.finishRank??=alive.length+1}
   }

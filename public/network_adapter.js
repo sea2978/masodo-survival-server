@@ -143,8 +143,8 @@ export class MasodoNetworkAdapter {
     return this.catalog;
   }
 
-  async createRoom() {
-    const res = await fetch(`${this.baseUrl}/api/room/create`, { method: "POST" });
+  async createRoom(settings = {}) {
+    const res = await fetch(`${this.baseUrl}/api/room/create`, { method: "POST", headers:{"content-type":"application/json"},body:JSON.stringify(settings) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "room_create_failed");
     return data;

@@ -1,3 +1,4 @@
+import {normalizeRoomSettings,roomSettings,humanCapacity,plannedAICount} from "./room_settings.js";
 import {inventoryOperation} from "./inventory_ops.js";
 import {STATE_DELTA_FEATURE,stateDiff,substantivePatch,compactSnapshot} from "./state_transport.js";
 import {settleMatch,playerResult} from "./match_result.js";
@@ -49,7 +50,7 @@ export class GameRoom extends DurableObject{
   activeReservedCount(meta,now=Date.now()){return this.reconnectRecords(meta).filter(r=>!r.disconnectedAt||now-r.disconnectedAt<RECONNECT_GRACE_MS).length}
   roomState(meta){
     const players=this.connectedPlayers(meta);
-    return{code:meta.code,phase:meta.phase||"lobby",createdAt:meta.createdAt,maxHumans:MAX_HUMANS,players,humanCount:players.length,reservedCount:this.activeReservedCount(meta),allReady:players.length>=1&&players.every(p=>p.ready),hostSessionId:meta.hostSessionId||null,emptySince:meta.emptySince||null,protocolVersion:PROTOCOL_VERSION,serverVersion:GAME_VERSION,buildLabel:BUILD_LABEL,phaseLabel:PHASE}
+    return{code:meta.code,...roomSettings(meta),plannedAiCount:plannedAICount(meta,players.length),phase:meta.phase||"lobby",createdAt:meta.createdAt,maxHumans:humanCapacity(meta),players,humanCount:players.length,reservedCount:this.activeReservedCount(meta),allReady:players.length>=1&&players.every(p=>p.ready),hostSessionId:meta.hostSessionId||null,emptySince:meta.emptySince||null,protocolVersion:PROTOCOL_VERSION,serverVersion:GAME_VERSION,buildLabel:BUILD_LABEL,phaseLabel:PHASE}
   }
   broadcast(type,payload={}){for(const ws of this.sessions.keys())send(ws,type,payload)}
   async directoryStub(){return this.env.ROOMS.getByName(DIRECTORY_NAME)}
@@ -58,7 +59,7 @@ export class GameRoom extends DurableObject{
     const state=this.roomState(meta),expiresAt=state.humanCount===0?(meta.emptySince||Date.now())+EMPTY_ROOM_TTL_MS:Date.now()+ACTIVE_DIRECTORY_TTL_MS;
     const stub=await this.directoryStub();
     await stub.fetch("https://directory.internal/directory/upsert",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-      code:state.code,phase:state.phase,createdAt:state.createdAt,humanCount:state.humanCount,reservedCount:state.reservedCount,maxHumans:state.maxHumans,allReady:state.allReady,expiresAt,updatedAt:Date.now()
+      code:state.code,name:state.name,aiMode:state.aiMode,aiCount:state.aiCount,phase:state.phase,createdAt:state.createdAt,humanCount:state.humanCount,reservedCount:state.reservedCount,maxHumans:state.maxHumans,allReady:state.allReady,expiresAt,updatedAt:Date.now()
     })});
   }
   async removeFromDirectory(code){
@@ -78,7 +79,7 @@ export class GameRoom extends DurableObject{
       const body=await request.json().catch(()=>({})),code=safeText(body.code,8,"").toUpperCase();
       if(!code)return json({ok:false,error:"invalid_room"},400);
       const directory=(await this.ctx.storage.get(DIRECTORY_KEY))||{};
-      directory[code]={code,phase:safeText(body.phase,20,"lobby"),createdAt:Number(body.createdAt)||Date.now(),humanCount:Math.max(0,Number(body.humanCount)||0),reservedCount:Math.max(0,Number(body.reservedCount)||0),maxHumans:Math.max(1,Number(body.maxHumans)||MAX_HUMANS),allReady:!!body.allReady,updatedAt:Number(body.updatedAt)||Date.now(),expiresAt:Number(body.expiresAt)||Date.now()+EMPTY_ROOM_TTL_MS};
+      directory[code]={code,...roomSettings(body),phase:safeText(body.phase,20,"lobby"),createdAt:Number(body.createdAt)||Date.now(),humanCount:Math.max(0,Number(body.humanCount)||0),reservedCount:Math.max(0,Number(body.reservedCount)||0),maxHumans:Math.max(1,Number(body.maxHumans)||MAX_HUMANS),allReady:!!body.allReady,updatedAt:Number(body.updatedAt)||Date.now(),expiresAt:Number(body.expiresAt)||Date.now()+EMPTY_ROOM_TTL_MS};
       await this.ctx.storage.put(DIRECTORY_KEY,directory);return json({ok:true});
     }
     if(path==="/directory/remove"&&request.method==="POST"){
@@ -178,7 +179,7 @@ export class GameRoom extends DurableObject{
     if(!m||m.phase!=="playing"){await this.saveMeta(meta);await this.updateDirectory(meta);await this.scheduleNextAlarm(null,meta);return}
     let changed=await this.completeDueActions(m,now,{defer:true}),ticked=false;
     changed=settleMatch(m)||changed;
-    if(m.phase==="playing"&&(m.nextAiTickAt||0)<=now){changed=runAITick(m,now)||changed;ticked=true}
+    if(m.phase==="playing"&&m.players.some(p=>p.isAI&&p.alive)&&(m.nextAiTickAt||0)<=now){changed=runAITick(m,now)||changed;ticked=true}
     if(changed||ticked)await this.saveMatch(m);
     if(changed)this.broadcastMatchState(m);
     meta.phase=m.phase;await this.saveMeta(meta);await this.scheduleNextAlarm(m,meta)
@@ -190,7 +191,8 @@ export class GameRoom extends DurableObject{
     if(path==="/init"&&request.method==="POST"){
       const body=await request.json().catch(()=>({})),existing=await this.getMeta();
       if(existing)return json({ok:false,reason:"exists",room:this.roomState(existing)},409);
-      const meta={code:safeText(body.code,8,"ROOM"),createdAt:Date.now(),phase:"lobby",hostSessionId:null,emptySince:Date.now(),reconnectRecords:[]};await this.saveMeta(meta);await this.updateDirectory(meta);await this.scheduleNextAlarm(null,meta);return json({ok:true,room:this.roomState(meta)},201)
+      const parsed=normalizeRoomSettings(body);if(!parsed.ok)return json(parsed,400);
+      const meta={...parsed.settings,code:safeText(body.code,8,"ROOM"),createdAt:Date.now(),phase:"lobby",hostSessionId:null,emptySince:Date.now(),reconnectRecords:[]};await this.saveMeta(meta);await this.updateDirectory(meta);await this.scheduleNextAlarm(null,meta);return json({ok:true,room:this.roomState(meta)},201)
     }
     const meta=await this.getMeta();if(!meta)return json({ok:false,error:"room_not_found"},404);
     if(path==="/status"&&request.method==="GET"){const m=await this.getMatch();return json({ok:true,room:this.roomState(meta),matchPhase:m?.phase||null})}
@@ -222,7 +224,7 @@ export class GameRoom extends DurableObject{
       if(record){
         session.sessionId=record.sessionId;session.playerName=record.playerName;session.charId=record.charId;session.startRegion=record.startRegion||"city";session.ready=!!record.ready;session.joinedAt=record.joinedAt||now;resumed=true;record.disconnectedAt=null;
       }else if(meta.phase==="lobby"){
-        if(this.connectedPlayers(meta).length>=MAX_HUMANS){send(ws,"error",{error:"room_full"});ws.close(4001,"Room full");return}
+        if(this.connectedPlayers(meta).length>=humanCapacity(meta)){send(ws,"error",{error:"room_full"});ws.close(4001,"Room full");return}
         reconnectToken=crypto.randomUUID()+crypto.randomUUID();
         session.playerName=safeText(msg.playerName,20,"Player");session.charId=isValidCharacter(msg.charId)?msg.charId:"c01";session.startRegion=isValidRegion(msg.startRegion)?msg.startRegion:"city";session.ready=false;session.joinedAt=now;
         record={sessionId:session.sessionId,tokenHash:await sha256Hex(reconnectToken),playerName:session.playerName,charId:session.charId,startRegion:session.startRegion,ready:false,joinedAt:session.joinedAt,disconnectedAt:null};records.push(record);
@@ -250,13 +252,14 @@ export class GameRoom extends DurableObject{
       const room=this.roomState(meta);if(meta.hostSessionId!==session.sessionId){send(ws,"error",{error:"host_only"});return}if(!room.allReady){send(ws,"error",{error:"not_all_ready"});return}if(meta.phase!=="lobby"){send(ws,"error",{error:"already_started"});return}
       const humans=this.joinedSessions(),players=humans.map((s,i)=>({...createServerPlayer(s,i),pickupChoices:!!s.pickupChoices}));
       const profiles=["balanced","craft","aggro","safe"];
-      while(players.length<11){
+      const targetCompetitors=players.length+plannedAICount(meta,players.length);
+      while(players.length<targetCompetitors){
         const c=CHARACTERS[Math.floor(Math.random()*CHARACTERS.length)];
         const r=REGIONS[Math.floor(Math.random()*REGIONS.length)];
         players.push(createAIPlayer(players.length,c.id,r.id,profiles[Math.floor(Math.random()*profiles.length)]));
       }
       this.recipeCache.clear();
-      const match={matchId:crypto.randomUUID(),phase:"playing",createdAt:Date.now(),startedAt:Date.now(),updatedAt:Date.now(),players,nextAiTickAt:Date.now()+1000};
+      const match={matchId:crypto.randomUUID(),roomName:roomSettings(meta).name,aiSettings:roomSettings(meta),phase:"playing",createdAt:Date.now(),startedAt:Date.now(),updatedAt:Date.now(),players,nextAiTickAt:Date.now()+1000};
       for(const p of match.players){p.tempEffects=[];p.statusImmunity={};p.cdCUntil=0;p.cdAUntil=0;p.lastSatietyAt=match.startedAt;p.nextStatusTick=match.startedAt}
       match.wildTemplates=WILD_TEMPLATES;match.eventCatalog=ENCOUNTER_EVENTS;initWorld(match);
       meta.phase="playing";meta.startedAt=match.startedAt;await Promise.all([this.saveMeta(meta),this.saveMatch(match)]);await this.scheduleNextAlarm(match,meta);await this.updateDirectory(meta);this.broadcast("match_started",{matchId:match.matchId,serverNow:Date.now(),competitors:match.players.length,aiCount:match.players.filter(p=>p.isAI).length});this.broadcastMatchState(match);return

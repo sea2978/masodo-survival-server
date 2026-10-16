@@ -32,7 +32,7 @@ assert.ok(adapter.includes("listRooms()"));
 assert.ok(adapter.includes("sessionStorage.setItem"));
 assert.ok(!index.includes("setInterval(()=>{if(net.ws?.readyState===WebSocket.OPEN&&M)net.requestState()},2000)"));
 
-assert.match(room,/while\(players\.length<11\)/);
+assert.match(room,/while\(players\.length<targetCompetitors\)/);
 for(const token of [
   'command_move:"move"','command_search:"search"','command_rest:"rest"','command_craft:"craft"',
   'command_use_item:"use_item"','command_attack:"attack"','command_skill:"skill"','command_flee:"flee"',
@@ -53,9 +53,9 @@ for(const id of synergyIds)assert.ok(ITEMS[id],"missing synergy item "+id);
 for(const id of Object.keys(NAMED_GEAR_FX))assert.ok(ITEMS[id],"named gear FX without item: "+id);
 assert.equal(Object.keys(NAMED_GEAR_FX).length,41);
 
-assert.equal(GAME_VERSION,"0.8.9-online-alpha");
+assert.equal(GAME_VERSION,"0.8.10-online-alpha");
 assert.equal(PHASE,"3A");
-assert.equal(PROTOCOL_VERSION,13);
+assert.equal(PROTOCOL_VERSION,14);
 assert.equal(INTENTIONAL_SOURCE_GAPS.length,3);
 
 console.log("client/server/static audit ok",{characters:CHARACTERS.length,namedGear:Object.keys(NAMED_GEAR_FX).length,version:GAME_VERSION});

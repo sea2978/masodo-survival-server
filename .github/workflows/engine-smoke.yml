@@ -19,6 +19,8 @@ jobs:
         run: node tests/passive_minimum_audit.mjs
       - name: Carbonara instant death
         run: node tests/carbonara_death_audit.mjs
+      - name: Room name and AI settings
+        run: node tests/room_settings_smoke.mjs
       - name: Inventory management and overflow rewards
         run: node tests/inventory_management_smoke.mjs && node tests/inventory_ui_smoke.mjs
       - name: Consumable crafting
