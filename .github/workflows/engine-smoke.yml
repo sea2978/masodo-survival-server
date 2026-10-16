@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Passive minimum tuning
+        run: node tests/passive_minimum_audit.mjs
       - name: Carbonara instant death
         run: node tests/carbonara_death_audit.mjs
       - name: Consumable crafting

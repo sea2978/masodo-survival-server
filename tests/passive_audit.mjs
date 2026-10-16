@@ -12,7 +12,7 @@ initWorld(match);
 // c31 passive defFlat +2 must be present in public DEF.
 assert.equal(publicPlayer(match,defender,t0).def,defender.maxHp?5:5);
 
-// c14 passive cdRate=.15 should shorten its combat skill cooldown.
+// c14 passive cdRate=.20 should shorten its combat skill cooldown.
 tempo.encounter={kind:"player",targetId:target.playerId};
 const oldRandom=Math.random;Math.random=()=>0;
 const r=beginServerAction(match,tempo,"skill",{},t0);
@@ -20,7 +20,7 @@ assert.equal(r.ok,true);
 completeAction(match,tempo,r.action.completeAt+1);
 Math.random=oldRandom;
 const cdSec=(tempo.cdCUntil-(r.action.completeAt+1))/1000;
-assert.ok(cdSec<48&&cdSec>39,"c14 cooldown-rate passive should reduce a 48s cooldown by about 15%");
+assert.ok(Math.abs(cdSec-40)<0.001,"c14 cooldown-rate +20% should make its 48s base cooldown 40s");
 
 // c30 proficiency modifier is tested with a deterministic hit.
 const prof=createServerPlayer({sessionId:"p",playerName:"Prof",charId:"c30",startRegion:"city"},3);

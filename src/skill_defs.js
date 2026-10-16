@@ -1,56 +1,213 @@
 // Extracted verbatim from the v0.6.4 offline build.
 export const PASSIVE_FX={
-  c01:{searchLoot:.05,restHeal:.08},
-  c02:{conceal:.05,confusionChance:.05},
-  c03:{heal:.08,incomingStatusDuration:-.08},
-  c04:{taken:-.02,lowHpDamage:.05},
-  c05:{detect:.08,hit:.03},
-  c06:{moveTime:-.06,afterMoveHit:.05},
-  c07:{detect:.10,skillSpFlat:1},
-  c08:{statusDuration:.04,restSp:.08},
-  c09:{conceal:.10},
-  c10:{timeAtk:.5,timeAtkEvery:120,timeAtkCap:3},
-  c11:{damage:.05,moveSp:1},
-  c12:{statusChance:.04,slowChance:.05},
-  c13:{heal:.12,restHeal:.10},
-  c14:{prep:-.05,cdRate:.15},
-  c15:{detect:.12,woundedDetect:.05},
-  c16:{craftTime:-.10,searchLoot:.04},
-  c17:{poisonChance:.10,poisonVsDamage:.04},
-  c18:{moveTime:-.08,afterMoveDamage:.05},
-  c19:{killHeal:4,killSp:5},
-  c20:{detect:.08,hit:.05,skillHit:.04},
-  c21:{prep:-.08,moveTime:-.03},
-  c22:{hit:.03,crit:.03},
-  c23:{taken:-.05,lowDef:4},
-  c24:{lowDef:3,lowHpDamage:.05},
-  c25:{crit:.04,searchLoot:.03},
-  c26:{restHeal:.06,statusChance:.03},
-  c27:{crit:.02,randomSkill:true},
-  c28:{incomingStatusDuration:-.12,taken:-.03},
-  c29:{skillSpFlat:1,incomingStatusDuration:-.05},
-  c30:{detect:.06,profGain:.15},
-  c31:{damage:.04,defFlat:2},
-  c32:{heal:.06,poisonChance:.04},
-  c33:{lowHpDamage:.08,detect:.04},
-  c34:{taken:-.02,chainPerHit:.01,chainMax:.04},
-  c35:{incomingStatusDuration:-.15,skillHit:.03},
-  c36:{conceal:.12,quietDamage:.08},
-  c37:{revive:1},
-  c38:{hit:.04,crit:.04,damage:.03},
-  c39:{damage:.08,taken:.03},
-  c40:{fearChance:.08,statusDuration:.06},
-  c41:{incomingStatusDuration:-.10,lowDef:2},
-  c42:{detect:.08,statusChance:.04},
-  c43:{poisonChance:.14,poisonVsDamage:.05},
-  c44:{damage:.06,taken:-.04,prep:.04},
-  c45:{sleepChance:.08,statusDuration:.08},
-  c46:{conceal:.06,confusionChance:.08},
-  c47:{moveTime:-.08,moveSp:1,afterMoveHit:.04},
-  c48:{bindChance:.07,statusDuration:.08},
-  c49:{killHeal:8,heal:.05},
-  c50:{restSp:.12,incomingStatusDuration:-.08},
-  c51:{profGain:.20,statusChance:.03}
+  "c01": {
+    "searchLoot": 0.2,
+    "restHeal": 0.2
+  },
+  "c02": {
+    "conceal": 0.2,
+    "confusionChance": 0.2
+  },
+  "c03": {
+    "heal": 0.2,
+    "incomingStatusDuration": -0.2
+  },
+  "c04": {
+    "taken": -0.2,
+    "lowHpDamage": 0.2
+  },
+  "c05": {
+    "detect": 0.2,
+    "hit": 0.2
+  },
+  "c06": {
+    "moveTime": -0.2,
+    "afterMoveHit": 0.2
+  },
+  "c07": {
+    "detect": 0.2,
+    "skillSpFlat": 1
+  },
+  "c08": {
+    "statusDuration": 0.2,
+    "restSp": 0.2
+  },
+  "c09": {
+    "conceal": 0.2
+  },
+  "c10": {
+    "timeAtk": 0.5,
+    "timeAtkEvery": 120,
+    "timeAtkCap": 3
+  },
+  "c11": {
+    "damage": 0.2,
+    "moveSp": 1
+  },
+  "c12": {
+    "statusChance": 0.2,
+    "slowChance": 0.2
+  },
+  "c13": {
+    "heal": 0.2,
+    "restHeal": 0.2
+  },
+  "c14": {
+    "prep": -0.2,
+    "cdRate": 0.2
+  },
+  "c15": {
+    "detect": 0.2,
+    "woundedDetect": 0.2
+  },
+  "c16": {
+    "craftTime": -0.2,
+    "searchLoot": 0.2
+  },
+  "c17": {
+    "poisonChance": 0.2,
+    "poisonVsDamage": 0.2
+  },
+  "c18": {
+    "moveTime": -0.2,
+    "afterMoveDamage": 0.2
+  },
+  "c19": {
+    "killHeal": 4,
+    "killSp": 5
+  },
+  "c20": {
+    "detect": 0.2,
+    "hit": 0.2,
+    "skillHit": 0.2
+  },
+  "c21": {
+    "prep": -0.2,
+    "moveTime": -0.2
+  },
+  "c22": {
+    "hit": 0.2,
+    "crit": 0.2
+  },
+  "c23": {
+    "taken": -0.2,
+    "lowDef": 4
+  },
+  "c24": {
+    "lowDef": 3,
+    "lowHpDamage": 0.2
+  },
+  "c25": {
+    "crit": 0.2,
+    "searchLoot": 0.2
+  },
+  "c26": {
+    "restHeal": 0.2,
+    "statusChance": 0.2
+  },
+  "c27": {
+    "crit": 0.2,
+    "randomSkill": true
+  },
+  "c28": {
+    "incomingStatusDuration": -0.2,
+    "taken": -0.2
+  },
+  "c29": {
+    "skillSpFlat": 1,
+    "incomingStatusDuration": -0.2
+  },
+  "c30": {
+    "detect": 0.2,
+    "profGain": 0.2
+  },
+  "c31": {
+    "damage": 0.2,
+    "defFlat": 2
+  },
+  "c32": {
+    "heal": 0.2,
+    "poisonChance": 0.2
+  },
+  "c33": {
+    "lowHpDamage": 0.2,
+    "detect": 0.2
+  },
+  "c34": {
+    "taken": -0.2,
+    "chainPerHit": 0.2,
+    "chainMax": 0.8
+  },
+  "c35": {
+    "incomingStatusDuration": -0.2,
+    "skillHit": 0.2
+  },
+  "c36": {
+    "conceal": 0.2,
+    "quietDamage": 0.2
+  },
+  "c37": {
+    "revive": 1
+  },
+  "c38": {
+    "hit": 0.2,
+    "crit": 0.2,
+    "damage": 0.2
+  },
+  "c39": {
+    "damage": 0.2,
+    "taken": 0.03
+  },
+  "c40": {
+    "fearChance": 0.2,
+    "statusDuration": 0.2
+  },
+  "c41": {
+    "incomingStatusDuration": -0.2,
+    "lowDef": 2
+  },
+  "c42": {
+    "detect": 0.2,
+    "statusChance": 0.2
+  },
+  "c43": {
+    "poisonChance": 0.2,
+    "poisonVsDamage": 0.2
+  },
+  "c44": {
+    "damage": 0.2,
+    "taken": -0.2,
+    "prep": 0.04
+  },
+  "c45": {
+    "sleepChance": 0.2,
+    "statusDuration": 0.2
+  },
+  "c46": {
+    "conceal": 0.2,
+    "confusionChance": 0.2
+  },
+  "c47": {
+    "moveTime": -0.2,
+    "moveSp": 1,
+    "afterMoveHit": 0.2
+  },
+  "c48": {
+    "bindChance": 0.2,
+    "statusDuration": 0.2
+  },
+  "c49": {
+    "killHeal": 8,
+    "heal": 0.2
+  },
+  "c50": {
+    "restSp": 0.2,
+    "incomingStatusDuration": -0.2
+  },
+  "c51": {
+    "profGain": 0.2,
+    "statusChance": 0.2
+  }
 };
 export const COMBAT_SKILL_DEFS={
   c01:{mult:1.05,cd:58,sp:12,hit:0,statuses:[['bind',.35,2.5],['slow',.55,6]]},
