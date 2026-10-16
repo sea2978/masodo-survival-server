@@ -156,7 +156,7 @@ export const PASSIVE_FX={
   },
   "c39": {
     "damage": 0.2,
-    "taken": 0.03
+    "taken": 0.2
   },
   "c40": {
     "fearChance": 0.2,
@@ -177,7 +177,7 @@ export const PASSIVE_FX={
   "c44": {
     "damage": 0.2,
     "taken": -0.2,
-    "prep": 0.04
+    "prep": 0.2
   },
   "c45": {
     "sleepChance": 0.2,
