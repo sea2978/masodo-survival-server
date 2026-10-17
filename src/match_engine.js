@@ -247,10 +247,17 @@ function wakeOnDamage(p,now=Date.now()){
   }
   return false;
 }
-function awardStatusKill(match,victim,sourceId,now){
+function recordDeathSource(match,victim,source,now,cause){
+  if(victim.deathSource)return;
+  if(typeof source==='string')source=match.players.find(x=>x.playerId===source)||(match.wilds||[]).find(x=>x.id===source);
+  victim.deathSource={kind:source?.playerId?'player':source?.id?'wild':'environment',id:source?.playerId||source?.id||null,
+    name:source?.playerName||(source?.templateId?wildTemplate(source)?.n:null)||null,cause,at:now};
+}
+function awardStatusKill(match,victim,sourceId,now,cause){
   const killer=match.players.find(x=>x.playerId===sourceId&&x!==victim&&x.alive);
   const fx=PASSIVE_FX[victim.charId]||{};
   if(fx.revive&&!victim.rev){victim.rev=true;victim.hp=Math.min(18,maxHp(victim,match,now));victim.statuses={};return {revived:true,killerId:killer?.playerId||null}}
+  recordDeathSource(match,victim,sourceId,now,cause);
   victim.alive=false;victim.encounter=null;victim.pendingAction=null;
   if(killer){
     killer.kills++;
@@ -281,7 +288,7 @@ function applyStatusTicks(match,p,now){
       const damage=Math.max(1,Math.round(maxHp(p,match,p.nextStatusTick)*.02*(poison.stacks||1)));
       p.hp-=damage;recordCombatNotice(match,poison.sourceId,p,damage,'독',p.nextStatusTick);
       wakeOnDamage(p,p.nextStatusTick);
-      if(p.hp<=0){awardStatusKill(match,p,poison.sourceId,p.nextStatusTick);break}
+      if(p.hp<=0){awardStatusKill(match,p,poison.sourceId,p.nextStatusTick,"독");break}
     }
   }
 }
@@ -351,7 +358,7 @@ function onTargetDetected(seeker,target,match,now){
 function triggerBleedAction(match,p,now){
   const s=status(p,"bleed",now);if(!s||!p.alive)return 0;
   const d=2*(s.stacks||1);p.hp-=d;recordCombatNotice(match,s.sourceId,p,d,'출혈',now);wakeOnDamage(p,now);
-  if(p.hp<=0)awardStatusKill(match,p,s.sourceId,now);
+  if(p.hp<=0)awardStatusKill(match,p,s.sourceId,now,"출혈");
   return d;
 }
 function attackContext(match,p,target,skill,now){
@@ -415,15 +422,17 @@ function createDeathCorpse(match,p,now){
   const corpse={id:"corpse_"+p.playerId+"_"+now,name:p.playerName,region:p.region,eq:[...p.eq,...reservedEquipment],mat:Object.fromEntries(Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isUniqueMaterial(id))),con:{...p.con},expiresAt:now+75000};
   match.corpses.push(corpse);p.eq=[];p.mat={};p.con={};return corpse;
 }
-function environmentDeath(match,p,now,forced=false){
+function environmentDeath(match,p,now,forced=false,source=null,cause="환경 피해"){
   if(!p.alive)return false;
   const fx=PASSIVE_FX[p.charId]||{};
   if(!forced&&fx.revive&&!p.rev){p.rev=true;p.hp=Math.min(18,maxHp(p,match,now));p.statuses={};return false}
+  recordDeathSource(match,p,source,now,cause);
   p.alive=false;p.encounter=null;p.pendingAction=null;createDeathCorpse(match,p,now);return true;
 }
 function killPlayer(match,a,b,now){
   const fx=PASSIVE_FX[b.charId]||{};
   if(fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));b.statuses={};return {revived:true}}
+  recordDeathSource(match,b,a,now,"전투");
   b.alive=false;b.encounter=null;b.pendingAction=null;a.kills++;
   const linked=linkedSpecialForChar(b.charId);
   if(linked&&specialAvailable(match,linked)&&a.alive)grantSpecial(match,a,linked);
@@ -452,7 +461,7 @@ function wildCounter(match,p,w,now){
   else if(t.skill==="phantom_fear"&&Math.random()<.25)applyStatus(p,"fear",1,5,w.id,now,null,match);
   else if(t.skill==="pilfer"&&Math.random()<.20)p.sp=Math.max(0,p.sp-5);
   else if(t.skill==="mana_bite"&&Math.random()<.20)p.sp=Math.max(0,p.sp-8);
-  if(p.hp<=0)environmentDeath(match,p,now);
+  if(p.hp<=0)environmentDeath(match,p,now,false,w,"반격");
   return d;
 }
 function clearOneNegativeStatus(p,now=Date.now()){
@@ -463,7 +472,7 @@ function applySkillSelfEffects(match,p,sd,damageDealt=0,killed=false,now=Date.no
   const fx=combinedFx(p,match,now);
   if(sd.heal)p.hp=clamp(p.hp+sd.heal,0,maxHp(p,match,now));
   if(sd.restoreSp)recoverSp(p,sd.restoreSp,match,now);
-  if(sd.selfDamage){p.hp-=sd.selfDamage;if(p.hp<=0)environmentDeath(match,p,now)}
+  if(sd.selfDamage){p.hp-=sd.selfDamage;if(p.hp<=0)environmentDeath(match,p,now,false,null,"스킬 반동")}
   if(sd.freeMove)p.nextMoveFree=true;
   if(sd.lifesteal&&damageDealt>0)p.hp=clamp(p.hp+damageDealt*sd.lifesteal,0,maxHp(p,match,now));
   if(sd.killHeal&&killed)p.hp=clamp(p.hp+sd.killHeal,0,maxHp(p,match,now));
@@ -671,7 +680,7 @@ function searchResult(match,p,now){
 function useConsumable(match,p,id,now){
   const it=item(id);if(!it||it.t!=="c"||owned(p,id)<=0)return {ok:false,error:"item_missing"};
   if(id==="carbonara_mint_fish"&&p.charId!=="c49"){
-    consumeItem(p,id,1);p.hp=0;environmentDeath(match,p,now,true);
+    consumeItem(p,id,1);p.hp=0;environmentDeath(match,p,now,true,null,it.n+" 섭취");
     return {ok:true,itemId:id,itemName:it.n,special:"아바돈 이외의 캐릭터 섭취 시 즉사",dead:true};
   }
   const inCombat=!!p.encounter,combat=inCombat?(it.combatEff??.75):1,repeat=foodRepeatMultiplier(p,id,it,now);
@@ -695,7 +704,7 @@ function useConsumable(match,p,id,now){
   if(id==="mint_choco_fish"){
     if(p.charId==="c49")p.satiety=100;
     if(p.charId==="c13"){
-      consumeItem(p,id,1);environmentDeath(match,p,now);
+      consumeItem(p,id,1);environmentDeath(match,p,now,false,null,it.n+" 섭취");
       return {ok:true,itemId:id,itemName:it.n,special:"하쿠 특수 반응",dead:!p.alive};
     }
   }
@@ -725,7 +734,7 @@ function charAction(match,p,now){
 
   if(d.heal)p.hp=clamp(p.hp+d.heal,0,maxHp(p,match,now));
   if(d.sp)recoverSp(p,d.sp,match,now);
-  if(d.selfDamage){p.hp-=d.selfDamage;if(p.hp<=0){environmentDeath(match,p,now);return {ok:true,selfDeath:!p.alive}}}
+  if(d.selfDamage){p.hp-=d.selfDamage;if(p.hp<=0){environmentDeath(match,p,now,false,null,"스킬 반동");return {ok:true,selfDeath:!p.alive}}}
   if(d.tempFx)addTemp(p,d.tempFx,d.duration||20,now);
   if(d.nextDetect)p.nextDetectBonus=(p.nextDetectBonus||0)+d.nextDetect;
   if(d.nextSearch)p.nextSearchLootBonus=(p.nextSearchLootBonus||0)+d.nextSearch;
@@ -1210,7 +1219,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   for(const m of text.matchAll(/SP\s*([+-])\s*(\d+)/g)){
     const n=+m[2]*(m[1]==="-"?-1:1);p.sp=clamp(p.sp+n,0,p.maxSp);summary.push("SP "+(n>=0?"+":"")+n);
   }
-  if(p.hp<=0)environmentDeath(match,p,now);
+  if(p.hp<=0)environmentDeath(match,p,now,false,null,e.name+" 이벤트");
 
   if(/독성 상태|중독/.test(text)){
     const pm=text.match(/(\d+)%[^/]*(?:독성 상태|중독)/);

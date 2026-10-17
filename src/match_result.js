@@ -18,5 +18,5 @@ export function playerResult(match,p,now=Date.now()){
   const end=p.alive?(match.endedAt||now):(p.diedAt||now);
   return {outcome:won?"victory":p.alive?"finished":"defeat",rank:won?1:(p.finishRank||null),
     total:match.players.length,kills:p.kills||0,survivalSeconds:Math.max(0,Math.floor((end-match.startedAt)/1000)),
-    region:p.region,endedAt:end};
+    region:p.region,endedAt:end,...(p.deathSource?{deathSource:p.deathSource}:{})};
 }
