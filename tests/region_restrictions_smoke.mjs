@@ -26,8 +26,8 @@ try{
  // Travel queued immediately before a lock cannot enter the newly locked destination.
  const {m:travel}=fresh(),p=travel.players[0];p.region='city';const a=beginServerAction(travel,p,'move',{to:'estate'},t+179999);assert(a.ok);const sp=p.sp;
  assert.equal(completeAction(travel,p,a.action.completeAt+1),null);assert.equal(p.region,'city');assert.equal(p.sp,sp);assert.equal(p.pendingAction,null);
- // Clock offsets and finished games retain their intended timing.
- const {m:offset}=fresh();offset.timeOffsetMs=60000;assert.equal(nextRegionLockAt(offset),t+120000);assert(updateRegionRestrictions(offset,t+120000));offset.phase='finished';const rule=JSON.stringify(offset.regionRestrictions);assert.equal(updateRegionRestrictions(offset,t+900000),false);assert.equal(JSON.stringify(offset.regionRestrictions),rule);
+ // Legacy virtual time offsets must no longer accelerate the clock or locks.
+ const {m:offset}=fresh();offset.timeOffsetMs=60000;assert.equal(nextRegionLockAt(offset),t+180000);assert.equal(updateRegionRestrictions(offset,t+120000),false);assert(updateRegionRestrictions(offset,t+180000));offset.phase='finished';const rule=JSON.stringify(offset.regionRestrictions);assert.equal(updateRegionRestrictions(offset,t+900000),false);assert.equal(JSON.stringify(offset.regionRestrictions),rule);
  // A human-only idle room still schedules a boundary alarm and broadcasts/persists it.
  const h=createHarness(Room,{humans:2,ai:0,now:t});const clock=Date.now;Date.now=()=>t;
  try{await h.room.scheduleNextAlarm(h.match);assert.equal(await h.ctx.storage.getAlarm(),t+180000);
@@ -36,4 +36,4 @@ try{
   Date.now=()=>t+780000;await h.room.alarm();const final=await h.room.getMatch();assert(final.regionRestrictions.final);assert(final.players.every(p=>p.region==='city'));assert.equal(await h.ctx.storage.getAlarm(),null);
  }finally{Date.now=clock}
 }finally{Math.random=random}
-console.log('PASS: 3/6/9/12-minute distinct lock rotation, protected passages, evacuation/cancellation without item loss, 13-minute city finale, AI, JSON recovery, clock offsets, idle-room alarms and network snapshots');
+console.log('PASS: 3/6/9/12-minute distinct lock rotation, protected passages, evacuation/cancellation without item loss, 13-minute city finale, AI, JSON recovery, ignored legacy offsets, idle-room alarms and network snapshots');

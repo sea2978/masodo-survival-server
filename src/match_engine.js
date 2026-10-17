@@ -8,7 +8,7 @@ import { PASSIVE_FX, COMBAT_SKILL_DEFS, ACTION_SKILL_DEFS, NAMED_GEAR_FX } from 
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
-const nowSec=(match,now=Date.now())=>Math.max(0,(now-match.startedAt+(match.timeOffsetMs||0))/1000);
+const nowSec=(match,now=Date.now())=>Math.max(0,(now-match.startedAt)/1000);
 const item=id=>ITEMS[id]||null;
 const STATUS_DEFS={
   poison:{duration:8,max:3},bleed:{duration:10,max:3},slow:{duration:6,max:2},bind:{duration:2.5,max:1},

@@ -1,15 +1,15 @@
 import {REGIONS} from './game_data.js';
 export const SAFE_PASSAGES=['city','mgmt_lobby','evil_reception'];
 export const LOCK_INTERVAL=180,FINAL_CITY_TIME=780;
-const elapsed=(m,now)=>Math.max(0,(now-m.startedAt+(m.timeOffsetMs||0))/1000);
+export const matchElapsedSeconds=(m,now)=>Math.max(0,(now-m.startedAt)/1000);
 export function isRegionLocked(match,id){return (match.regionRestrictions?.locked||[]).includes(id)}
 export function nextRegionLockAt(match){
  const next=match.regionRestrictions?match.regionRestrictions.nextAt:LOCK_INTERVAL;
- return next===null?null:match.startedAt-(match.timeOffsetMs||0)+next*1000;
+ return next===null?null:match.startedAt+next*1000;
 }
 export function updateRegionRestrictions(match,now=Date.now()){
  if(match.phase==='finished')return false;
- const seconds=elapsed(match,now),final=seconds>=FINAL_CITY_TIME,round=final?5:Math.floor(seconds/LOCK_INTERVAL);
+ const seconds=matchElapsedSeconds(match,now),final=seconds>=FINAL_CITY_TIME,round=final?5:Math.floor(seconds/LOCK_INTERVAL);
  const before=match.regionRestrictions;
  if(before?.round===round)return false;
  const candidates=REGIONS.map(r=>r.id).filter(id=>!SAFE_PASSAGES.includes(id)&&!(before?.locked||[]).includes(id));

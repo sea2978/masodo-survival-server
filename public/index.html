@@ -1021,7 +1021,14 @@ function paintMatchClock(){
 }
 function syncMatchClock(m){
   if(matchClockFrame!==null)cancelAnimationFrame(matchClockFrame);
-  matchClockAnchor={elapsed:m.elapsed||0,at:performance.now(),running:m.phase==='playing'};paintMatchClock();
+  const previous=matchClockAnchor;
+  const same=previous?.matchId===m.matchId&&previous.startedAt===m.startedAt&&previous.running===(m.phase==='playing');
+  // Repainting a stored snapshot must not restart the clock from its old sample.
+  if(!same||!Number.isFinite(m.serverNow)||m.serverNow>previous.serverNow){
+    const elapsed=m.phase==='playing'&&Number.isFinite(m.serverNow)&&Number.isFinite(m.startedAt)?Math.max(0,(m.serverNow-m.startedAt)/1000):(m.elapsed||0);
+    matchClockAnchor={matchId:m.matchId,startedAt:m.startedAt,serverNow:m.serverNow,elapsed,at:performance.now(),running:m.phase==='playing'};
+  }
+  paintMatchClock();
 }
 const skillCooldowns={skill:null,charAction:null};let skillCooldownFrame=null;
 function clearSkillCooldowns(){
@@ -1138,7 +1145,7 @@ function renderOtherSurvivors(m){
  $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(characterName(o.charId))} / 처치 ${o.kills??0}</div>`).join('');
 }
 function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderActionLoading(m);renderResult(m);renderPickup(m);
-$('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
+$('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
 $('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
 $('#exploreControls').classList.toggle('hidden',inEncounter);$('#encounterControls').classList.toggle('hidden',!inEncounter);$('#actionSkillName').textContent=charInfo(p.charId)?.action||'추가 행동';$('#combatSkillName').textContent=charInfo(p.charId)?.combat||'전투 스킬';

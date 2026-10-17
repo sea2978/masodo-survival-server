@@ -4,8 +4,10 @@ export function rememberEnemy(player,contact,at){
  const book=player.enemyContacts??={};
  const rows=book[player.region]??=[];
  const index=rows.findIndex(row=>row.id===contact.id);
- if(index>=0)rows.splice(index,1);
- rows.unshift({...contact,at,region:player.region});
+ if(index>=0){
+  if(contact.source==='incoming')return;
+  rows[index]={...contact,at,region:player.region};
+ }else rows.unshift({...contact,at,region:player.region});
  book[player.region]=rows.slice(0,32);
 }
 export function rememberIncoming(player,source,name,at){
