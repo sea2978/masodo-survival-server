@@ -315,6 +315,11 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 #itemCodexPanel{width:min(1120px,96vw)}.item-codex-shop{display:grid;grid-template-columns:120px minmax(180px,1fr) minmax(260px,1.1fr);gap:10px;height:min(65dvh,620px);min-height:200px}.item-codex-shop .craft-sidebar{overflow:auto}.item-codex-grid{overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));align-content:start;gap:8px}.item-codex-grid button{min-height:80px;text-align:left;padding:10px}.item-codex-grid small{display:block;margin-top:8px;color:#aebfd0}.item-codex-detail{overflow:auto;padding:12px;border:1px solid #425872;border-radius:8px;line-height:1.6}.item-codex-detail h3,.item-codex-detail h4{margin:4px 0 10px}.item-codex-detail p{font-size:12px}.codex-recipe-tree,.codex-recipe-tree ul{list-style:none;padding-left:12px;margin:6px 0;border-left:1px solid #6586a6}.codex-recipe-tree button,.codex-upgrade{padding:6px 9px;min-height:34px;margin:3px 0;font-size:12px;text-align:left;max-width:100%;overflow-wrap:anywhere}.codex-upgrade{display:block;width:100%}
 @media(max-width:700px){.item-codex-shop{grid-template-columns:85px minmax(0,1fr);height:auto}.item-codex-grid{max-height:35dvh;grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}.item-codex-shop .craft-sidebar{max-height:35dvh}.item-codex-detail{grid-column:1/-1;max-height:40dvh}}
 
+
+.enemy-contact-hud{position:absolute;z-index:9;top:80px;left:50%;transform:translateX(-50%);width:min(430px,max(180px,calc(100vw - var(--left-w,300px) - var(--right-w,300px) - 40px)));max-height:26dvh;overflow:auto;display:grid;gap:6px;scrollbar-width:thin}.enemy-contact-hud[hidden]{display:none}.enemy-contact{background:#0b1622ed;border:1px solid #61748a;border-radius:7px;padding:7px 10px;color:#e4ecf5;box-shadow:0 4px 12px #0007}.enemy-contact>div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:13px}.enemy-contact b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.enemy-contact span{white-space:nowrap}.enemy-contact-bar{height:5px;background:#3a242b;border-radius:4px;overflow:hidden;margin:5px 0 2px}.enemy-contact-fill{display:block;height:100%;background:#d66d78}.enemy-contact-bar.unknown{background:repeating-linear-gradient(135deg,#3b4450 0 5px,#26303b 5px 10px)}.enemy-contact small{font-size:9px;color:#acbac9}
+@media(pointer:fine){#toastStack.top-toast-stack{left:12px;right:auto;top:78px;transform:none;width:min(300px,25vw)}}
+@media(pointer:coarse) and (max-width:1400px) and (orientation:landscape){.enemy-contact-hud{top:53px;width:min(340px,calc(100vw - var(--mobile-left) - var(--mobile-right) - 28px));max-height:22dvh;gap:4px}.enemy-contact{padding:4px 7px}.enemy-contact>div:first-child{font-size:10px}.enemy-contact small{font-size:8px}}
+
 </style></head><body>
 <div class="wrap">
   <section id="loginScreen">
@@ -366,6 +371,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       </div>
     </header>
 
+    <section id="enemyContactHud" class="enemy-contact-hud" aria-label="이 지역에서 확인한 적" hidden></section>
     <div class="visual-stage" aria-hidden="true">
       <div class="standing-slot enemy-standing-slot">
         <canvas id="enemyStanding" class="standing-sprite"></canvas>
@@ -1389,10 +1395,20 @@ function renderMoves(m,p,disabled){
  $('#moves').innerHTML=(m.adjacency?.[p.region]||[]).map(id=>`<button data-move="${id}" ${(disabled||regionLocked(m,id))?'disabled':''}>${rname(id)}${regionLocked(m,id)?' · 잠금':''}</button>`).join('');
  $('#moves').querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{if(regionLocked(M,b.dataset.move))return;net.move(b.dataset.move);$('#movePanel').close()});
 }
+function renderEnemyContacts(m){
+ const root=$('#enemyContactHud'),rows=(m.self?.enemyContacts||[]).filter(row=>row.region===m.self.region);
+ root.hidden=rows.length===0;
+ root.innerHTML=rows.map(row=>{
+  const known=row.source==='encounter'&&Number.isFinite(row.hp)&&Number.isFinite(row.maxHp)&&row.maxHp>0;
+  const hp=known?(row.alive===false?'사망':Math.ceil(row.hp)+' / '+Math.ceil(row.maxHp)):'?';
+  const bar=known?'<span class="enemy-contact-fill" style="width:'+Math.max(0,Math.min(100,row.hp/row.maxHp*100))+'%"></span>':'';
+  return '<article class="enemy-contact"><div><b>'+escapeRoomText(row.name)+'</b><span>HP '+hp+'</span></div><div class="enemy-contact-bar'+(known?'':' unknown')+'">'+bar+'</div><small>'+(known?'마지막 조우 · 행동 결과':'피격 확인 · 체력 미확인')+'</small></article>';
+ }).join('');
+}
 function renderOtherSurvivors(m){
  $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(characterName(o.charId))} / 처치 ${o.kills??0}</div>`).join('');
 }
-function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderActionLoading(m);renderResult(m);renderPickup(m);
+function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderActionLoading(m);renderResult(m);renderPickup(m);
 $('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
 $('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
