@@ -1266,8 +1266,9 @@ function renderItemCodex(reset=false){
  const items=net.catalog?.items&&Object.keys(net.catalog.items).length?net.catalog.items:D.items;
  const query=$('#itemCodexSearch').value.trim().toLowerCase(),root=$('#itemCodexList');
  const scroll=reset?0:(root.querySelector?.('.item-codex-grid')?.scrollTop||0);
+ const categoryScroll=root.querySelector?.('.craft-sidebar')?.scrollTop||0;
  const rows=Object.entries(items).filter(([id,it])=>craftCategoryMatch(id,it,itemCodexCategory)&&(id+' '+it.n+' '+(it.tier||'')+' '+(it.effectText||'')).toLowerCase().includes(query));
- if(!rows.some(([id])=>id===itemCodexSelected))itemCodexSelected=rows[0]?.[0]||null;
+ if(!items[itemCodexSelected]||(reset&&!rows.some(([id])=>id===itemCodexSelected)))itemCodexSelected=rows[0]?.[0]||null;
  const categories=[['all','전체'],['weapon','무기'],['armor','장비'],['consumable','소모품'],['material','재료']];
  const side='<nav class="craft-sidebar" aria-label="아이템 도감 카테고리">'+categories.map(([id,label])=>'<button class="craft-cat'+(itemCodexCategory===id?' active':'')+'" data-codex-category="'+id+'">'+label+'</button>').join('')+'</nav>';
  const grid='<div class="item-codex-grid">'+(rows.map(([id,it])=>'<button class="craft-item-card'+(itemCodexSelected===id?' selected':'')+'" data-codex-select="'+escapeRoomText(id)+'"><b>'+escapeRoomText(it.n)+'</b><small>'+escapeRoomText(it.tier||'일반')+'</small></button>').join('')||'<p class="muted">검색 결과가 없습니다.</p>')+'</div>';
@@ -1278,8 +1279,9 @@ function renderItemCodex(reset=false){
  }
  root.innerHTML=side+grid+'<section class="item-codex-detail">'+detail+'</section>';
  root.querySelectorAll('[data-codex-category]').forEach(b=>b.onclick=()=>{itemCodexCategory=b.dataset.codexCategory;renderItemCodex(true)});
- root.querySelectorAll('[data-codex-select]').forEach(b=>b.onclick=()=>{itemCodexSelected=b.dataset.codexSelect;itemCodexCategory='all';$('#itemCodexSearch').value='';renderItemCodex(true)});
+ root.querySelectorAll('[data-codex-select]').forEach(b=>b.onclick=()=>{itemCodexSelected=b.dataset.codexSelect;renderItemCodex()});
  const newGrid=root.querySelector?.('.item-codex-grid');if(newGrid)newGrid.scrollTop=scroll;
+ const newSidebar=root.querySelector?.('.craft-sidebar');if(newSidebar)newSidebar.scrollTop=categoryScroll;
 }
 function renderCharacterCodex(){
  const query=$('#characterCodexSearch').value.trim().toLowerCase();
