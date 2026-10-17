@@ -337,6 +337,14 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
  #gameScreen .player-name-row{font-size:11px}#gameScreen .player-name-row span{font-size:9px}
  #gameScreen .vital-bars{gap:4px;margin-top:5px}#gameScreen .vital-bar{height:21px;font-size:8px;padding:0 2px;gap:1px}
 }
+
+/* Transparent player silhouette with bars and combat stats only. */
+#gameScreen .player-hud{position:absolute;z-index:6;padding:0;background:transparent;border:0;box-shadow:none;backdrop-filter:none;overflow:visible}
+#gameScreen .player-profile-block{margin:0;align-items:end}
+#gameScreen .profile-frame{background:transparent;border:0;box-shadow:none;border-radius:0}
+#gameScreen .vital-bars{margin-top:0}
+#gameScreen .profile-copy .combat-stat-row{display:flex;flex-wrap:wrap;gap:4px 10px;padding:6px 0 0;text-shadow:0 1px 3px #000;color:#e8eef5}
+#gameScreen .profile-copy .combat-stat-row span{white-space:nowrap}
 </style></head><body>
 <div class="wrap">
   <section id="loginScreen">
@@ -396,26 +404,21 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       </div>
     </div>
 
-    <aside class="player-hud glass-panel">
+    <aside class="player-hud" aria-label="플레이어 상태">
       <div class="player-profile-block">
         <div class="profile-frame">
           <canvas id="playerProfile" class="profile-sprite"></canvas>
           <div id="playerProfileFallback" class="profile-fallback">PLAYER</div>
         </div>
         <div class="profile-copy">
-          <div class="hud-kicker">PLAYER</div>
-          <div class="player-name-row"><b id="pname">-</b><span id="pchar">-</span></div>
           <div class="vital-bars">
             <div id="hpMeter" class="vital-bar hp-bar" role="progressbar" aria-label="체력" aria-valuemin="0"><i id="hpFill"></i><span>HP</span><b id="hp">-</b></div>
             <div id="spMeter" class="vital-bar sp-bar" role="progressbar" aria-label="스태미나" aria-valuemin="0"><i id="spFill"></i><span>SP</span><b id="sp">-</b></div>
             <div id="satMeter" class="vital-bar sat-bar" role="progressbar" aria-label="포만도" aria-valuemin="0"><i id="satFill"></i><span>포만도</span><b id="sat">-</b></div>
           </div>
+          <div class="combat-stat-row"><span>공격력 <b id="atk">-</b></span><span>방어력 <b id="def">-</b></span></div>
         </div>
       </div>
-      <div class="player-region" id="region">-</div>
-      <div class="combat-stat-row"><span>ATK <b id="atk">-</b></span><span>DEF <b id="def">-</b></span></div>
-      <div class="cooldown-row"><span>전투 CD <b id="cdc">0</b></span><span>행동 CD <b id="cda">0</b></span></div>
-      <div id="pending" class="pending-line">행동 없음</div>
 
     </aside>
 
@@ -456,7 +459,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
     <section class="intel-hud glass-panel log-panel" hidden>
       <div class="intel-tabs"><b>전투/행동 로그</b></div>
-      <div id="gameLog" class="scroll game-log"></div>
+
     </section>
 
     <dialog id="infoPanel" class="game-popup"><div class="popup-head"><h2>정보</h2><button data-close-panel>닫기</button></div><button id="refresh">상태 갱신</button>      <details>
@@ -1447,8 +1450,7 @@ function renderOtherSurvivors(m){
  $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(characterName(o.charId))} / 처치 ${o.kills??0}</div>`).join('');
 }
 function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderVitalBars(p);renderActionLoading(m);renderResult(m);renderPickup(m);
-$('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
-$('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
+$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
 $('#exploreControls').classList.toggle('hidden',inEncounter);$('#encounterControls').classList.toggle('hidden',!inEncounter);$('#actionSkillName').textContent=charInfo(p.charId)?.action||'추가 행동';$('#combatSkillName').textContent=charInfo(p.charId)?.combat||'전투 스킬';
 $('#search').disabled=dis||inEncounter||inEvent;
