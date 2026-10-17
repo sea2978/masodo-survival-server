@@ -322,9 +322,9 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
 
 /* Player bust and adjacent vital bars. */
-#gameScreen .player-profile-block{grid-template-columns:100px minmax(0,1fr);gap:10px;align-items:center}
-#gameScreen .profile-frame{width:100px;height:136px;border-radius:5px}
-#gameScreen .profile-sprite{object-fit:cover;object-position:center top}
+#gameScreen .player-profile-block{grid-template-columns:var(--bust-width) minmax(0,1fr);gap:10px;align-items:center}
+#gameScreen .profile-frame{width:var(--bust-width);height:auto;aspect-ratio:700 / 563;border-radius:5px}
+#gameScreen .profile-sprite{object-fit:contain;object-position:center bottom}
 #gameScreen .player-name-row{display:block;font-size:16px}
 #gameScreen .player-name-row b,#gameScreen .player-name-row span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vital-bars{display:grid;gap:7px;margin-top:8px;min-width:0}
@@ -332,19 +332,22 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 .vital-bar i{position:absolute;z-index:-1;inset:0 auto 0 0;width:0;transition:width .2s linear}
 .vital-bar b,.vital-bar span{white-space:nowrap}.hp-bar i{background:#a43c4b}.sp-bar i{background:#316caa}.sat-bar i{background:#8c702e}
 @media(pointer:coarse) and (max-width:1400px){
- #gameScreen .player-profile-block{grid-template-columns:48px minmax(0,1fr);gap:5px}
- #gameScreen .profile-frame{width:48px;height:112px}
+ #gameScreen .player-profile-block{grid-template-columns:var(--bust-width) minmax(0,1fr);gap:5px}
+ #gameScreen .profile-frame{width:var(--bust-width);height:auto}
  #gameScreen .player-name-row{font-size:11px}#gameScreen .player-name-row span{font-size:9px}
  #gameScreen .vital-bars{gap:4px;margin-top:5px}#gameScreen .vital-bar{height:21px;font-size:8px;padding:0 2px;gap:1px}
 }
 
 /* Transparent player silhouette with bars and combat stats only. */
-#gameScreen .player-hud{position:absolute;z-index:6;padding:0;background:transparent;border:0;box-shadow:none;backdrop-filter:none;overflow:visible}
+#gameScreen .player-hud{--bust-width:200px;width:calc(var(--left-w) + 100px);position:absolute;z-index:6;padding:0;background:transparent;border:0;box-shadow:none;backdrop-filter:none;overflow:visible}
 #gameScreen .player-profile-block{margin:0;align-items:end}
 #gameScreen .profile-frame{background:transparent;border:0;box-shadow:none;border-radius:0}
 #gameScreen .vital-bars{margin-top:0}
 #gameScreen .profile-copy .combat-stat-row{display:flex;flex-wrap:wrap;gap:4px 10px;padding:6px 0 0;text-shadow:0 1px 3px #000;color:#e8eef5}
 #gameScreen .profile-copy .combat-stat-row span{white-space:nowrap}
+@media(pointer:coarse) and (max-width:1400px){
+ #gameScreen .player-hud{--bust-width:clamp(144px,22vw,176px);width:calc(var(--mobile-left) + var(--bust-width) - 48px)}
+}
 </style></head><body>
 <div class="wrap">
   <section id="loginScreen">
