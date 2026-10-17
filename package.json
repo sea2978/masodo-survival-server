@@ -33,7 +33,8 @@
     "test:inventory": "node tests/inventory_management_smoke.mjs && node tests/inventory_ui_smoke.mjs",
     "test:room-settings": "node tests/room_settings_smoke.mjs",
     "test:info-refresh": "node tests/info_refresh_smoke.mjs",
-    "test:audit": "npm run test:info-refresh && npm run test:room-settings && npm run test:craft-equipment && npm run test:inventory && npm run test:network && npm run test:engine && npm run test:catalog && npm run test:full-audit && npm run test:phase2p-runtime && npm run test:all-combat && npm run test:all-actions && npm run test:all-consumables && npm run test:all-events && npm run test:static-audit && npm run test:craft-preflight && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:phase2o"
+    "test:regions": "node tests/region_restrictions_smoke.mjs && node tests/region_restrictions_ui.mjs",
+    "test:audit": "npm run test:regions && npm run test:info-refresh && npm run test:room-settings && npm run test:craft-equipment && npm run test:inventory && npm run test:network && npm run test:engine && npm run test:catalog && npm run test:full-audit && npm run test:phase2p-runtime && npm run test:all-combat && npm run test:all-actions && npm run test:all-consumables && npm run test:all-events && npm run test:static-audit && npm run test:craft-preflight && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:phase2o"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

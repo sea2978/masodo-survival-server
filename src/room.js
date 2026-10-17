@@ -1,3 +1,4 @@
+import {updateRegionRestrictions,nextRegionLockAt} from "./region_restrictions.js";
 import {normalizeRoomSettings,roomSettings,humanCapacity,plannedAICount} from "./room_settings.js";
 import {inventoryOperation} from "./inventory_ops.js";
 import {STATE_DELTA_FEATURE,stateDiff,substantivePatch,compactSnapshot} from "./state_transport.js";
@@ -107,7 +108,7 @@ export class GameRoom extends DurableObject{
       const w=match.wilds.find(x=>x.id===self.encounter.wildId);if(!w?.alive||w.region!==self.region)return null;
       const t=(match.wildTemplates||[]).find(x=>x.id===w.templateId);return{kind:"wild",wildId:w.id,name:t?.n||w.templateId,hp:w.hp,maxHp:t?.hp||w.hp,skillText:t?.skillText||""}
     })():null;
-    return{combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.elapsed||0,self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
+    return{regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.elapsed||0,self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
       pendingEvent:self?.pendingEvent?(()=>{
         const e=match.eventCatalog.find(e=>e.id===self.pendingEvent);if(!e)return null;
         return {...e,choices:(e.choices||[]).map((choice,index)=>({...choice,...eventChoiceAvailability(e,self,index)}))}
@@ -139,6 +140,7 @@ export class GameRoom extends DurableObject{
     const now=Date.now(),times=[];
     if(this.joinedSessions().length>0&&match){
       times.push(...match.players.map(p=>p.pendingAction?.completeAt).filter(Number.isFinite));
+      if(match.phase==="playing"){const lockAt=nextRegionLockAt(match);if(lockAt!==null)times.push(lockAt)}
       if(match.phase==="playing"&&match.players.some(p=>p.isAI&&p.alive)){
         if(!Number.isFinite(match.nextAiTickAt)||match.nextAiTickAt<now)match.nextAiTickAt=now+1000;
         times.push(match.nextAiTickAt);
@@ -154,7 +156,7 @@ export class GameRoom extends DurableObject{
   async completeDueActions(match,now=Date.now(),{defer=false}={}){
     const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects]),match.noises]);
     const before=passiveView();
-    let changed=false;
+    let changed=updateRegionRestrictions(match,now);
     for(const p of match.players){
       if(!p.pendingAction||p.pendingAction.completeAt>now)continue;
       const result=completeAction(match,p,now);changed=true;
@@ -288,7 +290,7 @@ export class GameRoom extends DurableObject{
     }
     if(msg.type==="event_choice"){
       const m=await this.getMatch(),p=this.matchPlayerForSession(m,session.sessionId);if(!m||!p){send(ws,"error",{error:"match_not_playing"});return}
-      const r=resolveEventChoice(m,p,Number(msg.index),Date.now());if(!r.ok){send(ws,"error",{error:r.error,reason:r.reason||""});return}await this.saveMatch(m);send(ws,"event_result",{result:r});this.broadcastMatchState(m);return
+      const changed=await this.completeDueActions(m,Date.now(),{defer:true});const r=resolveEventChoice(m,p,Number(msg.index),Date.now());if(!r.ok){if(changed){await this.saveMatch(m);this.broadcastMatchState(m)}await this.scheduleNextAlarm(m,meta);send(ws,"error",{error:r.error,reason:r.reason||""});return}await this.saveMatch(m);await this.scheduleNextAlarm(m,meta);send(ws,"event_result",{result:r});this.broadcastMatchState(m);return
     }
     send(ws,"error",{error:"unknown_message_type",received:msg.type})
   }

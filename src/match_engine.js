@@ -1,3 +1,4 @@
+import {updateRegionRestrictions,isRegionLocked} from "./region_restrictions.js";
 import {uniqueMaterialExists} from "./unique_materials.js";
 import {equipmentSalvage,offerSearchConsumable} from "./inventory_ops.js";
 import { CHARACTER_BY_ID, ADJACENCY, movementProfile } from "./game_data.js";
@@ -282,6 +283,7 @@ function applyStatusTicks(match,p,now){
 }
 export function updatePassiveTime(match,now=Date.now()){
   if(match.phase==="finished")return;
+  updateRegionRestrictions(match,now);
   for(const p of match.players){
     if(!p.alive)continue;
     processDelayedEffects(p,now);cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
@@ -291,6 +293,7 @@ export function updatePassiveTime(match,now=Date.now()){
   match.elapsed=Math.floor(nowSec(match,now));
 }
 export function initWorld(match){
+  match.regionRestrictions={round:0,locked:[],final:false,nextAt:180};
   let seq=1;match.wilds=[];
   for(const t of WILD_TEMPLATES)for(const region of t.regions)match.wilds.push({id:"w"+seq++,templateId:t.id,region,hp:t.hp,alive:true,guardReady:t.skill==="guard"});
   match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.regionTraps={};match.noises=[];match.battleLog=[];match.craftStats={};match.uniqueSpecials=initUniqueSpecials();
@@ -897,7 +900,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(p.pendingPickup)return {ok:false,error:"pickup_choice_required"};
   if(p.pendingEvent)return {ok:false,error:"event_choice_required"};
   if(type!=="attack"&&type!=="skill"&&type!=="flee"&&p.encounter&&type!=="use_item")return {ok:false,error:"encounter_in_progress"};
-  if(type==="move"){if(status(p,"bind",now))return {ok:false,error:"bound"};if(!ADJACENCY[p.region]?.includes(payload.to))return {ok:false,error:"invalid_move"};const mv=movementProfile(p.region,payload.to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp<cost)return {ok:false,error:"not_enough_sp"};return {ok:true,meta:{...mv,spCost:cost}}}
+  if(type==="move"){if(isRegionLocked(match,payload.to))return {ok:false,error:"region_locked"};if(status(p,"bind",now))return {ok:false,error:"bound"};if(!ADJACENCY[p.region]?.includes(payload.to))return {ok:false,error:"invalid_move"};const mv=movementProfile(p.region,payload.to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp<cost)return {ok:false,error:"not_enough_sp"};return {ok:true,meta:{...mv,spCost:cost}}}
   if(type==="search"&&p.sp<3)return {ok:false,error:"not_enough_sp"};
   if(type==="craft"){if(!canCraft(p,payload.id))return {ok:false,error:"cannot_craft"};if(!canReceiveCraftOutput(p,payload.id,payload))return {ok:false,error:item(payload.id)?.t==="e"?"equipment_full":"inventory_full"}}
   if(type==="use_item"&&owned(p,payload.id)<=0)return {ok:false,error:"item_missing"};
@@ -940,6 +943,7 @@ export function beginServerAction(match,p,type,payload={},now=Date.now()){
   return {ok:true,action:p.pendingAction};
 }
 export function completeAction(match,p,now=Date.now()){
+  updateRegionRestrictions(match,now);
   const a=p.pendingAction;if(!a||a.completeAt>now)return null;
   if(!p.alive){p.pendingAction=null;return {ok:false,error:"player_not_active",type:a.type}}
   p.pendingAction=null;
@@ -1167,6 +1171,7 @@ function advanceEventTime(match,sec,now=Date.now()){
   updatePassiveTime(match,now);
 }
 export function resolveEventChoice(match,p,index,now=Date.now()){
+  updateRegionRestrictions(match,now);
   const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(!e)return {ok:false,error:"no_event"};
   const choice=e.choices?.[index];if(!choice)return {ok:false,error:"invalid_choice"};
   const availability=eventChoiceAvailability(e,p,index);if(!availability.available)return {ok:false,error:"event_choice_unavailable",reason:availability.reason};
@@ -1360,7 +1365,7 @@ function aiChooseCraft(p){
 }
 function sameRegion(match,region){return match.players.filter(x=>x.alive&&x.region===region)}
 function aiMoveChoice(match,p){
-  const opts=(ADJACENCY[p.region]||[]);if(!opts.length)return null;
+  const opts=(ADJACENCY[p.region]||[]).filter(id=>!isRegionLocked(match,id));if(!opts.length)return null;
   const targetRec=recommendedCrafts(p,4).find(x=>!x.ready&&x.missing?.length);
   const wanted=new Set(targetRec?.missing?.map(x=>x.id)||[]);
   let best=opts[0],bestScore=-Infinity;

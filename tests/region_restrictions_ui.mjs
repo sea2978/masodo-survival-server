@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),els=new Map(),moves=[],notices=[];
+const $=id=>{if(!els.has(id))els.set(id,{open:false,innerHTML:'',textContent:'',querySelectorAll(){return[]},close(){this.open=false}});return els.get(id)};
+let cleared=0,stopped=0;
+const ctx={$,M:null,rname:id=>id,toast:(...x)=>notices.push(x),clearLocalAction:()=>cleared++,stopSearchLoading:()=>stopped++,net:{move:id=>moves.push(id)}};
+vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf("let regionLockViewKey="),source.indexOf('function renderOtherSurvivors(')),ctx);
+const m={matchId:'ui',self:{region:'city'},adjacency:{city:['estate','church','mgmt_lobby']},regionRestrictions:{round:1,locked:['estate','church'],nextAt:360,final:false}};ctx.M=m;
+ctx.renderRegionRestrictions(m);ctx.renderMoves(m,m.self,false);assert($('#regionLockStatus').textContent.includes('06:00'));assert($('#moves').innerHTML.includes('data-move="estate" disabled'));assert($('#moves').innerHTML.includes('estate · 잠금'));assert(!$('#moves').innerHTML.includes('data-move="mgmt_lobby" disabled'));assert.equal(notices.length,1);assert.equal(cleared,1);assert.equal(stopped,1);
+ctx.renderRegionRestrictions(m);assert.equal(notices.length,1,'same round must not spam notifications');
+m.regionRestrictions={round:2,locked:['mgmt_lab','factory'],nextAt:540,final:false};ctx.renderMoves(m,m.self,false);assert(!$('#moves').innerHTML.includes('data-move="estate" disabled'),'old area unlocks');
+m.regionRestrictions={round:5,locked:['estate','church','mgmt_lobby'],nextAt:null,final:true};ctx.renderRegionRestrictions(m);ctx.renderMoves(m,m.self,false);assert($('#regionLockStatus').textContent.includes('도심 외 모든 지역 잠금'));assert.equal(( $('#moves').innerHTML.match(/ disabled/g)||[]).length,3);assert.equal(notices.at(-1)[0],'최종 지역 집결');
+console.log('PASS: locked move buttons/labels, reopened areas, next boundary time, final city notice, notification deduplication and loading cleanup (DOM mocks, no visual browser assertion)');
