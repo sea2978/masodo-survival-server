@@ -1,6 +1,6 @@
 # 마소도 Cloudflare 멀티플레이 서버 — Phase 2P
 
-현재 기준은 Cloudflare Workers + SQLite-backed Durable Objects 기반 **서버 권위형 온라인 알파**입니다.
+현재 기준은 Cloudflare Workers + SQLite-backed Durable Objects 기반 **서버 권위형 온라인 버전**입니다.
 
 ## 현재 구현됨
 - 51명 캐릭터 카탈로그와 시작 지역 선택
@@ -50,3 +50,7 @@ npm run deploy
 
 ## 보안
 Cloudflare Global API Key나 비밀번호를 HTML/JS에 넣지 않습니다.
+
+## 정식 개발 작업본
+
+알파 전용 방 생성 코드와 테스트 서버 고정 연결은 사용하지 않습니다. 웹에서는 현재 접속한 서버 주소가 기본 입력되며, 단일 HTML에서는 서버 주소를 입력해 연결합니다. 지역 제한, 준최종 반복 획득·제작, 장비 보상 선택, 정보 갱신, 모바일 조우 배치 등 적용된 기능과 수정사항은 유지합니다.

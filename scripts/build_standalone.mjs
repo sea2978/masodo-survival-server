@@ -46,7 +46,7 @@ html = html.replace(
 );
 
 html = html.replace(
-  "<title>마소도 온라인 알파 · 버전 확인 중</title>",
+  "<title>마소도 서바이벌 · 버전 확인 중</title>",
   "<title>마소도 서바이벌 · 단일 HTML 클라이언트</title>"
 );
 

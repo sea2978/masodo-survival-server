@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Regular client and preserved mobile layout
+        run: npm run test:formal-client
       - name: Active skill bonus tuning
         run: node tests/skill_bonus_audit.mjs
       - name: Passive minimum tuning
