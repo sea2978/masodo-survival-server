@@ -1448,7 +1448,7 @@ function renderItemCodex(){
  const rows=Object.entries(items).filter(([id,it])=>(id+' '+it.n+' '+(it.tier||'')+' '+(it.effectText||'')).toLowerCase().includes(query));
  $('#itemCodexList').innerHTML=rows.map(([id,it])=>{
   const recipe=Object.entries(it.r||{}).map(([part,count])=>(items[part]?.n||part)+' ×'+count).join(' + ');
-  const effect=[it.effectText,it.heal?'HP +'+it.heal:'',it.sp?'SP +'+it.sp:'',it.sat?'포만도 +'+it.sat:''].filter(Boolean).join(' · ');
+  const effect=it.effectText||[it.heal?'HP +'+it.heal:'',it.sp?'SP +'+it.sp:'',it.sat?'포만도 +'+it.sat:''].filter(Boolean).join(' · ');
   return '<article class="card"><h3>'+escapeRoomText(it.n)+'</h3><div class="muted">'+escapeRoomText((it.tier||'일반')+' · '+(it.weaponType||(it.t==='m'?'재료':it.t==='c'?'소모품':'장비')))+'</div><p>'+escapeRoomText(effect||'별도 사용 효과 없음')+'</p>'+(it.t==='e'?'<p>ATK '+(it.atk||0)+' · DEF '+(it.def||0)+'</p>':'')+(recipe?'<p>제작: '+escapeRoomText(recipe)+'</p>':'')+'</article>';
  }).join('')||'<p class="muted">검색 결과가 없습니다.</p>';
 }
@@ -1493,7 +1493,7 @@ $('#connectServer').onclick=async event=>{
  try{await net.loadCatalog();renderBuild();fillCatalog();await refreshRooms();setServerControls(true);message.textContent='서버 연결됨';$('#status').textContent='서버 연결됨';$('#status').className='good';$('#lobbyPlayerName').textContent=$('#name').value;$('#settingsPlayerName').textContent=$('#name').value;showLobby();log('서버 연결됨')}catch(e){setServerControls(false);message.textContent='서버에 연결하지 못했습니다. 주소와 연결 상태를 확인해 주세요.';log(message.textContent)}finally{button.disabled=false}
 };
 $('#loginForm').onsubmit=e=>{e.preventDefault();if(!$('#connectServer').disabled)$('#connectServer').click()};
-$('#returnLogin').onclick=()=>{net.close();setServerControls(false);M=null;$('#lobbyRoomSummary').textContent='참가 중인 방이 없습니다.';$('#roomState').replaceChildren();showLogin()};
+$('#returnLogin').onclick=()=>{net.close();setServerControls(false);M=null;$('#serverConnectMessage').textContent='플레이어명과 서버 주소를 확인하고 접속하세요.';$('#lobbyRoomSummary').textContent='참가 중인 방이 없습니다.';$('#roomState').replaceChildren();showLogin()};
 $('#refreshRooms').onclick=()=>refreshRooms();
 $('#create').onclick=()=>{if(serverReady&&!roomEntryBusy){$('#roomBrowserPanel').close();$('#createRoomPanel').showModal()}};
 $('#cancelCreateRoom').onclick=()=>{$('#createRoomPanel').close();$('#roomBrowserPanel').showModal()};
