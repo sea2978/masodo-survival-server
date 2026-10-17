@@ -820,7 +820,7 @@ net.on('action_result',()=>{stopSearchLoading()});
 net.on('error',()=>{stopSearchLoading();if(M)renderMatch(M)});
 net.on('close',()=>{stopSearchLoading();if(M)renderMatch(M)});
 let localAction=null,loadingDisconnected=false;
-const ACTION_LOADING_TEXT={search:'탐색 중',move:'이동 중',rest:'휴식 중',craft:'제작 중',use_item:'아이템 사용 중',attack:'공격 중',skill:'스킬 사용 중',char_action:'추가 행동 중',flee:'도주 중',loot_corpse:'전리품 수집 중'};
+const ACTION_LOADING_TEXT={search:'탐색 중',move:'이동 중',rest:'휴식 중',craft:'제작 중',use_item:'아이템 사용 중',attack:'공격 중',skill:'스킬 사용 중',char_action:'추가 행동 중',flee:'도주 중',loot_corpse:'전리품 수집 중',event_choice:'이벤트 진행 중'};
 function clearLocalAction(){if(localAction)clearTimeout(localAction.timer);localAction=null;$('#actionLoading').hidden=true}
 function renderActionLoading(m){
   const p=m.self;
@@ -832,7 +832,7 @@ function renderActionLoading(m){
   const type=localAction?.type||p.pendingAction?.type||(searchLoading?'search':null);
   const el=$('#actionLoading');el.textContent=ACTION_LOADING_TEXT[type]||'행동 중';el.hidden=!type;
 }
-for(const [method,type] of Object.entries({move:'move',rest:'rest',craft:'craft',useItem:'use_item',attack:'attack',skill:'skill',charAction:'char_action',flee:'flee',lootCorpse:'loot_corpse'})){
+for(const [method,type] of Object.entries({move:'move',rest:'rest',craft:'craft',useItem:'use_item',attack:'attack',skill:'skill',charAction:'char_action',flee:'flee',lootCorpse:'loot_corpse',eventChoice:'event_choice'})){
   const send=net[method].bind(net);
   net[method]=(...args)=>{
     if(localAction||busy()||!M?.self?.alive)return false;
@@ -845,6 +845,7 @@ for(const [method,type] of Object.entries({move:'move',rest:'rest',craft:'craft'
 }
 net.on('action_accepted',m=>{if(localAction?.type===m.action?.type)localAction.accepted=true});
 net.on('action_result',()=>clearLocalAction());
+net.on('event_result',()=>clearLocalAction());
 net.on('error',()=>{clearLocalAction();if(M)renderMatch(M)});
 net.on('close',()=>{loadingDisconnected=true;clearLocalAction()});
 net.on('connected',()=>{loadingDisconnected=false});
@@ -1443,7 +1444,7 @@ for(const x of p.nearbyNoise||[])intelRows.push(`<div class="card"><b>소음 감
 $('#intel').innerHTML=intelRows.length?intelRows.slice(0,10).join(''):'<span class="muted">아직 획득한 정보가 없습니다.</span>';
 renderOtherSurvivors(m);
 $('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.encounter.name}</b><div>HP ${Math.max(0,Math.round(m.encounter.hp))}/${m.encounter.maxHp}</div><div class="muted">${m.encounter.skillText||''}</div></div>`:"";
-$('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingEvent.name}</b><p>${m.pendingEvent.type}</p><div class="event-choices">${m.pendingEvent.choices.map((c,i)=>`<div class="event-choice"><button data-event="${i}" ${c.available===false?'disabled':''}>${c.label}${c.available===false?' · 사용 불가':''}</button><div class="muted">${c.result}${c.available===false&&c.reason?' · '+c.reason:''}</div></div>`).join("")}</div></div>`:"";$('#eventBox').querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>net.eventChoice(Number(b.dataset.event)));
+$('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingEvent.name}</b><p>${m.pendingEvent.type}</p><div class="event-choices">${m.pendingEvent.choices.map((c,i)=>`<div class="event-choice"><button data-event="${i}" ${c.available===false?'disabled':''}>${c.label}${c.available===false?' · 사용 불가':''}</button><div class="muted">${c.result.replace(/시간 \+(\d+)초/g,'소요 $1초')}${c.available===false&&c.reason?' · '+c.reason:''}</div></div>`).join("")}</div></div>`:"";$('#eventBox').querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>net.eventChoice(Number(b.dataset.event)));
 $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{
   let rows=[];
   for(const id of c.eq||[])rows.push(`<button data-loot="${c.id}|eq|${id}|1|${p.inventory.eq.length>=3?'1':'0'}" ${busy()?'disabled':''}>장비 ${id}${p.inventory.eq.length>=3?' · 획득 후 버릴 장비 선택':''}</button>`);
