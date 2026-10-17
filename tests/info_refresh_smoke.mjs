@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {loadRoom,createHarness} from './room_test_harness.mjs';
+import {MasodoNetworkAdapter} from '../public/network_adapter.js';
+const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),els=new Map(),sent=[];
+const $=id=>{if(!els.has(id))els.set(id,{open:false,innerHTML:'',showModal(){this.open=true}});return els.get(id)};
+const net=new MasodoNetworkAdapter('https://example.test');net.send=(type,payload={})=>{sent.push({type,...payload});return true};
+const buttons=[{dataset:{openPanel:'infoPanel'}},{dataset:{openPanel:'inventoryPanel'}}];
+const ctx={$,net,toast:()=>{},escapeRoomText:x=>x,document:{querySelectorAll:()=>buttons}};vm.createContext(ctx);
+vm.runInContext(source.slice(source.indexOf('function refreshInfo()'),source.indexOf("document.querySelectorAll('[data-close-panel]')")),ctx);
+vm.runInContext(source.slice(source.indexOf('function renderOtherSurvivors('),source.indexOf('function renderMatch(')),ctx);
+buttons[0].onclick();buttons[0].onclick();assert.equal(sent.length,2);assert(sent.every(x=>x.type==='request_state'));buttons[1].onclick();assert.equal(sent.length,2);
+const Room=await loadRoom(),t=1700000000000,h=createHarness(Room,{humans:2,ai:0,now:t});
+h.room.sendMatchState(h.sockets[0],h.match,{force:true,now:t});let event=net.acceptStateMessage(h.sockets[0].messages.at(-1));ctx.renderOtherSurvivors(event.match);assert($('#others').innerHTML.includes('처치 0'));
+const m=structuredClone(await h.room.getMatch());m.players[1].kills=4;m.players[1].alive=false;await h.room.saveMatch(m);
+const clock=Date.now;Date.now=()=>t+100;
+try{await h.room.webSocketMessage(h.sockets[0],JSON.stringify(sent[0]));}finally{Date.now=clock}
+const response=h.sockets[0].messages.at(-1);assert.equal(response.type,'match_state');event=net.acceptStateMessage(response);ctx.renderOtherSurvivors(event.match);assert($('#others').innerHTML.includes('처치 4'));assert($('#others').innerHTML.includes('☠'));
+assert(source.includes("$('#refresh').onclick=refreshInfo"));assert(source.includes('renderOtherSurvivors(m);'));
+console.log('PASS: each info click requests full state; persisted kills/death -> room response -> adapter -> displayed survivors; other panels send no extra requests (DOM mocks)');
