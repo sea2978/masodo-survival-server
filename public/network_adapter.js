@@ -251,7 +251,7 @@ export class MasodoNetworkAdapter {
   move(to) { return this.send("command_move", { to }); }
   search() { return this.send("command_search"); }
   rest() { return this.send("command_rest"); }
-  craft(id) { return this.send("command_craft", { id }); }
+  craft(id, replacement = {}) { return this.send("command_craft", { id, ...replacement }); }
   inventoryOperation(payload) { return this.send("command_inventory", payload); }
   useItem(id) { return this.send("command_use_item", { id }); }
   attack() { return this.send("command_attack"); }

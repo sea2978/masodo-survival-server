@@ -22,7 +22,7 @@ jobs:
       - name: Room name and AI settings
         run: node tests/room_settings_smoke.mjs
       - name: Inventory management and overflow rewards
-        run: node tests/inventory_management_smoke.mjs && node tests/inventory_ui_smoke.mjs
+        run: node tests/craft_equipment_smoke.mjs && node tests/craft_equipment_ui.mjs && node tests/inventory_management_smoke.mjs && node tests/inventory_ui_smoke.mjs
       - name: Consumable crafting
         run: node tests/consumable_crafting_smoke.mjs
       - name: State deltas, full-room traffic and recovery

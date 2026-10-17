@@ -1,3 +1,4 @@
+import {uniqueMaterialExists} from "./unique_materials.js";
 import {ITEMS} from './offline_content.js';
 export function equipmentSalvage(id){
  const it=ITEMS[id];return it?.t==='e'&&it.r?Object.entries(it.r).map(([id,count])=>({id,count,name:ITEMS[id].n,t:ITEMS[id].t})):[];
@@ -35,7 +36,7 @@ export function inventoryOperation(match,p,msg){
  if(eqCount>3)return {ok:false,error:'equipment_full'};
  const cons=new Set(Object.keys(p.con).filter(id=>p.con[id]>0));for(const x of rewards)if(x.t==='c')cons.add(x.id);
  if(cons.size>3)return {ok:false,error:'inventory_full'};
- for(const x of rewards)if(/^special_\d{2}$/.test(x.id)&&match.uniqueSpecials?.[x.id]?.state!=='consumed')return {ok:false,error:'special_already_exists'};
+ for(const x of rewards)if(/^special_\d{2}$/.test(x.id)&&(match.uniqueSpecials?.[x.id]?.state!=='consumed'||uniqueMaterialExists(match,x.id,p,msg.index)))return {ok:false,error:'special_already_exists'};
  p.eq.splice(msg.index,1);
  for(const x of rewards){
   if(x.t==='e')for(let i=0;i<x.count;i++)p.eq.push(x.id);

@@ -1,3 +1,4 @@
+import {uniqueMaterialExists} from "./unique_materials.js";
 import {equipmentSalvage,offerSearchConsumable} from "./inventory_ops.js";
 import { CHARACTER_BY_ID, ADJACENCY, movementProfile } from "./game_data.js";
 import { ITEMS, POOLS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
@@ -43,11 +44,11 @@ function initUniqueSpecials(){
 }
 function specialState(match,id){return match.uniqueSpecials?.[id]||null}
 function grantSpecial(match,p,id){
-  const s=specialState(match,id);if(!s||s.state!=="unspawned"||(p.mat[id]||0)>0)return false;
+  const s=specialState(match,id);if(!s||s.state!=="unspawned"||uniqueMaterialExists(match,id))return false;
   p.mat[id]=(p.mat[id]||0)+1;s.state="held";s.holderId=p.playerId;s.region=null;return true
 }
 function pickupGroundSpecial(match,p,id){
-  const s=specialState(match,id);if(!s||s.state!=="ground"||s.region!==p.region)return false;
+  const s=specialState(match,id);if(!s||s.state!=="ground"||s.region!==p.region||uniqueMaterialExists(match,id))return false;
   p.mat[id]=(p.mat[id]||0)+1;s.state="held";s.holderId=p.playerId;s.region=null;return true
 }
 function dropSpecialsFromPlayer(match,p,region=p.region){
@@ -169,14 +170,15 @@ function owned(p,id){
   return (p.eq||[]).filter(x=>x===id).length;
 }
 function addItem(p,id,n=1){
-  const it=item(id);if(!it)return false;
+  const it=item(id);if(!it||isSpecialMaterial(id))return false;
   if(it.t==="m"){p.mat[id]=(p.mat[id]||0)+n;return true}
   if(it.t==="c"){
     const distinct=Object.keys(p.con||{}).filter(k=>(p.con[k]||0)>0);
     if((p.con[id]||0)<=0&&distinct.length>=3)return false;
     p.con[id]=(p.con[id]||0)+n;return true
   }
-  for(let i=0;i<n;i++){if(p.eq.length>=3)p.eq.shift();p.eq.push(id)}
+  if(p.eq.length+n>3)return false;
+  for(let i=0;i<n;i++)p.eq.push(id)
   return true
 }
 function consumeItem(p,id,n=1){
@@ -187,20 +189,29 @@ function consumeItem(p,id,n=1){
   return true
 }
 function canCraft(p,id){const r=item(id)?.r;return !!r&&Object.entries(r).every(([k,v])=>owned(p,k)>=v)}
-function canReceiveCraftOutput(p,id){
+function craftRemainingEquipment(p,id){
+  const remaining=(p.eq||[]).map((id,index)=>({id,index}));
+  for(const [part,n] of Object.entries(item(id)?.r||{}))if(item(part)?.t==="e")for(let i=0;i<n;i++){const ix=remaining.findIndex(x=>x.id===part);if(ix>=0)remaining.splice(ix,1)}
+  return remaining;
+}
+function canReceiveCraftOutput(p,id,payload={}){
   const it=item(id);if(!it)return false;
+  if(it.t==="e"){const rest=craftRemainingEquipment(p,id);return rest.length<3||(Number.isInteger(payload.replaceIndex)&&rest.some(x=>x.index===payload.replaceIndex&&x.id===payload.replaceId))}
   if(it.t!=="c")return true;
   if((p.con?.[id]||0)>0)return true;
   return Object.keys(p.con||{}).filter(k=>(p.con[k]||0)-(item(k)?.t==="c"?(it.r?.[k]||0):0)>0).length<3;
 }
 
-function craftItem(match,p,id){
+function craftItem(match,p,id,payload={}){
   const it=item(id);if(!it||!canCraft(p,id))return {ok:false,error:"recipe_missing"};
-  if(!canReceiveCraftOutput(p,id))return {ok:false,error:"inventory_full"};
+  if(!canReceiveCraftOutput(p,id,payload))return {ok:false,error:it.t==="e"?"equipment_full":"inventory_full"};
+  const rest=it.t==="e"?craftRemainingEquipment(p,id):[];
+  const discarded=rest.length>=3?rest.find(x=>x.index===payload.replaceIndex):null;
   for(const[k,v]of Object.entries(it.r)){if(!consumeItem(p,k,v))return {ok:false,error:"recipe_race"};if(isSpecialMaterial(k)&&(p.mat[k]||0)<=0)markSpecialConsumed(match,k)}
+  if(discarded)p.eq.splice(rest.findIndex(x=>x.index===discarded.index),1);
   if(!addItem(p,id,1))return {ok:false,error:"inventory_full"};
   if(it.t==="e"&&it.weaponType){match.craftStats??={};match.craftStats[it.weaponType]=(match.craftStats[it.weaponType]||0)+1}
-  return {ok:true,itemId:id,itemName:it.n};
+  return {ok:true,itemId:id,itemName:it.n,...(discarded?{discarded:discarded.id}:{})};
 }
 function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.until>now?s:null}
 function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null){
@@ -726,7 +737,7 @@ function charAction(match,p,now){
   }
   if(d.cleanseSpecific)for(const[id,n]of Object.entries(d.cleanseSpecific))removeStatusStacks(p,id,n);
 
-  if(d.material)p.mat[d.material]=(p.mat[d.material]||0)+(d.materialQty||1);
+  if(d.material){if(isSpecialMaterial(d.material))grantSpecial(match,p,d.material);else addItem(p,d.material,d.materialQty||1)}
   if(d.consumable)addItem(p,d.consumable,1);
   if(d.randomMetal){const id=Math.random()<.65?"iron":"steel";p.mat[id]=(p.mat[id]||0)+1}
 
@@ -888,7 +899,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(type!=="attack"&&type!=="skill"&&type!=="flee"&&p.encounter&&type!=="use_item")return {ok:false,error:"encounter_in_progress"};
   if(type==="move"){if(status(p,"bind",now))return {ok:false,error:"bound"};if(!ADJACENCY[p.region]?.includes(payload.to))return {ok:false,error:"invalid_move"};const mv=movementProfile(p.region,payload.to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp<cost)return {ok:false,error:"not_enough_sp"};return {ok:true,meta:{...mv,spCost:cost}}}
   if(type==="search"&&p.sp<3)return {ok:false,error:"not_enough_sp"};
-  if(type==="craft"){if(!canCraft(p,payload.id))return {ok:false,error:"cannot_craft"};if(!canReceiveCraftOutput(p,payload.id))return {ok:false,error:"inventory_full"}}
+  if(type==="craft"){if(!canCraft(p,payload.id))return {ok:false,error:"cannot_craft"};if(!canReceiveCraftOutput(p,payload.id,payload))return {ok:false,error:item(payload.id)?.t==="e"?"equipment_full":"inventory_full"}}
   if(type==="use_item"&&owned(p,payload.id)<=0)return {ok:false,error:"item_missing"};
   if(type==="loot_corpse"){
     const corpse=match.corpses.find(x=>x.id===payload.corpseId&&x.region===p.region&&x.expiresAt>now);
@@ -936,7 +947,7 @@ export function completeAction(match,p,now=Date.now()){
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;for(const q of match.players)if(q!==p&&q.encounter?.kind==="player"&&q.encounter.targetId===p.playerId)q.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};}
   else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
-  else if(type==="craft"){result={...result,...craftItem(match,p,x.id)};p.nextCraftTimeMult=1}
+  else if(type==="craft"){result={...result,...craftItem(match,p,x.id,x)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
   else if(type==="attack"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,false,now):attackWild(match,p,t.obj,false,now)):{ok:false,error:"target_lost"};p.encounter=null}
   else if(type==="skill"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,true,now):attackWild(match,p,t.obj,true,now)):{ok:false,error:"target_lost"};p.encounter=null}

@@ -281,6 +281,7 @@ export class GameRoom extends DurableObject{
     if(commandMap[msg.type]){
       const m=await this.getMatch();if(!m||m.phase!=="playing"){send(ws,"error",{error:"match_not_playing"});return}
       const dueChanged=await this.completeDueActions(m,Date.now(),{defer:true});settleMatch(m);if(m.phase!=="playing"){await this.saveMatch(m);send(ws,"error",{error:"match_not_playing"});this.broadcastMatchState(m);return}const p=this.matchPlayerForSession(m,session.sessionId);const type=commandMap[msg.type],payload={to:msg.to,id:msg.id};
+      if(type==="craft"){payload.replaceIndex=msg.replaceIndex;payload.replaceId=msg.replaceId}
       if(type==="loot_corpse"){payload.corpseId=msg.corpseId;payload.kind=msg.kind;payload.qty=msg.qty;payload.replace=!!msg.replace}
       const r=beginServerAction(m,p,type,payload,Date.now());if(!r.ok){if(dueChanged||r.error==="no_encounter"){await this.saveMatch(m);this.broadcastMatchState(m)}send(ws,"error",{error:r.error});return}
       await this.saveMatch(m);await this.scheduleNextAlarm(m,meta);send(ws,"action_accepted",{action:r.action});this.broadcastMatchState(m);return

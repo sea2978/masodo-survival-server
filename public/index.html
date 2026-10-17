@@ -374,6 +374,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
     <dialog id="movePanel" class="game-popup"><div class="popup-head"><h2>지역 이동</h2><button data-close-panel>닫기</button></div><div id="moves" class="move-buttons"></div></dialog>
     <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 장비</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
     <dialog id="inventoryConfirmPanel" class="game-popup"><div class="popup-head"><h2 id="inventoryConfirmTitle">아이템 관리</h2><button data-close-panel>취소</button></div><p id="inventoryConfirmDetail"></p><button id="inventoryConfirmApply">확인</button></dialog>
+    <dialog id="craftDiscardPanel" class="game-popup"><div class="popup-head"><h2>버릴 장비 선택</h2><button onclick="this.closest('dialog').close()">취소</button></div><p id="craftDiscardDescription"></p><div id="craftDiscardChoices" class="compact-list"></div><p class="muted">취소하면 장비와 제작 재료를 그대로 보존합니다.</p></dialog>
     <dialog id="pickupPanel" class="game-popup"><div class="popup-head"><h2>소모품 칸이 가득 찼습니다</h2></div><p id="pickupDescription"></p><p class="muted">기존 소모품 한 종류를 수량 전체와 함께 버리고 획득하거나, 새 소모품을 포기하세요.</p><div id="pickupChoices" class="compact-list"></div><button id="discardPickup">새로 발견한 소모품 버리기</button></dialog>
     <dialog id="craftPanel" class="game-popup"><div class="popup-head"><h2>제작</h2><button data-close-panel>닫기</button></div><div id="craft"></div></dialog>
 
@@ -640,7 +641,18 @@ const R=new Proxy({}, {get:(_,id)=>({name:rname(id)})});
 function me(){const p=M?.self;if(!p)return null;return {...p,eq:p.inventory.eq.map(x=>x.id),mat:Object.fromEntries(p.inventory.mat.map(x=>[x.id,x.count])),con:Object.fromEntries(p.inventory.con.map(x=>[x.id,x.count]))}}
 function itemOwnedCount(p,id){const it=I(id);return it?.t==='m'?(p.mat[id]||0):it?.t==='c'?(p.con[id]||0):p.eq.filter(x=>x===id).length}
 function canCraft(p,id){const it=I(id);return !!(p&&it?.r&&Object.entries(it.r).every(([id,n])=>itemOwnedCount(p,id)>=n))}
-function craft(p,id){if(busy()||!M?.self?.alive||M.encounter||M.pendingEvent||!canCraft(p,id))return;net.craft(id);$('#craftPanel').close()}
+function craft(p,id,replacement=null){
+ if(busy()||!M?.self?.alive||M.encounter||M.pendingEvent||!canCraft(p,id))return;
+ const it=I(id),rest=p.eq.map((id,index)=>({id,index}));
+ for(const [part,n]of Object.entries(it.r||{}))if(I(part)?.t==='e')for(let i=0;i<n;i++){const ix=rest.findIndex(x=>x.id===part);if(ix>=0)rest.splice(ix,1)}
+ if(it.t==='e'&&rest.length>=3&&!replacement){
+  $('#craftDiscardChoices').replaceChildren();
+  $('#craftDiscardDescription').textContent=it.n+' 제작 후 장비칸이 부족합니다. 버릴 장비를 선택하세요. 제작이 완료될 때 선택한 장비만 버립니다.';
+  for(const row of rest){const b=document.createElement('button');b.textContent=(I(row.id)?.n||row.id)+' 버리고 제작';b.onclick=()=>{const current=me();if(!current||current.eq[row.index]!==row.id){$('#craftDiscardPanel').close();toast('장비 변경','장비를 다시 선택해 주세요.');return}craft(current,id,{replaceIndex:row.index,replaceId:row.id});$('#craftDiscardPanel').close()};$('#craftDiscardChoices').appendChild(b)}
+  $('#craftPanel').close();$('#craftDiscardPanel').showModal();return;
+ }
+ net.craft(id,replacement||{});$('#craftPanel').close();
+}
 function toast(title,name,detail='',kind='item',duration=2400){const root=$('#toastStack');if(!root)return;while(root.children.length>=3)root.firstElementChild.remove();const el=document.createElement('div');el.className='top-toast '+kind;for(const [cls,text]of [['top-toast-title',title],['top-toast-main',name],['top-toast-sub',detail]]){const part=document.createElement('div');part.className=cls;part.textContent=text;el.appendChild(part)}root.appendChild(el);requestAnimationFrame(()=>el.classList.add('show'));setTimeout(()=>{el.classList.add('hide');setTimeout(()=>el.remove(),220)},duration)}
 let noticeSnapshot=null;
 function notifyMatchChanges(m){const p=m.self;if(!p)return;const counts=new Map();for(const group of [p.inventory.eq,p.inventory.mat,p.inventory.con])for(const it of group){const prev=counts.get(it.id);counts.set(it.id,{count:(prev?.count||0)+(it.count??1),name:it.n||it.name||I(it.id)?.n||it.id})}
