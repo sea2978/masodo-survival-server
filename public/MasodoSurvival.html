@@ -1407,7 +1407,6 @@ function paintSkillCooldowns(){
   if(running)skillCooldownFrame=requestAnimationFrame(paintSkillCooldowns);
 }
 function updateSkillCooldowns(m){
-  warmExpression(charId,'contempt');
   const key=m.matchId+'|'+m.self.playerId,now=performance.now();
   for(const [id,remaining,total]of [['skill',m.self.cdC,m.self.cdCDuration],['charAction',m.self.cdA,m.self.cdADuration]]){
     const old=skillCooldowns[id],seconds=Math.max(0,Number(remaining)||0);
