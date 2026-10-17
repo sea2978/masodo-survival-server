@@ -351,11 +351,11 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 </style></head><body>
 <div class="wrap">
   <section id="loginScreen">
-    <form id="loginForm" class="login-card">
+    <form id="loginForm" onsubmit="return false" class="login-card">
       <div class="eyebrow">MASODO SURVIVAL</div><h1>마법소녀들의 도시</h1><p class="muted">플레이어명과 서버 주소를 입력해 접속하세요.</p>
       <label for="name">플레이어명</label><input id="name" placeholder="플레이어명" maxlength="24" autocomplete="nickname" required>
       <label for="serverAddress">서버 주소</label><input id="serverAddress" type="url" placeholder="https://서버주소.workers.dev" aria-label="서버 주소" required>
-      <button id="connectServer" type="submit">접속</button><p id="serverConnectMessage" class="muted" role="status">서버 주소를 입력하고 연결해 주세요.</p>
+      <button id="connectServer" type="button" disabled>준비 중…</button><p id="serverConnectMessage" class="muted" role="status">게임을 준비하고 있습니다…</p>
     </form>
   </section>
   <section id="lobbyScreen" hidden>
@@ -1323,6 +1323,7 @@ $('#connectServer').onclick=async event=>{
  try{await net.loadCatalog();renderBuild();fillCatalog();await refreshRooms();setServerControls(true);message.textContent='서버 연결됨';$('#status').textContent='서버 연결됨';$('#status').className='good';$('#lobbyPlayerName').textContent=$('#name').value;$('#settingsPlayerName').textContent=$('#name').value;showLobby();log('서버 연결됨')}catch(e){setServerControls(false);message.textContent='서버에 연결하지 못했습니다. 주소와 연결 상태를 확인해 주세요.';log(message.textContent)}finally{button.disabled=false}
 };
 $('#loginForm').onsubmit=e=>{e.preventDefault();if(!$('#connectServer').disabled)$('#connectServer').click()};
+$('#connectServer').textContent='접속';$('#connectServer').disabled=false;$('#serverConnectMessage').textContent='서버 주소를 입력하고 연결해 주세요.';
 $('#returnLogin').onclick=()=>{net.close();setServerControls(false);M=null;$('#serverConnectMessage').textContent='플레이어명과 서버 주소를 확인하고 접속하세요.';$('#lobbyRoomSummary').textContent='참가 중인 방이 없습니다.';$('#roomState').replaceChildren();showLogin()};
 $('#refreshRooms').onclick=()=>refreshRooms();
 $('#create').onclick=()=>{if(serverReady&&!roomEntryBusy){$('#roomBrowserPanel').close();$('#createRoomPanel').showModal()}};

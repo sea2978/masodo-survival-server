@@ -57,5 +57,7 @@ html = html.replace(
   "<title>마소도 서바이벌 · 단일 HTML 클라이언트</title>"
 );
 
+// Every dependency is bundled above, so local clients need no module loader.
+html=html.replace('<script type="module">','<script>');
 fs.writeFileSync(outputPath, html);
 console.log(`Built ${outputPath}: ${(fs.statSync(outputPath).size/1024/1024).toFixed(1)} MiB`);
