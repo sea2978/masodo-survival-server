@@ -1208,7 +1208,14 @@ function renderCraft(force=false){
 }
 
 $('#routeCycleBtn').onclick=()=>{if(favoriteItems.length){routeFavoriteIndex=(routeFavoriteIndex+1)%favoriteItems.length;renderRouteGuide()}};$('#routeUnfavBtn').onclick=()=>{if(favoriteItems.length)toggleFavoriteItem(favoriteItems[routeFavoriteIndex])};
-document.querySelectorAll('[data-open-panel]').forEach(b=>b.onclick=()=>$('#'+b.dataset.openPanel).showModal());
+function refreshInfo(){
+ if(!net.requestState())toast('정보 갱신 실패','서버에 연결되어 있지 않습니다.','재연결 후 다시 열어 주세요.','combat');
+}
+function openGamePanel(id){
+ $('#'+id).showModal();
+ if(id==='infoPanel')refreshInfo();
+}
+document.querySelectorAll('[data-open-panel]').forEach(b=>b.onclick=()=>openGamePanel(b.dataset.openPanel));
 document.querySelectorAll('[data-close-panel]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 document.querySelectorAll('.game-popup').forEach(d=>d.addEventListener('click',e=>{if(d.id==='pickupPanel')return;if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
 let matchClockFrame=null,matchClockAnchor=null;
@@ -1304,6 +1311,9 @@ function renderResult(m){
 $('#resultWatch').onclick=()=>$('#resultPanel').close();
 $('#resultLobby').onclick=()=>{net.close();$('#resultPanel').close();M=null;showLobby();refreshRooms()};
 function busy(){return !!inventoryPending||!!M?.self?.pendingPickup||M?.phase==="finished"||!!localAction||!!searchLoading||!!M?.self?.pendingAction}
+function renderOtherSurvivors(m){
+ $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(o.charId)} / 처치 ${o.kills??0}</div>`).join('');
+}
 function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderActionLoading(m);renderResult(m);renderPickup(m);
 $('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
 $('#pending').textContent=p.pendingAction?`${p.pendingAction.type} · 완료 ${new Date(p.pendingAction.completeAt).toLocaleTimeString()}`:m.pendingEvent?"이벤트 선택 대기":m.encounter?"조우 중 — 공격/스킬/도주 중 하나를 선택":"행동 없음";
@@ -1336,7 +1346,7 @@ for(const x of intel.materialHints||[])intelRows.push(`<div class="card"><b>추�
 for(const x of intel.eventHints||[])intelRows.push(`<div class="card"><b>이벤트 정보</b><div>${x.name||x.eventId} · ${x.type||''}</div></div>`);
 for(const x of p.nearbyNoise||[])intelRows.push(`<div class="card"><b>소음 감지 · ${x.level}</b><div>${x.regionName||rname(x.region)}에서 활동 흔적</div><div class="muted">${x.source||'원인 불명'} · 잠시 동안 발견되기 쉬움</div></div>`);
 $('#intel').innerHTML=intelRows.length?intelRows.slice(0,10).join(''):'<span class="muted">아직 획득한 정보가 없습니다.</span>';
-$('#others').innerHTML=m.others.map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${o.playerName} / ${o.charId} / 처치 ${o.kills}</div>`).join("");
+renderOtherSurvivors(m);
 $('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.encounter.name}</b><div>HP ${Math.max(0,Math.round(m.encounter.hp))}/${m.encounter.maxHp}</div><div class="muted">${m.encounter.skillText||''}</div></div>`:"";
 $('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingEvent.name}</b><p>${m.pendingEvent.type}</p>${m.pendingEvent.choices.map((c,i)=>`<button data-event="${i}" ${c.available===false?'disabled':''}>${c.label}${c.available===false?' · 사용 불가':''}</button><div class="muted">${c.result}${c.available===false&&c.reason?' · '+c.reason:''}</div>`).join("")}</div>`:"";$('#eventBox').querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>net.eventChoice(Number(b.dataset.event)));
 $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{
@@ -1368,5 +1378,5 @@ $('#cancelCreateRoom').onclick=()=>$('#createRoomPanel').close();
 function updateRoomSettingsHint(){const mode=$('#aiMode').value,n=Number($('#aiCountSetting').value);$('#fixedAIField').hidden=mode!=='fixed';$('#aiCountSetting').disabled=mode!=='fixed';$('#roomSettingsHint').textContent=mode==='fill'?'경기 시작 시 총 11명이 되도록 AI를 채웁니다. 플레이어는 최대 10명입니다.':mode==='none'?'AI 없이 접속한 플레이어만 참가합니다. 혼자 시작하면 연습할 수 있습니다.':'AI '+n+'명 고정 · 플레이어 최대 '+Math.min(10,11-(Number.isFinite(n)?n:0))+'명 (총 최대 11명)'}
 $('#aiMode').onchange=updateRoomSettingsHint;$('#aiCountSetting').oninput=updateRoomSettingsHint;updateRoomSettingsHint();
 $('#createRoomForm').onsubmit=async e=>{e.preventDefault();if(roomEntryBusy)return;const settings={name:$('#roomName').value,aiMode:$('#aiMode').value,aiCount:Number($('#aiCountSetting').value)};const fields=[$('#roomName'),$('#aiMode'),$('#aiCountSetting'),$('#createRoomSubmit'),$('#cancelCreateRoom')];fields.forEach(x=>x.disabled=true);try{if(await connectRoom(null,true,settings))$('#createRoomPanel').close()}finally{fields.forEach(x=>x.disabled=false);updateRoomSettingsHint()}};
-$('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=()=>net.requestState();$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
+$('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=refreshInfo;$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
 </script></body></html>
