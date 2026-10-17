@@ -25,10 +25,11 @@ const outgoing={...incoming,sourceId:'me',targetId:'enemy'};
  const r=new EnemyExitReaction();assert.equal(r.update(state({encounter:enemy}),0).opacity,1);
  const hit=state({combatNoticeSeq:1,combatNotices:[outgoing]});let v=r.update(hit,100);assert.equal(v.emotion,'contempt');assert.equal(v.opacity,1);assert(v.animate);
  assert.equal(r.update(hit,300).opacity,1);assert.equal(r.update(hit,800).opacity,.5);assert.equal(r.update(hit,1300),null);assert.equal(r.update(hit,1400),null);
- r.update(state({encounter:enemy}),2000);assert.equal(r.update(state({combatNoticeSeq:2,combatNotices:[{...outgoing,id:2,hit:false,damage:0}]}),2100),null);
- r.update(state({encounter:enemy}),2200);assert.equal(r.update(state(),2300),null,'flee/lost target hides without contempt');
- r.update(state({encounter:enemy}),2400);r.update(state({combatNoticeSeq:3,combatNotices:[{...outgoing,id:3,kind:'전투 스킬'}]}),2500);assert.equal(r.update(state({encounter:{...enemy,targetId:'new',charId:'c03'}}),2600).emotion,'neutral');
- assert.equal(r.update(state({self:{...base.self,region:'church'}}),2700),null,'old image must not follow the player to another region');
+ r.update(state({encounter:enemy}),2000);const miss=state({combatNoticeSeq:2,combatNotices:[{...outgoing,id:2,hit:false,damage:0}]});assert.equal(r.update(miss,2100).emotion,'neutral');assert.equal(r.update(miss,2600).opacity,.5);assert.equal(r.update(miss,3100),null);
+ r.update(state({encounter:enemy}),3200);assert.equal(r.update(state(),3300).emotion,'neutral','flee fades without contempt');assert.equal(r.update(state(),3800).opacity,.5);assert.equal(r.update(state(),4300),null);
+ r.update(state({encounter:enemy}),4400);assert.equal(r.update(state({encounter:enemy,self:{...base.self,pendingAction:{type:'flee'}}}),4500).opacity,1,'pending or failed flee keeps the encounter');
+ r.update(state({encounter:enemy}),4600);r.update(state({combatNoticeSeq:3,combatNotices:[{...outgoing,id:3,kind:'전투 스킬'}]}),4700);assert.equal(r.update(state({encounter:{...enemy,targetId:'new',charId:'c03'}}),4800).emotion,'neutral');
+ assert.equal(r.update(state({self:{...base.self,region:'church'}}),4900),null,'old image must not follow the player to another region');
 }
 assert.equal(Object.keys(PORTRAIT_EXPRESSIONS).length,48);
 for(const [id,emotions]of Object.entries(PORTRAIT_EXPRESSIONS))for(const name of ['angry','closed_eyes','happy','contempt'])assert(fs.statSync(new URL('../public'+emotions[name],import.meta.url)).size>1000,id+' '+name);

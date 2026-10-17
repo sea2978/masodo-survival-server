@@ -28,10 +28,10 @@ export class EnemyExitReaction{
   this.seq=Math.max(this.seq,m.combatNoticeSeq||0);
   if(!p?.alive){this.enemy=null;this.exit=null;return null}
   if(m.encounter){this.enemy={...m.encounter};this.exit=null;return {enemy:this.enemy,emotion:'neutral',opacity:1,animate:false}}
-  if(hit){this.exit={enemy:before,startedAt:now};this.enemy=null}
+  if(before){this.exit={enemy:before,startedAt:now,emotion:hit?'contempt':'neutral',hold:hit?200:0};this.enemy=null}
   if(this.exit){
    const elapsed=now-this.exit.startedAt;
-   if(elapsed<1200)return {enemy:this.exit.enemy,emotion:'contempt',opacity:Math.max(0,1-Math.max(0,elapsed-200)/1000),animate:true};
+   if(elapsed<this.exit.hold+1000)return {enemy:this.exit.enemy,emotion:this.exit.emotion,opacity:Math.max(0,1-Math.max(0,elapsed-this.exit.hold)/1000),animate:true};
   }
   this.enemy=null;this.exit=null;return null;
  }
