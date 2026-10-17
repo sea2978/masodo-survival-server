@@ -316,7 +316,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 @media(max-width:700px){.item-codex-shop{grid-template-columns:85px minmax(0,1fr);height:auto}.item-codex-grid{max-height:35dvh;grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}.item-codex-shop .craft-sidebar{max-height:35dvh}.item-codex-detail{grid-column:1/-1;max-height:40dvh}}
 
 
-.enemy-contact-hud{position:absolute;z-index:9;top:80px;left:50%;transform:translateX(-50%);width:min(430px,max(180px,calc(100vw - var(--left-w,300px) - var(--right-w,300px) - 40px)));max-height:26dvh;overflow:auto;display:grid;gap:6px;scrollbar-width:thin}.enemy-contact-hud[hidden]{display:none}.enemy-contact{background:#0b1622ed;border:1px solid #61748a;border-radius:7px;padding:7px 10px;color:#e4ecf5;box-shadow:0 4px 12px #0007}.enemy-contact>div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:13px}.enemy-contact b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.enemy-contact span{white-space:nowrap}.enemy-contact-bar{height:5px;background:#3a242b;border-radius:4px;overflow:hidden;margin:5px 0 2px}.enemy-contact-fill{display:block;height:100%;background:#d66d78}.enemy-contact-bar.unknown{background:repeating-linear-gradient(135deg,#3b4450 0 5px,#26303b 5px 10px)}.enemy-contact small{font-size:9px;color:#acbac9}
+.enemy-contact-hud{position:absolute;z-index:9;top:80px;left:50%;transform:translateX(-50%);width:min(430px,max(180px,calc(100vw - var(--left-w,300px) - var(--right-w,300px) - 40px)));max-height:26dvh;overflow:auto;display:grid;gap:6px;scrollbar-width:thin}.enemy-contact-hud[hidden]{display:none}.enemy-contact{background:#0b1622ed;border:1px solid #61748a;border-radius:7px;padding:7px 10px;color:#e4ecf5;box-shadow:0 4px 12px #0007}.enemy-contact>div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:13px}.enemy-contact b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.enemy-contact span{white-space:nowrap}.enemy-contact small{font-size:9px;color:#acbac9}
 @media(pointer:fine){#toastStack.top-toast-stack{left:12px;right:auto;top:78px;transform:none;width:min(300px,25vw)}}
 @media(pointer:coarse) and (max-width:1400px) and (orientation:landscape){.enemy-contact-hud{top:53px;width:min(340px,calc(100vw - var(--mobile-left) - var(--mobile-right) - 28px));max-height:22dvh;gap:4px}.enemy-contact{padding:4px 7px}.enemy-contact>div:first-child{font-size:10px}.enemy-contact small{font-size:8px}}
 
@@ -723,9 +723,11 @@ for(const e of events){
   const amount=Math.round(e.damage*10)/10;
   toast(dealt?'공격 적중':'피격 / 피해',dealt?e.targetName+'에게 '+amount+' 피해':e.sourceName+'에게 '+amount+' 피해를 받음',e.kind,'combat',3000);
 }
+const gone=(p.enemyTraceNotices||[]).filter(x=>x.id>(noticeSnapshot.traceSeq||0));
+if(gone.length)toast('흔적 사라짐',gone.map(x=>x.name).join(' · ')+'의 흔적이 사라졌습니다.','조우 표시를 제거했습니다.','combat',4000);
 const damage=noticeSnapshot.hp-p.hp;
 if(damage>0&&!events.some(e=>e.targetId===p.playerId))toast('피해','HP -'+Math.round(damage*10)/10,'환경·이벤트 또는 자신의 효과로 인한 HP 감소','combat',2200);
-}noticeSnapshot={key,counts,hp:p.hp,combatSeq:m.combatNoticeSeq||0}}
+}noticeSnapshot={key,counts,hp:p.hp,combatSeq:m.combatNoticeSeq||0,traceSeq:p.enemyTraceSeq||0}}
 
 
 let craftShopCategory='recommended',craftShopQuery='',craftShopSelected=null;
@@ -1127,9 +1129,8 @@ function renderEnemyContacts(m){
  root.hidden=rows.length===0;
  root.innerHTML=rows.map(row=>{
   const known=row.source==='encounter'&&Number.isFinite(row.hp)&&Number.isFinite(row.maxHp)&&row.maxHp>0;
-  const hp=known?(row.alive===false?'사망':Math.ceil(row.hp)+' / '+Math.ceil(row.maxHp)):'?';
-  const bar=known?'<span class="enemy-contact-fill" style="width:'+Math.max(0,Math.min(100,row.hp/row.maxHp*100))+'%"></span>':'';
-  return '<article class="enemy-contact"><div><b>'+escapeRoomText(row.name)+'</b><span>HP '+hp+'</span></div><div class="enemy-contact-bar'+(known?'':' unknown')+'">'+bar+'</div><small>'+(known?'마지막 조우 · 행동 결과':'피격 확인 · 체력 미확인')+'</small></article>';
+  const hp=known?Math.ceil(row.hp)+' / '+Math.ceil(row.maxHp):'?';
+  return '<article class="enemy-contact"><div><b>'+escapeRoomText(row.name)+'</b><span>HP '+hp+'</span></div><small>'+(known?'마지막 조우 · 행동 결과':'피격 확인 · 체력 미확인')+'</small></article>';
  }).join('');
 }
 function renderOtherSurvivors(m){

@@ -1,4 +1,4 @@
-import {rememberEnemy,rememberIncoming} from "./enemy_contacts.js";
+import {rememberEnemy,rememberIncoming,pruneEnemyTraces} from "./enemy_contacts.js";
 import {updateRegionRestrictions,isRegionLocked} from "./region_restrictions.js";
 import {uniqueMaterialExists,isUniqueMaterial} from "./unique_materials.js";
 import {equipmentSalvage,offerSearchConsumable,offerEquipment} from "./inventory_ops.js";
@@ -954,7 +954,7 @@ export function completeAction(match,p,now=Date.now()){
   const a=p.pendingAction;if(!a||a.completeAt>now)return null;
   if(!p.alive){p.pendingAction=null;return {ok:false,error:"player_not_active",type:a.type}}
   p.pendingAction=null;
-  const type=a.type,x=a.payload||{},observed=encounterTarget(match,p);let result={ok:true,type};
+  const type=a.type,x=a.payload||{},observed=encounterTarget(match,p),actionRegion=p.region;let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;for(const q of match.players)if(q!==p&&q.encounter?.kind==="player"&&q.encounter.targetId===p.playerId)q.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};}
   else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
@@ -972,6 +972,7 @@ export function completeAction(match,p,now=Date.now()){
     const target=seen.obj,template=seen.kind==='wild'?wildTemplate(target):null;
     rememberEnemy(p,{id:target.playerId||target.id,name:target.playerName||template?.n||'알 수 없는 대상',kind:seen.kind,source:'encounter',hp:Math.max(0,target.hp),maxHp:seen.kind==='wild'?template.hp:maxHp(target,match,now),alive:target.alive},now);
   }
+  if(type==='search'&&p.region===actionRegion)pruneEnemyTraces(match,p,now);
   return result;
 }
 function ensureEventMods(p){
