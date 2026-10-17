@@ -499,7 +499,9 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 <div class="result-stats"><div class="result-stat">순위<b id="resultRank"></b></div><div class="result-stat">처치<b id="resultKills"></b></div><div class="result-stat">생존 시간<b id="resultTime"></b></div><div class="result-stat">마지막 지역<b id="resultRegion"></b></div></div>
 <p id="resultNote" class="muted"></p><div class="result-actions"><button id="resultWatch">화면 보기</button><button id="resultLobby">로비로 돌아가기</button></div></dialog>
 <script type="module">
-import{MasodoNetworkAdapter}from"./network_adapter.js";const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
+import{MasodoNetworkAdapter}from"./network_adapter.js";
+import{PortraitReactions,EnemyExitReaction}from"./portrait_reactions.js";
+import{PORTRAIT_EXPRESSIONS}from"./portrait_expressions.js";const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
 const mobileScreenQuery=matchMedia('(pointer: coarse) and (max-width: 1400px)');
 let mobileHintTimer=null;
 function mobileScreenHint(text){const el=$('#mobileScreenHint');el.textContent=text;el.hidden=false;clearTimeout(mobileHintTimer);mobileHintTimer=setTimeout(()=>el.hidden=true,4500)}
@@ -686,13 +688,42 @@ const STANDING_SPRITES={
 function characterName(id){return charInfo(id)?.name||'알 수 없는 캐릭터'}
 function charInfo(id){return (net.catalog?.characters||[]).find(c=>c.id===id)||null}
 const spriteImageCache=new Map();
-function setCharacterSprite(el,fb,charId,label,type="standing"){
+function setCharacterSprite(el,fb,charId,label,type="standing",emotion="neutral"){
   fb.textContent=label||"TEMP";fb.style.display="flex";el.style.display="none";
   const meta=STANDING_SPRITES[charId],token={};el.spriteToken=token;if(!meta)return false;
-  const [row,col]=meta,folder=type==="profile"?"profile":"standing",url=assetUrl(SPRITE_ROWS[folder][row]);
+  const [row,col]=meta,folder=type==="profile"?"profile":"standing",url=assetUrl((type!=="profile"?PORTRAIT_EXPRESSIONS[charId]?.[emotion]:null)||SPRITE_ROWS[folder][row]);
   if(!spriteImageCache.has(url))spriteImageCache.set(url,new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=url}));
   spriteImageCache.get(url).then(img=>{if(el.spriteToken!==token)return;const width=img.naturalWidth/8,height=img.naturalHeight,cropHeight=type==='upperbody'?Math.round(height*.55):height;el.width=width;el.height=cropHeight;el.setAttribute('aria-label',label||'캐릭터');el.getContext('2d').drawImage(img,col*width,0,width,cropHeight,0,0,width,cropHeight);el.style.display="block";fb.style.display="none"}).catch(()=>{if(el.spriteToken===token){el.style.display="none";fb.style.display="flex"}});
   return true;
+}
+function warmExpression(charId,emotion){
+ const path=PORTRAIT_EXPRESSIONS[charId]?.[emotion];if(!path)return;
+ const url=assetUrl(path);if(spriteImageCache.has(url))return;
+ const pending=new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=url});
+ pending.catch(()=>{});spriteImageCache.set(url,pending);
+}
+const portraitReactions=new PortraitReactions();let portraitReactionTimer=null;
+function renderPlayerPortrait(m,p){
+ for(const emotion of ['angry','closed_eyes','happy'])warmExpression(p.charId,emotion);
+ const emotion=portraitReactions.update(m,performance.now());
+ setCharacterSprite($('#playerProfile'),$('#playerProfileFallback'),p.charId,charInfo(p.charId)?.name||p.charId,'upperbody',emotion);
+ clearTimeout(portraitReactionTimer);portraitReactionTimer=null;
+ if(emotion!=='neutral')portraitReactionTimer=setTimeout(()=>{if(M?.matchId===m.matchId&&M?.self?.playerId===p.playerId)renderPlayerPortrait(M,M.self)},Math.max(0,portraitReactions.until-performance.now())+5);
+}
+const enemyExitReaction=new EnemyExitReaction();let enemyExitFrame=null,enemySpriteKey='';
+function renderEnemyVisual(m){
+ if(enemyExitFrame!==null)cancelAnimationFrame(enemyExitFrame);enemyExitFrame=null;
+ const view=enemyExitReaction.update(m,performance.now()),slot=$('.enemy-standing-slot');
+ if(view){
+  const enemy=view.enemy,charId=enemy.kind==='player'?enemy.charId:null;
+  warmExpression(charId,'contempt');
+  const key=m.matchId+'|'+(enemy.targetId||enemy.wildId)+'|'+view.emotion;
+  if(key!==enemySpriteKey){enemySpriteKey=key;setCharacterSprite($('#enemyStanding'),$('#enemyStandingFallback'),charId,enemy.name||'조우 대상','standing',view.emotion)}
+  slot.style.opacity=String(view.opacity);
+  if(view.animate)enemyExitFrame=requestAnimationFrame(()=>{if(M?.matchId===m.matchId)renderEnemyVisual(M)});
+ }else{
+  enemySpriteKey='';$('#enemyStanding').spriteToken=null;$('#enemyStanding').style.display='none';$('#enemyStandingFallback').style.display='none';slot.style.opacity='0';
+ }
 }
 function applyGameVisuals(m,p){
   const screen=$('#gameScreen'),areaName=rname(p.region);
@@ -705,19 +736,9 @@ function applyGameVisuals(m,p){
   $('#areaTitle').textContent=areaName;
 
   const pc=charInfo(p.charId),pLabel=pc?.name||p.charId;
-  setCharacterSprite($('#playerProfile'),$('#playerProfileFallback'),p.charId,pLabel,"upperbody");
+  renderPlayerPortrait(m,p);
 
-  if(m.encounter){
-    const enemyLabel=m.encounter.name||"조우 대상";
-    const enemyCharId=m.encounter.kind==="player"?m.encounter.charId:null;
-    setCharacterSprite($('#enemyStanding'),$('#enemyStandingFallback'),enemyCharId,enemyLabel);
-    $('.enemy-standing-slot').style.opacity="1";
-  }else{
-    $('#enemyStanding').spriteToken=null;$('#enemyStanding').style.display="none";
-    $('#enemyStanding').style.backgroundImage="";
-    $('#enemyStandingFallback').style.display="none";
-    $('.enemy-standing-slot').style.opacity="0";
-  }
+  renderEnemyVisual(m);
 }
 
 
@@ -1072,6 +1093,7 @@ function paintSkillCooldowns(){
   if(running)skillCooldownFrame=requestAnimationFrame(paintSkillCooldowns);
 }
 function updateSkillCooldowns(m){
+  warmExpression(charId,'contempt');
   const key=m.matchId+'|'+m.self.playerId,now=performance.now();
   for(const [id,remaining,total]of [['skill',m.self.cdC,m.self.cdCDuration],['charAction',m.self.cdA,m.self.cdADuration]]){
     const old=skillCooldowns[id],seconds=Math.max(0,Number(remaining)||0);

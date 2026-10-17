@@ -8,6 +8,9 @@ const adapterPath = path.join(publicDir, "network_adapter.js");
 const outputPath = path.join(publicDir, "MasodoSurvival.html");
 
 let html = fs.readFileSync(indexPath, "utf8");
+const reactions=fs.readFileSync(path.join(publicDir,'portrait_reactions.js'),'utf8').replace(/^export\s+class/gm,'class');
+const expressions=fs.readFileSync(path.join(publicDir,'portrait_expressions.js'),'utf8').replace(/^export\s+const/m,'const');
+html=html.replace('import{PortraitReactions,EnemyExitReaction}from"./portrait_reactions.js";',reactions).replace('import{PORTRAIT_EXPRESSIONS}from"./portrait_expressions.js";',expressions);
 let adapter = fs.readFileSync(adapterPath, "utf8").replace(/^export\s+class\s+MasodoNetworkAdapter/m, "class MasodoNetworkAdapter");
 
 function dataUrl(rel) {
@@ -27,6 +30,10 @@ const bgNames = [
 for (const name of bgNames) {
   const rel = `/assets/images/backgrounds/${name}.webp`;
   html = html.split(rel).join(dataUrl(rel));
+}
+
+for(const emotion of ['angry','closed_eyes','happy','contempt'])for(let row=0;row<6;row++){
+ const rel=`/assets/images/expressions/${emotion}/row${row}.webp`;html=html.split(rel).join(dataUrl(rel));
 }
 
 const standingRows = Array.from({length:6}, (_,i)=>dataUrl(`/assets/images/standing/row${i}.webp`));
