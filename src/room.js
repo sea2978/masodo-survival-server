@@ -8,7 +8,7 @@ import { DurableObject } from "cloudflare:workers";
 import { MAX_HUMANS, json, parseJsonMessage, safeText, send } from "./protocol.js";
 import { ADJACENCY, CHARACTERS, REGIONS, createAIPlayer, createServerPlayer, isValidCharacter, isValidRegion } from "./game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
-import { beginServerAction, completeAction, eventChoiceAvailability, initWorld, lootCorpse, publicPlayer, recommendedCrafts, resolveEventChoice, runAITick, updatePassiveTime } from "./match_engine.js";
+import { beginServerAction, completeAction, eventChoiceAvailability, initWorld, lootCorpse, publicPlayer, recommendedCrafts, beginEventChoice, runAITick, updatePassiveTime } from "./match_engine.js";
 import { BUILD_LABEL, GAME_VERSION, PHASE, PROTOCOL_VERSION } from "./version.js";
 
 const ROOM_META_KEY="room_meta",MATCH_KEY="match_state";
@@ -162,7 +162,7 @@ export class GameRoom extends DurableObject{
       if(!p.pendingAction||p.pendingAction.completeAt>now)continue;
       const result=completeAction(match,p,now);changed=true;
       const ws=[...this.sessions.entries()].find(([,s])=>s.sessionId===p.sessionId)?.[0];
-      if(ws)send(ws,"action_result",{result});
+      if(ws)send(ws,result?.type==="event_choice"?"event_result":"action_result",{result});
     }
     updatePassiveTime(match,now);
     changed ||= before!==passiveView();
@@ -291,7 +291,7 @@ export class GameRoom extends DurableObject{
     }
     if(msg.type==="event_choice"){
       const m=await this.getMatch(),p=this.matchPlayerForSession(m,session.sessionId);if(!m||!p){send(ws,"error",{error:"match_not_playing"});return}
-      const changed=await this.completeDueActions(m,Date.now(),{defer:true});const r=resolveEventChoice(m,p,Number(msg.index),Date.now());if(!r.ok){if(changed){await this.saveMatch(m);this.broadcastMatchState(m)}await this.scheduleNextAlarm(m,meta);send(ws,"error",{error:r.error,reason:r.reason||""});return}await this.saveMatch(m);await this.scheduleNextAlarm(m,meta);send(ws,"event_result",{result:r});this.broadcastMatchState(m);return
+      const changed=await this.completeDueActions(m,Date.now(),{defer:true});const r=beginEventChoice(m,p,Number(msg.index),Date.now());if(!r.ok){if(changed){await this.saveMatch(m);this.broadcastMatchState(m)}await this.scheduleNextAlarm(m,meta);send(ws,"error",{error:r.error,reason:r.reason||""});return}await this.saveMatch(m);await this.scheduleNextAlarm(m,meta);if(r.queued)send(ws,"action_accepted",{action:r.action});else send(ws,"event_result",{result:r});this.broadcastMatchState(m);return
     }
     send(ws,"error",{error:"unknown_message_type",received:msg.type})
   }

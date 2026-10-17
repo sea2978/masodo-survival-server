@@ -140,7 +140,7 @@ const er=resolveEventChoice(match,eventPlayer,0,t0+120_000);
 Math.random=oldRnd;
 assert.equal(er.ok,true);
 assert.equal(eventPlayer.pendingEvent,null);
-assert.ok((match.timeOffsetMs||0)>=beforeOffset+1000,"event time cost should advance virtual match time");
+assert.equal(match.timeOffsetMs||0,beforeOffset,"event rewards must not advance global time");
 assert.ok(typeof er.summary==="string"&&er.summary.length>0);
 
 const looter=createServerPlayer({sessionId:"s11",playerName:"Looter",charId:"c01",startRegion:"city"},10);

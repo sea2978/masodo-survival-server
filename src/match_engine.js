@@ -957,6 +957,7 @@ export function completeAction(match,p,now=Date.now()){
   const type=a.type,x=a.payload||{},observed=encounterTarget(match,p),actionRegion=p.region;let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;for(const q of match.players)if(q!==p&&q.encounter?.kind==="player"&&q.encounter.targetId===p.playerId)q.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};}
+  else if(type==="event_choice"){p.pendingEvent=x.eventId;result={...result,...resolveEventChoice(match,p,x.index,now)}}
   else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
   else if(type==="craft"){result={...result,...craftItem(match,p,x.id,x)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
@@ -1162,22 +1163,22 @@ function processEventRewardClauses(match,p,e,index,clauses,rewards,summary){
   }
 }
 
-function advanceEventTime(match,sec,now=Date.now()){
-  sec=Math.max(0,Math.floor(sec||0));if(!sec)return;
-  const delta=sec*1000;match.timeOffsetMs=(match.timeOffsetMs||0)+delta;
-  for(const q of match.players){
-    if(q.cdCUntil)q.cdCUntil=Math.max(now,q.cdCUntil-delta);
-    if(q.cdAUntil)q.cdAUntil=Math.max(now,q.cdAUntil-delta);
-    if(q.pendingAction?.completeAt)q.pendingAction.completeAt=Math.max(now,q.pendingAction.completeAt-delta);
-    for(const s of Object.values(q.statuses||{}))if(s?.until)s.until-=delta;
-    for(const e of q.tempEffects||[])if(e?.until)e.until-=delta;
-    for(const e of q.delayedEffects||[])if(e?.at)e.at-=delta;
-    if(q.lastSatietyAt)q.lastSatietyAt-=delta;
-    if(q.nextStatusTick)q.nextStatusTick-=delta;
-  }
-  for(const corpse of match.corpses||[])corpse.expiresAt-=delta;
+// Timed choices use the same persisted action deadlines and alarms as other actions.
+export function beginEventChoice(match,p,index,now=Date.now()){
   updatePassiveTime(match,now);
+  if(match.phase!=="playing"||!p?.alive)return {ok:false,error:"player_not_active"};
+  if(p.pendingAction)return {ok:false,error:"action_in_progress"};
+  if(status(p,"sleep",now))return {ok:false,error:"asleep"};
+  const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(!e)return {ok:false,error:"no_event"};
+  const choice=e.choices?.[index];if(!choice)return {ok:false,error:"invalid_choice"};
+  const availability=eventChoiceAvailability(e,p,index);if(!availability.available)return {ok:false,error:"event_choice_unavailable",reason:availability.reason};
+  const seconds=+(choice.result?.match(/시간 \+(\d+)초/)?.[1]||0);
+  if(!seconds)return resolveEventChoice(match,p,index,now);
+  p.pendingEvent=null;
+  p.pendingAction={type:"event_choice",payload:{eventId:e.id,index},startedAt:now,completeAt:now+seconds*1000,meta:{region:p.region}};
+  return {ok:true,queued:true,action:p.pendingAction};
 }
+// Apply rewards/costs only on completion; cancelled choices leave inventory intact.
 export function resolveEventChoice(match,p,index,now=Date.now()){
   updateRegionRestrictions(match,now);
   const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);if(!e)return {ok:false,error:"no_event"};
@@ -1187,7 +1188,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   p.pendingEvent=null;const text=choice.result||"",rewardText=text.split("/").filter(part=>!/소비/.test(part)).join(" / "),rewards=[],summary=[];
 
   const tm=text.match(/시간 \+(\d+)초/);
-  if(tm){advanceEventTime(match,+tm[1],now);summary.push("시간 +"+tm[1]+"초")}
+  if(tm)summary.push("진행 시간 "+tm[1]+"초")
 
   // Resolve percentage-gated HP damage first and remember those text spans so they are not also applied unconditionally.
   const probabilisticHpSpans=[];
@@ -1469,7 +1470,7 @@ export function runAIStep(match,p,now=Date.now()){
     const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);
     if(e?.choices?.length){
       const available=e.choices.map((_,i)=>i).filter(i=>eventChoiceAvailability(e,p,i).available);
-      if(available.length)resolveEventChoice(match,p,pick(available),now);
+      if(available.length)beginEventChoice(match,p,pick(available),now);
       else p.pendingEvent=null;
     }else p.pendingEvent=null;
     return true;
