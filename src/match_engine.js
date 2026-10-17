@@ -1,3 +1,4 @@
+import {rememberEnemy,rememberIncoming} from "./enemy_contacts.js";
 import {updateRegionRestrictions,isRegionLocked} from "./region_restrictions.js";
 import {uniqueMaterialExists,isUniqueMaterial} from "./unique_materials.js";
 import {equipmentSalvage,offerSearchConsumable,offerEquipment} from "./inventory_ops.js";
@@ -433,6 +434,7 @@ function recordCombatNotice(match,source,target,damage,kind,now,hit=true){
   if(!(damage>0)&&hit)return;
   if(typeof source==='string')source=match.players.find(p=>p.playerId===source)||(match.wilds||[]).find(w=>w.id===source);
   const label=x=>x?.playerName||(x?.templateId?wildTemplate(x)?.n:null)||'알 수 없는 대상';
+  if(target?.playerId&&source&&source.region===target.region)rememberIncoming(target,source,label(source),now);
   match.combatNoticeSeq=(match.combatNoticeSeq||0)+1;
   (match.combatNotices??=[]).push({id:match.combatNoticeSeq,at:now,sourceId:source?.playerId||source?.id||null,
     targetId:target?.playerId||target?.id||null,sourceName:label(source),targetName:label(target),damage,kind,hit});
@@ -876,7 +878,7 @@ function recordMaterialHintIntel(p,now){
 }
 export function publicPlayer(match,p,now=Date.now(),advance=true){
   if(advance)updatePassiveTime(match,now);else p={...p,intel:p.intel?{...p.intel}:undefined};ensureIntel(p);
-  return {...p,nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
+  return {...p,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
     inventory:{eq:(p.eq||[]).map(id=>({id,...item(id),salvage:equipmentSalvage(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
 }
@@ -952,7 +954,7 @@ export function completeAction(match,p,now=Date.now()){
   const a=p.pendingAction;if(!a||a.completeAt>now)return null;
   if(!p.alive){p.pendingAction=null;return {ok:false,error:"player_not_active",type:a.type}}
   p.pendingAction=null;
-  const type=a.type,x=a.payload||{};let result={ok:true,type};
+  const type=a.type,x=a.payload||{},observed=encounterTarget(match,p);let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;for(const q of match.players)if(q!==p&&q.encounter?.kind==="player"&&q.encounter.targetId===p.playerId)q.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};}
   else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
@@ -964,7 +966,13 @@ export function completeAction(match,p,now=Date.now()){
   else if(type==="char_action")result={...result,...charAction(match,p,now)};
   else if(type==="loot_corpse")result={...result,...lootCorpse(match,p,x.corpseId,x.kind,x.id,x.qty||1,!!x.replace,now)};
   match.corpses=(match.corpses||[]).filter(c=>c.expiresAt>now);
-  match.updatedAt=now;updatePassiveTime(match,now);return result;
+  match.updatedAt=now;updatePassiveTime(match,now);
+  const seen=encounterTarget(match,p)||observed;
+  if(seen&&seen.obj.region===p.region){
+    const target=seen.obj,template=seen.kind==='wild'?wildTemplate(target):null;
+    rememberEnemy(p,{id:target.playerId||target.id,name:target.playerName||template?.n||'알 수 없는 대상',kind:seen.kind,source:'encounter',hp:Math.max(0,target.hp),maxHp:seen.kind==='wild'?template.hp:maxHp(target,match,now),alive:target.alive},now);
+  }
+  return result;
 }
 function ensureEventMods(p){
   p.eventMods??={eventWeights:{},regionEventBoosts:{},regionSpecialEventBoosts:{},regionSpecialBoosts:{},regionLootBoosts:{},nextSpecialChanceBonus:0,nextSpecialEventBoost:0,instantSearchRegion:null,traceHiddenUntil:0,nextCraftFilter:null,nextEventSuccess:null,hazardReductionUntil:0};
