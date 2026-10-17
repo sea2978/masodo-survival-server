@@ -91,7 +91,8 @@ export class MasodoNetworkAdapter {
     const characters = (incoming.characters || []).map(c => ({ ...(previousById.get(c.id) || {}), ...c }));
     this.catalog = {
       characters: characters.length ? characters : (previous.characters || []),
-      regions: (incoming.regions || []).length ? incoming.regions : (previous.regions || [])
+      regions: (incoming.regions || []).length ? incoming.regions : (previous.regions || []),
+      items: incoming.items || previous.items || {}
     };
     return this.catalog;
   }
@@ -136,7 +137,8 @@ export class MasodoNetworkAdapter {
     const res = await fetch(`${this.baseUrl}/api/catalog`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || "catalog_load_failed");
-    this.catalog = { characters: data.characters || [], regions: data.regions || [] };
+    this.catalog = { characters: data.characters || [], regions: data.regions || [], items:data.items || {} };
+    this.itemCatalog=data.items || {};
     this.build = { version:data.version, buildLabel:data.buildLabel, phase:data.phase, protocolVersion:data.protocolVersion };
     this.emit("catalog", this.catalog);
     this.emit("build", this.build);

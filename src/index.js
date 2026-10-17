@@ -1,3 +1,4 @@
+import {ITEMS} from "./offline_content.js";
 import {normalizeRoomSettings} from "./room_settings.js";
 import { json, randomRoomCode, safeRoomCode } from "./protocol.js";
 import { CHARACTERS, REGIONS } from "./game_data.js";
@@ -51,7 +52,8 @@ export default {
           passive: c.passive, combat: c.combat, action: c.action,
           passiveEffectText: c.passiveEffectText, combatEffectText: c.combatEffectText, actionEffectText: c.actionEffectText
         })),
-        regions: REGIONS
+        regions: REGIONS,
+        items: ITEMS
       }));
     }
 

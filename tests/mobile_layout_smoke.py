@@ -1,7 +1,7 @@
 from pathlib import Path
 import re
 source=Path(__file__).resolve().parents[1]/'public'/'index.html'
-css=source.read_text().split('/* Mobile encounter layout:',1)[1].split('</style>',1)[0]
+css=source.read_text().split('/* Mobile encounter layout:',1)[1].split('/* Login and popup-based lobby. */',1)[0].split('</style>',1)[0]
 css='/* Mobile encounter layout:'+css
 assert css.startswith('/* Mobile encounter layout:')
 assert css.count('@media')==1 and '(pointer:coarse)' in css and '(orientation:landscape)' in css
