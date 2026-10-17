@@ -1,6 +1,6 @@
 import {updateRegionRestrictions,isRegionLocked} from "./region_restrictions.js";
-import {uniqueMaterialExists} from "./unique_materials.js";
-import {equipmentSalvage,offerSearchConsumable} from "./inventory_ops.js";
+import {uniqueMaterialExists,isUniqueMaterial} from "./unique_materials.js";
+import {equipmentSalvage,offerSearchConsumable,offerEquipment} from "./inventory_ops.js";
 import { CHARACTER_BY_ID, ADJACENCY, movementProfile } from "./game_data.js";
 import { ITEMS, POOLS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "./offline_content.js";
 import { PASSIVE_FX, COMBAT_SKILL_DEFS, ACTION_SKILL_DEFS, NAMED_GEAR_FX } from "./skill_defs.js";
@@ -41,25 +41,28 @@ function linkedSpecialForChar(charId){return Object.keys(SPECIAL_OWNER_CHAR).fin
 
 function isSpecialMaterial(id){return /^special_\d{2}$/.test(id)&&!!item(id)}
 function initUniqueSpecials(){
-  const out={};for(let i=1;i<=41;i++){const id="special_"+String(i).padStart(2,"0");out[id]={state:"unspawned",holderId:null,region:null}}return out
+  const out={};for(let i=1;i<=41;i++){const id="special_"+String(i).padStart(2,"0");out[id]={state:isUniqueMaterial(id)?"unspawned":"repeatable",holderId:null,region:null}}return out
 }
 function specialState(match,id){return match.uniqueSpecials?.[id]||null}
+function specialAvailable(match,id){return !isUniqueMaterial(id)||specialState(match,id)?.state==="unspawned"}
 function grantSpecial(match,p,id){
+  if(!isUniqueMaterial(id)){p.mat[id]=(p.mat[id]||0)+1;const state=specialState(match,id);if(state)Object.assign(state,{state:"repeatable",holderId:null,region:null});return true}
   const s=specialState(match,id);if(!s||s.state!=="unspawned"||uniqueMaterialExists(match,id))return false;
   p.mat[id]=(p.mat[id]||0)+1;s.state="held";s.holderId=p.playerId;s.region=null;return true
 }
 function pickupGroundSpecial(match,p,id){
-  const s=specialState(match,id);if(!s||s.state!=="ground"||s.region!==p.region||uniqueMaterialExists(match,id))return false;
+  const s=specialState(match,id);if(!s||s.state!=="ground"||s.region!==p.region||(isUniqueMaterial(id)&&uniqueMaterialExists(match,id)))return false;
+  if(!isUniqueMaterial(id)){p.mat[id]=(p.mat[id]||0)+1;s.state="repeatable";s.region=null;s.holderId=null;return true}
   p.mat[id]=(p.mat[id]||0)+1;s.state="held";s.holderId=p.playerId;s.region=null;return true
 }
 function dropSpecialsFromPlayer(match,p,region=p.region){
-  for(const[id,n]of Object.entries(p.mat||{})){if(!isSpecialMaterial(id)||n<=0)continue;p.mat[id]=0;const s=specialState(match,id);if(s&&s.state!=="consumed"){s.state="ground";s.holderId=null;s.region=region}}
+  for(const[id,n]of Object.entries(p.mat||{})){if(!isUniqueMaterial(id)||n<=0)continue;p.mat[id]=0;const s=specialState(match,id);if(s&&s.state!=="consumed"){s.state="ground";s.holderId=null;s.region=region}}
 }
 function markSpecialConsumed(match,id){
-  if(!isSpecialMaterial(id))return;const s=specialState(match,id);if(s){s.state="consumed";s.holderId=null;s.region=null}
+  if(!isUniqueMaterial(id)){const state=specialState(match,id);if(state)Object.assign(state,{state:"repeatable",holderId:null,region:null});return}const s=specialState(match,id);if(s){s.state="consumed";s.holderId=null;s.region=null}
 }
 function groundSpecialsInRegion(match,region){return Object.entries(match.uniqueSpecials||{}).filter(([,s])=>s.state==="ground"&&s.region===region).map(([id])=>id)}
-function regionSpecialCandidates(match,region){return Object.entries(SPECIAL_ROUTE_REGION).filter(([id,r])=>r===region&&specialState(match,id)?.state==="unspawned").map(([id])=>id)}
+function regionSpecialCandidates(match,region){return Object.entries(SPECIAL_ROUTE_REGION).filter(([id,r])=>r===region&&specialAvailable(match,id)).map(([id])=>id)}
 function findItemIdByExactName(name){return Object.keys(ITEMS).find(id=>ITEMS[id]?.n===name)||null}
 
 
@@ -251,7 +254,7 @@ function awardStatusKill(match,victim,sourceId,now){
   if(killer){
     killer.kills++;
     const linked=linkedSpecialForChar(victim.charId);
-    if(linked&&specialState(match,linked)?.state==="unspawned")grantSpecial(match,killer,linked);
+    if(linked&&specialAvailable(match,linked))grantSpecial(match,killer,linked);
     const kfx=combinedFx(killer,match,now);
     if(kfx.killHeal)killer.hp=clamp(killer.hp+kfx.killHeal,0,maxHp(killer,match,now));
     if(kfx.killSp)recoverSp(killer,kfx.killSp,match,now);
@@ -404,10 +407,11 @@ function wildDamage(a,w,match,now){
   return Math.max(1,Math.round(wa*100/(100+def(a,match,now))*incomingMult(a,match,now)));
 }
 function createDeathCorpse(match,p,now){
-  p.pendingPickup=null;
+  const reservedEquipment=[p.pendingPickup,...(p.pickupQueue||[])].filter(x=>x?.kind==="equipment").map(x=>x.id);
+  p.pendingPickup=null;p.pickupQueue=[];
   p.diedAt??=now;p.finishRank??=match.players.filter(x=>x.alive).length+1;
   dropSpecialsFromPlayer(match,p,p.region);
-  const corpse={id:"corpse_"+p.playerId+"_"+now,name:p.playerName,region:p.region,eq:[...p.eq],mat:Object.fromEntries(Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isSpecialMaterial(id))),con:{...p.con},expiresAt:now+75000};
+  const corpse={id:"corpse_"+p.playerId+"_"+now,name:p.playerName,region:p.region,eq:[...p.eq,...reservedEquipment],mat:Object.fromEntries(Object.entries(p.mat||{}).filter(([id,n])=>n>0&&!isUniqueMaterial(id))),con:{...p.con},expiresAt:now+75000};
   match.corpses.push(corpse);p.eq=[];p.mat={};p.con={};return corpse;
 }
 function environmentDeath(match,p,now,forced=false){
@@ -421,7 +425,7 @@ function killPlayer(match,a,b,now){
   if(fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));b.statuses={};return {revived:true}}
   b.alive=false;b.encounter=null;b.pendingAction=null;a.kills++;
   const linked=linkedSpecialForChar(b.charId);
-  if(linked&&specialState(match,linked)?.state==="unspawned"&&a.alive)grantSpecial(match,a,linked);
+  if(linked&&specialAvailable(match,linked)&&a.alive)grantSpecial(match,a,linked);
   createDeathCorpse(match,b,now);
   return {killed:true}
 }
@@ -567,8 +571,8 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
 
   let drop=null,extra=[],killed=false;
   if(w.hp<=0){
-    killed=true;w.alive=false;w.hp=0;drop=pick(t.drop);addItem(p,drop);
-    if(t.skill==="supply_cache")for(let i=0;i<2;i++){const x=pick(t.drop);if(addItem(p,x))extra.push(x)}
+    killed=true;w.alive=false;w.hp=0;drop=pick(t.drop);if(!addItem(p,drop)&&item(drop)?.t==="e")offerEquipment(match,p,drop);
+    if(t.skill==="supply_cache")for(let i=0;i<2;i++){const x=pick(t.drop);if(addItem(p,x)||(item(x)?.t==="e"&&offerEquipment(match,p,x)))extra.push(x)}
     const kfx=combinedFx(p,match,now);
     if(kfx.killHeal)p.hp=clamp(p.hp+kfx.killHeal,0,maxHp(p,match,now));
     if(kfx.killSp)recoverSp(p,kfx.killSp,match,now);
@@ -657,6 +661,7 @@ function searchResult(match,p,now){
     const medMagic=new Set(["medicine","toxin","mana_ink","mana_fiber","mana_stone","crystal"]);
     const id=boost?weightedPick(pool,x=>1+(boost.kind==="weapon"&&weaponMat.has(x)?boost.bonus:boost.kind==="medmagic"&&medMagic.has(x)?boost.bonus:0)):pick(pool);
     if(addItem(p,id))return {kind:"item",itemId:id,itemName:item(id)?.n||id};
+    if(item(id)?.t==="e"&&offerEquipment(match,p,id))return {kind:"pending_pickup",itemId:id,itemName:item(id).n};
     if(item(id)?.t==="c"&&offerSearchConsumable(match,p,id))return {kind:"pending_pickup",itemId:id,itemName:item(id).n}
   }
   return {kind:"nothing"};
@@ -916,7 +921,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
     }
     if(payload.kind==="eq"){
       if(!corpse.eq?.includes(payload.id))return {ok:false,error:"loot_missing"};
-      if((p.eq||[]).length>=3&&!payload.replace)return {ok:false,error:"equipment_full"};
+      if((p.eq||[]).length>=3&&p.pickupChoices===false&&!payload.replace)return {ok:false,error:"equipment_full"};
     }
   }
   if(["attack","skill","flee"].includes(type)&&!encounterTarget(match,p))return {ok:false,error:"no_encounter"};
@@ -1013,14 +1018,8 @@ function eventAwardItem(match,p,id,count=1){
     const it=item(id);
     if(isSpecialMaterial(id)){if(grantSpecial(match,p,id))got++;break}
     if(it.t==="m"||it.t==="c"){if(addItem(p,id))got++}
-    else{
-      if(p.eq.length>=3){
-        let worst=0,worstScore=Infinity;
-        for(let j=0;j<p.eq.length;j++){const q=item(p.eq[j]),score=(q?.atk||0)+(q?.def||0);if(score<worstScore){worstScore=score;worst=j}}
-        p.eq.splice(worst,1);
-      }
-      p.eq.push(id);got++;
-    }
+    else if(addItem(p,id))got++;
+    else if(offerEquipment(match,p,id))got++;
   }
   return got;
 }
@@ -1227,7 +1226,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
     const guaranteed=!/판정|확률/.test(text),boost=/크게 상승|상승|증가/.test(text),mods0=cleanupEventMods(p,now);
     const chance=clamp((guaranteed ? 1 : (boost ? .78 : .55))+(mods0.nextSpecialChanceBonus||0),0,1);mods0.nextSpecialChanceBonus=0;
     if(Math.random()<chance){
-      const valid=specials.filter(id=>specialState(match,id)?.state==="unspawned");
+      const valid=specials.filter(id=>specialAvailable(match,id));
       if(valid.length){
         const id=pick(valid);if(eventAwardItem(match,p,id,1)){rewards.push(id);summary.push("특수재료 획득");specialSucceeded=true}
       }else{eventAwardGeneric(match,p,"material",2);summary.push("특수재료 대체 보상");specialSucceeded=true}
@@ -1328,6 +1327,10 @@ export function lootCorpse(match,p,corpseId,kind,id,qty=1,replace=false,now=Date
   if(kind==="eq"){
     const ix=corpse.eq.indexOf(id);if(ix<0)return {ok:false,error:"loot_missing"};
     if(p.eq.length>=3){
+      if(!p.isAI){
+        if(!offerEquipment(match,p,id))return {ok:false,error:"equipment_full"};
+        corpse.eq.splice(ix,1);removeCorpseIfEmpty(match,corpse);return {ok:true,n:1,itemId:id,pendingPickup:true};
+      }
       if(!replace)return {ok:false,error:"equipment_full"};
       let worst=0,worstScore=Infinity;
       for(let i=0;i<p.eq.length;i++){const score=lootEquipScore(p.eq[i]);if(score<worstScore){worstScore=score;worst=i}}

@@ -1,3 +1,4 @@
+import {isUniqueMaterial} from '../src/unique_materials.js';
 import assert from 'node:assert/strict';
 import {ITEMS,POOLS} from '../src/offline_content.js';
 import {beginServerAction,completeAction,initWorld,publicPlayer} from '../src/match_engine.js';
@@ -35,7 +36,7 @@ const conId=POOLS.city.find(id=>ITEMS[id].t==='c'&&!['bread','water','medicine']
 for(const [id,it]of Object.entries(ITEMS).filter(([,it])=>it.t==='e'&&it.r)){
  const {m,p}=setup();p.eq=[id];p.con={};p.mat={};for(const x of equipmentSalvage(id))if(/^special_/.test(x.id))m.uniqueSpecials[x.id].state='consumed';
  const result=inventoryOperation(m,p,{mode:'dismantle_equipment',index:0,id});assert(result.ok,id+' '+JSON.stringify(result));
- for(const [part,count]of Object.entries(it.r)){const actual=ITEMS[part].t==='e'?p.eq.filter(x=>x===part).length:ITEMS[part].t==='c'?p.con[part]:p.mat[part];assert.equal(actual,count,id+':'+part);if(/^special_/.test(part))assert.equal(m.uniqueSpecials[part].holderId,p.playerId)}
+ for(const [part,count]of Object.entries(it.r)){const actual=ITEMS[part].t==='e'?p.eq.filter(x=>x===part).length:ITEMS[part].t==='c'?p.con[part]:p.mat[part];assert.equal(actual,count,id+':'+part);if(isUniqueMaterial(part))assert.equal(m.uniqueSpecials[part].holderId,p.playerId)}
 }
 {
  const {m,p}=setup();p.eq=['toxin_kit'];p.con={bread:1,water:1,canned:1};const before=JSON.stringify([p.eq,p.con,p.mat]);assert.equal(inventoryOperation(m,p,{mode:'dismantle_equipment',index:0,id:'toxin_kit'}).error,'inventory_full');assert.equal(JSON.stringify([p.eq,p.con,p.mat]),before);

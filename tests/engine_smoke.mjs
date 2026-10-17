@@ -1,3 +1,4 @@
+import {isUniqueMaterial} from '../src/unique_materials.js';
 import assert from "node:assert/strict";
 import { CHARACTERS, REGIONS, createAIPlayer, createServerPlayer } from "../src/game_data.js";
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "../src/offline_content.js";
@@ -71,7 +72,7 @@ for(const [id,n] of Object.entries(specialCraftItem.r)){
 r=beginServerAction(match,p,"craft",{id:specialCraftId},t0+40_000);
 assert.equal(r.ok,true);
 completeAction(match,p,r.action.completeAt+1);
-for(const id of Object.keys(specialCraftItem.r).filter(k=>/^special_\d{2}$/.test(k)))assert.equal(match.uniqueSpecials[id].state,"consumed");
+for(const id of Object.keys(specialCraftItem.r).filter(k=>/^special_\d{2}$/.test(k)))assert.equal(match.uniqueSpecials[id].state,isUniqueMaterial(id)?"consumed":"repeatable");
 
 const support=createServerPlayer({sessionId:"s3",playerName:"Support",charId:"c07",startRegion:"city"},2);
 support.sp=10;match.players.push(support);

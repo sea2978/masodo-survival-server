@@ -1,3 +1,4 @@
+import {isUniqueMaterial} from "./unique_materials.js";
 import {updateRegionRestrictions,nextRegionLockAt} from "./region_restrictions.js";
 import {normalizeRoomSettings,roomSettings,humanCapacity,plannedAICount} from "./room_settings.js";
 import {inventoryOperation} from "./inventory_ops.js";
@@ -115,7 +116,7 @@ export class GameRoom extends DurableObject{
       })():null,
       aiCount:match.players.filter(p=>p.isAI).length,
       corpses:(match.corpses||[]).filter(c=>c.region===self?.region&&c.expiresAt>now),
-      specialRouteStates:Object.fromEntries(Object.entries(match.uniqueSpecials||{}).map(([id,s])=>[id,{state:s.state,...(s.state==="ground"?{region:s.region}:{})}])),
+      specialRouteStates:Object.fromEntries(Object.entries(match.uniqueSpecials||{}).map(([id,s])=>[id,{state:isUniqueMaterial(id)?s.state:"repeatable",...(s.state==="ground"&&isUniqueMaterial(id)?{region:s.region}:{})}])),
       ...(self?this.recipeView(self):{recommendations:[],craftable:[]})}
   }
   sendMatchState(ws,match,{force=false,now=Date.now()}={}){
@@ -238,7 +239,7 @@ export class GameRoom extends DurableObject{
       for(const[other,os]of this.sessions.entries())if(other!==ws&&os?.sessionId===session.sessionId){this.sessions.delete(other);try{other.close(4002,"Session resumed elsewhere")}catch{}}
       session.deltaState=Array.isArray(msg.features)&&msg.features.includes(STATE_DELTA_FEATURE);
       session.pickupChoices=Array.isArray(msg.features)&&msg.features.includes("inventory_choice_v1");
-      if(p){p.pickupChoices=session.pickupChoices;if(!p.pickupChoices)p.pendingPickup=null}
+      if(p){p.pickupChoices=session.pickupChoices}
       session.joined=true;ws.serializeAttachment(session);this.sessions.set(ws,session);
       record.playerName=session.playerName;record.charId=session.charId;record.startRegion=session.startRegion;record.ready=!!session.ready;record.disconnectedAt=null;
       meta.reconnectRecords=records;if(meta.emptySince)delete meta.emptySince;if(!meta.hostSessionId)meta.hostSessionId=session.sessionId;await this.saveMeta(meta);

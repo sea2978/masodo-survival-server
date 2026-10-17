@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
-import {inventoryOperation,offerSearchConsumable} from '../src/inventory_ops.js';
+import {inventoryOperation,offerSearchConsumable,offerEquipment} from '../src/inventory_ops.js';
 import {ITEMS} from '../src/offline_content.js';
 const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),els=new Map(),listeners=new Map();
 const element=()=>({children:[],open:false,disabled:false,textContent:'',addEventListener(name,fn){this[name]=fn},replaceChildren(){this.children=[]},appendChild(x){this.children.push(x)},showModal(){this.open=true},close(){this.open=false}});
@@ -9,7 +9,7 @@ const $=id=>{if(!els.has(id))els.set(id,element());return els.get(id)};
 const p={playerId:'p',alive:true,eq:['plate'],con:{bread:3,water:2,medicine:1},mat:{},pendingAction:null},match={phase:'playing',players:[p]},messages=[],toasts=[];
 const context={$,document:{createElement:element,querySelectorAll:()=>[...els.values()].filter(e=>e.open)},I:id=>ITEMS[id],toast:(...args)=>toasts.push(args),M:null,net:{on:(name,fn)=>listeners.set(name,fn),inventoryOperation(payload){messages.push(payload);return true}}};
 context.renderMatch=m=>{context.M=m;context.renderPickup(m)};
-const state=()=>({phase:match.phase,self:{alive:p.alive,pendingPickup:p.pendingPickup,inventory:{con:Object.entries(p.con).map(([id,count])=>({id,count,n:ITEMS[id].n}))}}});
+const state=()=>({phase:match.phase,self:{alive:p.alive,pendingPickup:p.pendingPickup,inventory:{eq:p.eq.map(id=>({id,n:ITEMS[id].n})),con:Object.entries(p.con).map(([id,count])=>({id,count,n:ITEMS[id].n}))}}});
 vm.createContext(context);vm.runInContext(source.slice(source.indexOf('let inventoryPending='),source.indexOf('const shownResults=')),context);
 vm.runInContext('function busy(){return inventoryPending||!!M?.self?.pendingPickup}',context);
 const respond=()=>{const result=inventoryOperation(match,p,messages.at(-1));listeners.get('inventory_result')({result});context.renderMatch(state());return result};
@@ -24,3 +24,7 @@ context.net.inventoryOperation=payload=>(messages.push(payload),true);offerSearc
 p.alive=false;context.renderMatch(state());assert(!$('#pickupPanel').open);
 assert(source.includes("if(d.id==='pickupPanel')return"));assert(!source.includes("$('#equippedHud').innerHTML=$('#eq').innerHTML"));
 console.log('inventory UI state-machine PASS: choices, stack labels, Escape guard, in-flight lock, confirmation, real engine operation results, error recovery and death cleanup (DOM mocks, no visual browser assertion)');
+
+p.alive=true;p.eq=['plate','plate','focus'];p.pendingPickup=null;offerEquipment(match,p,'basic_sword',2);context.renderMatch(state());assert.equal($('#pickupTitle').textContent,'장비 칸이 가득 찼습니다');assert.equal($('#pickupChoices').children.length,3);assert.equal($('#discardPickup').textContent,'새 장비 포기');
+$('#pickupChoices').children[1].onclick();assert.equal(messages.at(-1).replaceIndex,1);assert(respond().ok);assert.deepEqual(p.eq,['plate','focus','basic_sword']);assert($('#pickupPanel').open);$('#discardPickup').onclick();assert(respond().ok);assert(!$('#pickupPanel').open);assert.deepEqual(p.eq,['plate','focus','basic_sword']);
+console.log('equipment choice UI PASS: identical gear slot selection, preserved gear, queued next reward and new-item discard (DOM mocks)');

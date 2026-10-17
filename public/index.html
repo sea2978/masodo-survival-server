@@ -375,7 +375,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
     <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 장비</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
     <dialog id="inventoryConfirmPanel" class="game-popup"><div class="popup-head"><h2 id="inventoryConfirmTitle">아이템 관리</h2><button data-close-panel>취소</button></div><p id="inventoryConfirmDetail"></p><button id="inventoryConfirmApply">확인</button></dialog>
     <dialog id="craftDiscardPanel" class="game-popup"><div class="popup-head"><h2>버릴 장비 선택</h2><button onclick="this.closest('dialog').close()">취소</button></div><p id="craftDiscardDescription"></p><div id="craftDiscardChoices" class="compact-list"></div><p class="muted">취소하면 장비와 제작 재료를 그대로 보존합니다.</p></dialog>
-    <dialog id="pickupPanel" class="game-popup"><div class="popup-head"><h2>소모품 칸이 가득 찼습니다</h2></div><p id="pickupDescription"></p><p class="muted">기존 소모품 한 종류를 수량 전체와 함께 버리고 획득하거나, 새 소모품을 포기하세요.</p><div id="pickupChoices" class="compact-list"></div><button id="discardPickup">새로 발견한 소모품 버리기</button></dialog>
+    <dialog id="pickupPanel" class="game-popup"><div class="popup-head"><h2 id="pickupTitle">아이템 칸이 가득 찼습니다</h2></div><p id="pickupDescription"></p><p id="pickupHelp" class="muted"></p><div id="pickupChoices" class="compact-list"></div><button id="discardPickup">새로 발견한 소모품 버리기</button></dialog>
     <dialog id="craftPanel" class="game-popup"><div class="popup-head"><h2>제작</h2><button data-close-panel>닫기</button></div><div id="craft"></div></dialog>
 
     <section class="intel-hud glass-panel log-panel" hidden>
@@ -699,6 +699,7 @@ function regionsForItem(id){
 }
 function routeLocationText(id){
   const state=M?.specialRouteStates?.[id];
+  if(state?.state==='repeatable')return rname(SPECIAL_ROUTE_REGION[id])+' · 반복 획득 가능';
   if(state?.state==='ground')return rname(state.region)+' · 사망자가 떨어뜨린 유일 재료 회수';
   if(state?.state==='held')return itemOwnedCount(me(),id)>0?'보유 중':'다른 생존자가 보유 중';
   if(state?.state==='consumed')return '이번 라운드에서 이미 제작에 소비됨';
@@ -1000,14 +1001,15 @@ $('#pickupPanel').addEventListener('cancel',e=>e.preventDefault());
 function renderPickup(m){
   const pickup=m.self?.alive&&m.phase==='playing'?m.self.pendingPickup:null,dialog=$('#pickupPanel');
   if(!pickup){pickupViewKey='';if(dialog.open)dialog.close();return}
-  const key=JSON.stringify([pickup,m.self.inventory.con,inventoryPending]);
+  const key=JSON.stringify([pickup,m.self.inventory.con,m.self.inventory.eq,inventoryPending]);
   if(key!==pickupViewKey){
-    pickupViewKey=key;$('#pickupDescription').textContent='발견: '+pickup.name+' ×'+pickup.count;
+    pickupViewKey=key;const equipment=pickup.kind==='equipment';$('#pickupTitle').textContent=equipment?'장비 칸이 가득 찼습니다':'소모품 칸이 가득 찼습니다';$('#pickupHelp').textContent=equipment?'버릴 장비 한 개를 선택하거나 새 장비를 포기하세요. 선택하기 전에는 기존 장비를 보존합니다.':'기존 소모품 한 종류를 수량 전체와 함께 버리거나 새 소모품을 포기하세요.';$('#pickupDescription').textContent='획득 대기: '+pickup.name+' ×'+pickup.count;
     $('#pickupChoices').replaceChildren();
-    for(const it of m.self.inventory.con){const b=document.createElement('button');b.textContent=it.n+' ×'+it.count+' 전부 버리고 '+pickup.name+' 획득';b.disabled=inventoryPending;b.onclick=()=>sendInventory({mode:'resolve_pickup',token:pickup.token,choice:'replace',replaceId:it.id});$('#pickupChoices').appendChild(b)}
-    const free=m.self.inventory.con.length<3||m.self.inventory.con.some(it=>it.id===pickup.id);
+    const rows=equipment?m.self.inventory.eq:m.self.inventory.con;
+    for(const [index,it]of rows.entries()){const b=document.createElement('button');b.textContent=it.n+(equipment?' 한 개 버리고 ':' ×'+it.count+' 전부 버리고 ')+pickup.name+' 획득';b.disabled=inventoryPending;b.onclick=()=>sendInventory({mode:'resolve_pickup',token:pickup.token,choice:'replace',replaceId:it.id,...(equipment?{replaceIndex:index}:{})});$('#pickupChoices').appendChild(b)}
+    const free=rows.length<3||(!equipment&&rows.some(it=>it.id===pickup.id));
     if(free){const b=document.createElement('button');b.textContent='빈 칸에 획득';b.disabled=inventoryPending;b.onclick=()=>sendInventory({mode:'resolve_pickup',token:pickup.token,choice:'replace'});$('#pickupChoices').appendChild(b)}
-    $('#discardPickup').disabled=inventoryPending;$('#discardPickup').onclick=()=>sendInventory({mode:'resolve_pickup',token:pickup.token,choice:'discard'});
+    $('#discardPickup').textContent=equipment?'새 장비 포기':'새 소모품 포기';$('#discardPickup').disabled=inventoryPending;$('#discardPickup').onclick=()=>sendInventory({mode:'resolve_pickup',token:pickup.token,choice:'discard'});
   }
   if(!dialog.open){document.querySelectorAll('.game-popup[open]').forEach(d=>d.close());dialog.showModal()}
 }
@@ -1016,7 +1018,7 @@ net.on('inventory_result',e=>{
   if(!r.ok){toast('아이템 관리 실패',inventoryErrors[r.error]||r.error,'','combat',3500);if(M)renderMatch(M);return}
   const name=I(r.itemId)?.n||r.itemId;
   if(r.mode==='dismantle_equipment')toast('장비 분해',name,(r.rewards||[]).map(x=>x.name+' ×'+x.count).join(' · '));
-  else if(r.mode==='resolve_pickup')toast(r.discarded===true?'발견한 소모품 포기':'소모품 획득 선택',name,r.discarded?.id?(I(r.discarded.id)?.n||r.discarded.id)+' ×'+r.discarded.count+' 버림':'');
+  else if(r.mode==='resolve_pickup')toast(r.discarded===true?'새 아이템 포기':'아이템 획득 선택',name,r.discarded?.id?(I(r.discarded.id)?.n||r.discarded.id)+' ×'+r.discarded.count+' 버림':'');
   else toast('아이템 버림',name,r.count?'×'+r.count+' 전체 버림':'장비 한 칸을 비웠습니다.');
 });
 net.on('close',()=>{inventoryPending=false;pickupViewKey=''});
@@ -1100,7 +1102,7 @@ $('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.en
 $('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingEvent.name}</b><p>${m.pendingEvent.type}</p>${m.pendingEvent.choices.map((c,i)=>`<button data-event="${i}" ${c.available===false?'disabled':''}>${c.label}${c.available===false?' · 사용 불가':''}</button><div class="muted">${c.result}${c.available===false&&c.reason?' · '+c.reason:''}</div>`).join("")}</div>`:"";$('#eventBox').querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>net.eventChoice(Number(b.dataset.event)));
 $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{
   let rows=[];
-  for(const id of c.eq||[])rows.push(`<button data-loot="${c.id}|eq|${id}|1|${p.inventory.eq.length>=3?'1':'0'}" ${busy()?'disabled':''}>장비 ${id}${p.inventory.eq.length>=3?' · 최약 장비와 교체':''}</button>`);
+  for(const id of c.eq||[])rows.push(`<button data-loot="${c.id}|eq|${id}|1|${p.inventory.eq.length>=3?'1':'0'}" ${busy()?'disabled':''}>장비 ${id}${p.inventory.eq.length>=3?' · 획득 후 버릴 장비 선택':''}</button>`);
   for(const[id,n]of Object.entries(c.mat||{}))rows.push(`<button data-loot="${c.id}|mat|${id}|${n}|0" ${busy()?'disabled':''}>재료 ${id} ×${n} 전부</button>`);
   for(const[id,n]of Object.entries(c.con||{}))rows.push(`<button data-loot="${c.id}|con|${id}|${n}|0" ${busy()?'disabled':''}>소모품 ${id} ×${n} 전부</button>`);
   return`<div class="card"><b>${c.name}의 시체</b><div class="muted">전리품은 서버 행동시간이 지난 뒤 획득됩니다. 먼저 가져간 플레이어가 있으면 실패합니다.</div><div class="row">${rows.join("")}</div></div>`
