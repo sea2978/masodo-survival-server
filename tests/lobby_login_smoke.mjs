@@ -9,6 +9,7 @@ const element=()=>({value:'',hidden:false,disabled:false,open:false,textContent:
 const $=id=>{if(!els.has(id))els.set(id,element());return els.get(id)};
 const ctx={$,URL,serverReady:false,roomEntryBusy:false,WebSocket:{OPEN:1},D:{items:ITEMS},document:{body:{classList:{remove(){},add(){}}},querySelectorAll:()=>[],createElement:element},clearMatchClock(){},clearSkillCooldowns(){},hideReconnectLoading(){},clearLocalAction(){},stopSearchLoading(){},renderCharInfo(){},renderBuild(){},fillCatalog(){},refreshRooms:async()=>{},log(){},escapeRoomText:x=>String(x).replaceAll('<','&lt;'),setCharacterSprite(){},net:{catalog:{characters:CHARACTERS,items:ITEMS},close(){},async loadCatalog(){calls.push('catalog');this.catalog={characters:CHARACTERS,items:ITEMS}},async listRooms(){return{rooms:[]}},setReady(v){calls.push(['ready',v])}},connectRoom:async(...x)=>{calls.push(x);return true}};
 vm.createContext(ctx);
+vm.runInContext(source.slice(source.indexOf('function craftStatsText('),source.indexOf('function nextUpgradeItems(')),ctx);
 vm.runInContext(source.slice(source.indexOf('function showLogin('),source.indexOf('const gameLog=')),ctx);
 ctx.showLobby();assert(!$('#loginScreen').hidden);assert($('#lobbyScreen').hidden);assert($('#gameScreen').hidden);
 vm.runInContext(source.slice(source.indexOf('function openLobbyPanel('),source.indexOf("document.querySelectorAll('[data-lobby-panel]').forEach")),ctx);

@@ -7,7 +7,7 @@ const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'ut
 const $=id=>{if(!els.has(id))els.set(id,{open:false,innerHTML:'',showModal(){this.open=true}});return els.get(id)};
 const net=new MasodoNetworkAdapter('https://example.test');net.send=(type,payload={})=>{sent.push({type,...payload});return true};
 const buttons=[{dataset:{openPanel:'infoPanel'}},{dataset:{openPanel:'inventoryPanel'}}];
-const ctx={$,net,toast:()=>{},escapeRoomText:x=>x,document:{querySelectorAll:()=>buttons}};vm.createContext(ctx);
+const ctx={$,net,toast:()=>{},escapeRoomText:x=>x,characterName:id=>id,document:{querySelectorAll:()=>buttons}};vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('function refreshInfo()'),source.indexOf("document.querySelectorAll('[data-close-panel]')")),ctx);
 vm.runInContext(source.slice(source.indexOf('function renderOtherSurvivors('),source.indexOf('function renderMatch(')),ctx);
 buttons[0].onclick();buttons[0].onclick();assert.equal(sent.length,2);assert(sent.every(x=>x.type==='request_state'));buttons[1].onclick();assert.equal(sent.length,2);

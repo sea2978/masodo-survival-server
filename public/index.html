@@ -311,6 +311,10 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 @media(max-width:600px){.lobby-menu{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.lobby-menu button{min-height:100px;padding:14px}.lobby-menu b{font-size:20px}.lobby-menu span{font-size:11px}.room-popup-grid{grid-template-columns:1fr;height:auto}.room-popup-grid .lobby-rooms{min-height:220px;max-height:42dvh}.codex-list{grid-template-columns:1fr}.login-card{padding:20px}}
 @media(max-height:500px) and (orientation:landscape){#loginScreen{padding:8px}.login-card{padding:14px;gap:6px}.login-card h1{font-size:21px}.login-card p{font-size:11px}.login-card label{font-size:11px}.login-card input,.login-card button{min-height:34px;padding:6px}.lobby-menu{grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.lobby-menu button{min-height:100px;padding:12px 8px}.lobby-menu b{font-size:17px}.lobby-menu span{font-size:10px}.room-popup-grid{height:55dvh;min-height:140px}.login-card #serverConnectMessage{min-height:16px}}
 
+
+#itemCodexPanel{width:min(1120px,96vw)}.item-codex-shop{display:grid;grid-template-columns:120px minmax(180px,1fr) minmax(260px,1.1fr);gap:10px;height:min(65dvh,620px);min-height:200px}.item-codex-shop .craft-sidebar{overflow:auto}.item-codex-grid{overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));align-content:start;gap:8px}.item-codex-grid button{min-height:80px;text-align:left;padding:10px}.item-codex-grid small{display:block;margin-top:8px;color:#aebfd0}.item-codex-detail{overflow:auto;padding:12px;border:1px solid #425872;border-radius:8px;line-height:1.6}.item-codex-detail h3,.item-codex-detail h4{margin:4px 0 10px}.item-codex-detail p{font-size:12px}.codex-recipe-tree,.codex-recipe-tree ul{list-style:none;padding-left:12px;margin:6px 0;border-left:1px solid #6586a6}.codex-recipe-tree button,.codex-upgrade{padding:6px 9px;min-height:34px;margin:3px 0;font-size:12px;text-align:left;max-width:100%;overflow-wrap:anywhere}.codex-upgrade{display:block;width:100%}
+@media(max-width:700px){.item-codex-shop{grid-template-columns:85px minmax(0,1fr);height:auto}.item-codex-grid{max-height:35dvh;grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}.item-codex-shop .craft-sidebar{max-height:35dvh}.item-codex-detail{grid-column:1/-1;max-height:40dvh}}
+
 </style></head><body>
 <div class="wrap">
   <section id="loginScreen">
@@ -337,7 +341,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
   <dialog id="quickMatchPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>빠른대전</h2><button data-close-panel>닫기</button></div><p>참가 가능한 방을 찾아 입장하고 준비합니다. 방이 없으면 새 방을 만듭니다.</p><p class="muted">경기 시작은 방장이 진행합니다.</p><button id="quickMatchStart">빠른대전 시작</button><p id="quickMatchMessage" role="status"></p></dialog>
   <dialog id="roomBrowserPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>방 목록</h2><button data-close-panel>닫기</button></div><div class="room-popup-grid"><section class="lobby-pane lobby-rooms"><button id="refreshRooms">새로고침</button><div id="roomsList" class="room-browser"></div><div class="lobby-entry"><button id="create">방 만들기</button><div class="row"><input id="room" placeholder="방 코드" maxlength="6" aria-label="방 코드"><button id="join" disabled>코드로 참가</button></div></div></section><section class="lobby-pane lobby-current"><h2>현재 방</h2><div id="roomState"><p class="muted">방을 만들거나 목록에서 참가하세요.</p></div><div class="lobby-ready"><button id="ready">준비</button><button id="unready">준비 취소</button><button id="start">방장: 경기 시작</button></div></section></div></dialog>
   <dialog id="playerSettingsPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>플레이어 세팅</h2><button data-close-panel>닫기</button></div><p>플레이어: <b id="settingsPlayerName"></b></p><div class="lobby-player"><label for="char">캐릭터</label><select id="char"><option>캐릭터 목록 불러오는 중...</option></select><label for="startRegion">시작 지역</label><select id="startRegion"><option>지역 목록 불러오는 중...</option></select><div id="charInfo" class="card muted"></div></div></dialog>
-  <dialog id="itemCodexPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>아이템 도감</h2><button data-close-panel>닫기</button></div><input id="itemCodexSearch" type="search" placeholder="이름·등급·효과 검색" aria-label="아이템 검색"><div id="itemCodexList" class="codex-list"></div></dialog>
+  <dialog id="itemCodexPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>아이템 도감</h2><button data-close-panel>닫기</button></div><input id="itemCodexSearch" type="search" placeholder="이름·등급·효과 검색" aria-label="아이템 검색"><div id="itemCodexList" class="item-codex-shop"></div></dialog>
   <dialog id="characterCodexPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>캐릭터 도감</h2><button data-close-panel>닫기</button></div><input id="characterCodexSearch" type="search" placeholder="이름·스킬 검색" aria-label="캐릭터 검색"><div id="characterCodexList" class="codex-list"></div></dialog>
 
   <dialog id="createRoomPanel" class="game-popup"><form id="createRoomForm"><div class="popup-head"><h2>방 만들기</h2><button id="cancelCreateRoom" type="button">취소</button></div><label for="roomName">방 이름</label><input id="roomName" name="roomName" maxlength="32" placeholder="생존게임 방" autocomplete="off"><label for="aiMode">AI 설정</label><select id="aiMode"><option value="fill">남은 인원 채우기</option><option value="none">없음</option><option value="fixed">직접 지정</option></select><div id="fixedAIField" hidden><label for="aiCountSetting">AI 수</label><input id="aiCountSetting" type="number" min="0" max="10" step="1" value="3" required></div><p id="roomSettingsHint" class="muted">경기 시작 시 총 11명이 되도록 AI를 채웁니다. 플레이어는 최대 10명입니다.</p><button id="createRoomSubmit" type="submit">만들고 입장</button></form></dialog>
@@ -584,7 +588,7 @@ function renderBuild(){
 function fillCatalog(){
   if(net.catalog?.characters?.length){
     const keep=$('#char').value;
-    $('#char').innerHTML=net.catalog.characters.map(c=>`<option value="${c.id}">${c.id} · ${c.name}</option>`).join("");
+    $('#char').innerHTML=net.catalog.characters.map(c=>`<option value="${c.id}">${escapeRoomText(c.name)}</option>`).join("");
     if(net.catalog.characters.some(c=>c.id===keep))$('#char').value=keep;
   }
   if(net.catalog?.regions?.length){
@@ -597,7 +601,7 @@ function fillCatalog(){
 }
 const escapeRoomText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function aiSettingText(r){return r.aiMode==='none'?'AI 없음':r.aiMode==='fixed'?'AI '+r.aiCount+'명':'AI 남은 인원 채우기'}
-function renderRoom(r){$('#lobbyRoomSummary').textContent=(r.name||'생존게임 방')+' · '+r.code+' · '+r.humanCount+'/'+r.maxHumans;$('#roomState').innerHTML=`<p><b>${escapeRoomText(r.name||'생존게임 방')}</b></p><p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p><p class="muted">${aiSettingText(r)}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${p.playerName} / ${p.charId} / ${rname(p.startRegion)}</div>`).join("")}
+function renderRoom(r){$('#lobbyRoomSummary').textContent=(r.name||'생존게임 방')+' · '+r.code+' · '+r.humanCount+'/'+r.maxHumans;$('#roomState').innerHTML=`<p><b>${escapeRoomText(r.name||'생존게임 방')}</b></p><p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p><p class="muted">${aiSettingText(r)}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${escapeRoomText(p.playerName)} / ${escapeRoomText(characterName(p.charId))} / ${rname(p.startRegion)}</div>`).join("")}
 let roomEntryBusy=false;
 async function connectRoom(code,create=false,settings={}){
   if(roomEntryBusy)return;
@@ -647,6 +651,7 @@ const STANDING_SPRITES={
   c36:[4,0],c37:[4,1],c38:[4,2],c40:[4,3],c41:[4,4],c42:[4,5],c43:[4,6],c44:[4,7],
   c45:[5,0],c46:[5,1],c47:[5,2],c48:[5,3],c49:[5,4],c50:[5,5],c51:[5,6],c39:[5,7]
 };
+function characterName(id){return charInfo(id)?.name||'알 수 없는 캐릭터'}
 function charInfo(id){return (net.catalog?.characters||[]).find(c=>c.id===id)||null}
 const spriteImageCache=new Map();
 function setCharacterSprite(el,fb,charId,label,type="standing"){
@@ -1112,7 +1117,7 @@ function renderMoves(m,p,disabled){
  $('#moves').querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{if(regionLocked(M,b.dataset.move))return;net.move(b.dataset.move);$('#movePanel').close()});
 }
 function renderOtherSurvivors(m){
- $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(o.charId)} / 처치 ${o.kills??0}</div>`).join('');
+ $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(characterName(o.charId))} / 처치 ${o.kills??0}</div>`).join('');
 }
 function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderActionLoading(m);renderResult(m);renderPickup(m);
 $('#pname').textContent=p.playerName;$('#pchar').textContent=charInfo(p.charId)?.name||p.charId;$('#region').textContent=rname(p.region);$('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;$('#elapsed').textContent=m.elapsed;$('#cdc').textContent=p.cdC.toFixed(1);$('#cda').textContent=p.cdA.toFixed(1);
@@ -1169,15 +1174,32 @@ function openLobbyPanel(id){
  if(id==='playerSettingsPanel'){$('#settingsPlayerName').textContent=$('#name').value;renderCharInfo()}
  $('#'+id).showModal();$('#'+id).scrollTop=0;
 }
-function renderItemCodex(){
+let itemCodexCategory='all',itemCodexSelected=null;
+function codexRecipeTree(items,id,count=1,path=[]){
+ const it=items[id];if(!it)return '';
+ const button='<button data-codex-select="'+escapeRoomText(id)+'">'+escapeRoomText(it.n)+' ×'+count+'</button>';
+ if(path.includes(id)||path.length>=16)return '<li>'+button+'</li>';
+ const parts=Object.entries(it.r||{});
+ return '<li>'+button+(parts.length?'<ul>'+parts.map(([part,n])=>codexRecipeTree(items,part,n*count,[...path,id])).join('')+'</ul>':'')+'</li>';
+}
+function renderItemCodex(reset=false){
  const items=net.catalog?.items&&Object.keys(net.catalog.items).length?net.catalog.items:D.items;
- const query=$('#itemCodexSearch').value.trim().toLowerCase();
- const rows=Object.entries(items).filter(([id,it])=>(id+' '+it.n+' '+(it.tier||'')+' '+(it.effectText||'')).toLowerCase().includes(query));
- $('#itemCodexList').innerHTML=rows.map(([id,it])=>{
-  const recipe=Object.entries(it.r||{}).map(([part,count])=>(items[part]?.n||part)+' ×'+count).join(' + ');
-  const effect=it.effectText||[it.heal?'HP +'+it.heal:'',it.sp?'SP +'+it.sp:'',it.sat?'포만도 +'+it.sat:''].filter(Boolean).join(' · ');
-  return '<article class="card"><h3>'+escapeRoomText(it.n)+'</h3><div class="muted">'+escapeRoomText((it.tier||'일반')+' · '+(it.weaponType||(it.t==='m'?'재료':it.t==='c'?'소모품':'장비')))+'</div><p>'+escapeRoomText(effect||'별도 사용 효과 없음')+'</p>'+(it.t==='e'?'<p>ATK '+(it.atk||0)+' · DEF '+(it.def||0)+'</p>':'')+(recipe?'<p>제작: '+escapeRoomText(recipe)+'</p>':'')+'</article>';
- }).join('')||'<p class="muted">검색 결과가 없습니다.</p>';
+ const query=$('#itemCodexSearch').value.trim().toLowerCase(),root=$('#itemCodexList');
+ const scroll=reset?0:(root.querySelector?.('.item-codex-grid')?.scrollTop||0);
+ const rows=Object.entries(items).filter(([id,it])=>craftCategoryMatch(id,it,itemCodexCategory)&&(id+' '+it.n+' '+(it.tier||'')+' '+(it.effectText||'')).toLowerCase().includes(query));
+ if(!rows.some(([id])=>id===itemCodexSelected))itemCodexSelected=rows[0]?.[0]||null;
+ const categories=[['all','전체'],['weapon','무기'],['armor','장비'],['consumable','소모품'],['material','재료']];
+ const side='<nav class="craft-sidebar" aria-label="아이템 도감 카테고리">'+categories.map(([id,label])=>'<button class="craft-cat'+(itemCodexCategory===id?' active':'')+'" data-codex-category="'+id+'">'+label+'</button>').join('')+'</nav>';
+ const grid='<div class="item-codex-grid">'+(rows.map(([id,it])=>'<button class="craft-item-card'+(itemCodexSelected===id?' selected':'')+'" data-codex-select="'+escapeRoomText(id)+'"><b>'+escapeRoomText(it.n)+'</b><small>'+escapeRoomText(it.tier||'일반')+'</small></button>').join('')||'<p class="muted">검색 결과가 없습니다.</p>')+'</div>';
+ const id=itemCodexSelected,it=items[id];let detail='<p class="muted">아이템을 선택하세요.</p>';
+ if(it){
+  const upgrades=Object.entries(items).filter(([other,x])=>other!==id&&x.r?.[id]);
+  detail='<h3>'+escapeRoomText(it.n)+'</h3><p class="muted">'+escapeRoomText((it.tier||'일반')+' · '+(it.weaponType||(it.t==='m'?'재료':it.t==='c'?'소모품':'장비')))+'</p><p>'+escapeRoomText(craftStatsText(it))+'</p><h4>제작 트리</h4>'+(it.r?'<ul class="codex-recipe-tree">'+codexRecipeTree(items,id)+'</ul>':'<p class="muted">직접 제작하지 않는 아이템입니다.</p>')+'<h4>상위 아이템</h4>'+(upgrades.map(([next,x])=>'<button class="codex-upgrade" data-codex-select="'+escapeRoomText(next)+'">'+escapeRoomText(x.n)+'</button>').join('')||'<p class="muted">상위 제작 아이템이 없습니다.</p>');
+ }
+ root.innerHTML=side+grid+'<section class="item-codex-detail">'+detail+'</section>';
+ root.querySelectorAll('[data-codex-category]').forEach(b=>b.onclick=()=>{itemCodexCategory=b.dataset.codexCategory;renderItemCodex(true)});
+ root.querySelectorAll('[data-codex-select]').forEach(b=>b.onclick=()=>{itemCodexSelected=b.dataset.codexSelect;itemCodexCategory='all';$('#itemCodexSearch').value='';renderItemCodex(true)});
+ const newGrid=root.querySelector?.('.item-codex-grid');if(newGrid)newGrid.scrollTop=scroll;
 }
 function renderCharacterCodex(){
  const query=$('#characterCodexSearch').value.trim().toLowerCase();
@@ -1205,7 +1227,7 @@ async function quickMatch(){
  finally{quickMatching=false;$('#quickMatchStart').disabled=false}
 }
 document.querySelectorAll('[data-lobby-panel]').forEach(b=>b.onclick=()=>openLobbyPanel(b.dataset.lobbyPanel));
-$('#itemCodexSearch').oninput=renderItemCodex;$('#characterCodexSearch').oninput=renderCharacterCodex;$('#quickMatchStart').onclick=quickMatch;
+$('#itemCodexSearch').oninput=()=>renderItemCodex(true);$('#characterCodexSearch').oninput=renderCharacterCodex;$('#quickMatchStart').onclick=quickMatch;
 showLobby();
 function setServerControls(ready){serverReady=ready;document.querySelectorAll('[data-lobby-panel]').forEach(b=>b.disabled=!ready);for(const id of ['create','refreshRooms','ready','unready','start'])$('#'+id).disabled=!ready;if(!ready)$('#join').disabled=true}
 setServerControls(false);
