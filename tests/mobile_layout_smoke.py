@@ -29,9 +29,9 @@ for w,h in [(640,360),(740,360),(780,360),(844,390),(915,412),(1024,600),(1280,7
   image_height=min(.68*h,420,h-actual_info_height-70)
   assert image_height>min(.34*h,160)*1.4
   assert image_width>min(.24*w,150)*1.5
-  image_bottom=h-actual_info_height-12;image_top=image_bottom-image_height
+  image_bottom=h-12;image_top=image_bottom-image_height
   assert image_top>=52,(w,h,'top bar overlap')
-  assert image_bottom<h-actual_info_height-6,(w,h,'image-info overlap')
+  assert image_bottom>h-actual_info_height-6,(w,h,'info must overlay image')
   assert image_bottom>h/2,(w,h,'image bottom is not in lower half')
  assert min(200,w-left-right-28)>=150,(w,h,'toast too narrow')
  print(f'{w}x{h}: bottom panel {pane_right-pane_left:.0f}x{pane_height:.0f}, centered lower encounter group and compact toast within bounds')
@@ -41,3 +41,15 @@ assert "querySelectorAll('[data-event]')" in html
 assert "message.textContent='서버 연결됨'" in html
 assert "message.textContent='서버 연결 성공: '+url.origin" not in html
 print('PASS: CSS rules and geometry checks only; real mobile/browser layout has not been asserted')
+
+# Final mobile-only overrides stack bars below the unchanged bust and overlap encounter art.
+mobile=html.split('/* Mobile player bars below portrait;',1)[1].split('</style>',1)[0]
+assert 'grid-template-columns:minmax(0,1fr)' in mobile
+assert '#gameScreen .player-hud{width:var(--bust-width)}' in mobile
+assert '#gameScreen .visual-stage{bottom:max(12px,env(safe-area-inset-bottom))}' in mobile
+assert mobile.count('@media(pointer:coarse)')==2
+for w,h in [(640,360),(844,390),(915,412),(1280,720)]:
+ bust=max(144,min(.22*w,176));portrait_h=bust*563/700
+ bars_and_stats=3*21+2*4+5+24
+ assert portrait_h+bars_and_stats<h-60,(w,h,'stacked player HUD fits below top bar')
+print('PASS: mobile bars below bust, HUD within viewport, information overlaps enemy; desktop selectors unchanged')
