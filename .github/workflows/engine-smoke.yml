@@ -19,6 +19,8 @@ jobs:
         run: npm run test:match-intro
       - name: Activity notifications and local contacts
         run: npm run test:activity-notices
+      - name: Guaranteed escape
+        run: npm run test:guaranteed-flee
       - name: API-only server and standalone client separation
         run: node tests/api_only_server_smoke.mjs
       - name: Debuff rules and confusion actions

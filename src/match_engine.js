@@ -1035,7 +1035,7 @@ export function completeAction(match,p,now=Date.now()){
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
   else if(type==="attack"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,false,now):attackWild(match,p,t.obj,false,now)):{ok:false,error:"target_lost"};p.encounter=null}
   else if(type==="skill"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,true,now):attackWild(match,p,t.obj,true,now)):{ok:false,error:"target_lost"};p.encounter=null}
-  else if(type==="flee"){result.success=Math.random()<.70;if(result.success){p.encounter=null;if((p.eq||[]).includes("evasion"))p.nextMoveFree=true}}
+  else if(type==="flee"){result.success=true;p.encounter=null;if((p.eq||[]).includes("evasion"))p.nextMoveFree=true}
   else if(type==="char_action")result={...result,...charAction(match,p,now)};
   else if(type==="loot_corpse")result={...result,...lootCorpse(match,p,x.corpseId,x.kind,x.id,x.qty||1,!!x.replace,now)};
   match.corpses=(match.corpses||[]).filter(c=>c.expiresAt>now);
