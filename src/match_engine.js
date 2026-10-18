@@ -306,7 +306,7 @@ function applyStatusTicks(match,p,now){
   }
 }
 export function updatePassiveTime(match,now=Date.now()){
-  if(match.phase==="finished")return;
+  if(match.phase==="finished"||now<match.startedAt)return;
   updateRegionRestrictions(match,now);
   for(const [region,garden] of Object.entries(match.regionGardens||{}))if(!(garden.until>now))delete match.regionGardens[region];
   for(const w of match.wilds||[])if(w.statuses)cleanseExpired(w,now);
@@ -951,6 +951,7 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
   return sec;
 }
 export function validateAction(match,p,type,payload={},now=Date.now()){
+  if(now<match.startedAt)return {ok:false,error:"match_starting"};
   updatePassiveTime(match,now);
   if(p?.encounter&&!encounterTarget(match,p))p.encounter=null;
   if(!p?.alive)return {ok:false,error:"player_not_active"};if(p.pendingAction)return {ok:false,error:"action_in_progress"};if(status(p,"sleep",now))return {ok:false,error:"asleep"};
@@ -1220,6 +1221,7 @@ function processEventRewardClauses(match,p,e,index,clauses,rewards,summary){
 
 // Timed choices use the same persisted action deadlines and alarms as other actions.
 export function beginEventChoice(match,p,index,now=Date.now()){
+  if(now<match.startedAt)return {ok:false,error:"match_starting"};
   updatePassiveTime(match,now);
   if(match.phase!=="playing"||!p?.alive)return {ok:false,error:"player_not_active"};
   if(p.pendingAction)return {ok:false,error:"action_in_progress"};
@@ -1576,6 +1578,7 @@ export function runAIStep(match,p,now=Date.now()){
   return false;
 }
 export function runAITick(match,now=Date.now()){
+  if(now<match.startedAt)return false;
   updatePassiveTime(match,now);let changed=false;
   for(const p of match.players){
     if(!p.isAI||!p.alive)continue;

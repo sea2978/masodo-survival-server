@@ -109,7 +109,7 @@ export class GameRoom extends DurableObject{
       const w=match.wilds.find(x=>x.id===self.encounter.wildId);if(!w?.alive||w.region!==self.region)return null;
       const t=(match.wildTemplates||[]).find(x=>x.id===w.templateId);return{kind:"wild",wildId:w.id,name:t?.n||w.templateId,hp:w.hp,maxHp:t?.hp||w.hp,skillText:t?.skillText||""}
     })():null;
-    return{regionGardens:match.regionGardens||{},regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.phase==="playing"?Math.max(0,Math.floor((now-match.startedAt)/1000)):(match.elapsed||0),self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
+    return{introPending:now<match.startedAt,regionGardens:match.regionGardens||{},regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.phase==="playing"?Math.max(0,Math.floor((now-match.startedAt)/1000)):(match.elapsed||0),self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
       pendingEvent:self?.pendingEvent?(()=>{
         const e=match.eventCatalog.find(e=>e.id===self.pendingEvent);if(!e)return null;
         return {...e,choices:(e.choices||[]).map((choice,index)=>({...choice,...eventChoiceAvailability(e,self,index)}))}
@@ -140,6 +140,7 @@ export class GameRoom extends DurableObject{
   async scheduleNextAlarm(match,meta=null){
     const now=Date.now(),times=[];
     if(this.joinedSessions().length>0&&match){
+      if(match.phase==="playing"&&match.startedAt>now)times.push(match.startedAt);
       times.push(...match.players.map(p=>p.pendingAction?.completeAt).filter(Number.isFinite));
       if(match.phase==="playing"){const lockAt=nextRegionLockAt(match);if(lockAt!==null)times.push(lockAt)}
       if(match.phase==="playing"&&match.players.some(p=>p.isAI&&p.alive)){
@@ -155,9 +156,11 @@ export class GameRoom extends DurableObject{
     else if(current!==null)await this.ctx.storage.deleteAlarm();
   }
   async completeDueActions(match,now=Date.now(),{defer=false}={}){
+    if(now<match.startedAt)return false;
+    const introChanged=match.introCompleted===false;if(introChanged)match.introCompleted=true;
     const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects]),match.noises]);
     const before=passiveView();
-    let changed=updateRegionRestrictions(match,now);
+    let changed=updateRegionRestrictions(match,now)||introChanged;
     for(const p of match.players){
       if(!p.pendingAction||p.pendingAction.completeAt>now)continue;
       const result=completeAction(match,p,now);changed=true;
@@ -182,7 +185,7 @@ export class GameRoom extends DurableObject{
     if(!m||m.phase!=="playing"){await this.saveMeta(meta);await this.updateDirectory(meta);await this.scheduleNextAlarm(null,meta);return}
     let changed=await this.completeDueActions(m,now,{defer:true}),ticked=false;
     changed=settleMatch(m)||changed;
-    if(m.phase==="playing"&&m.players.some(p=>p.isAI&&p.alive)&&(m.nextAiTickAt||0)<=now){changed=runAITick(m,now)||changed;ticked=true}
+    if(m.phase==="playing"&&now>=m.startedAt&&m.players.some(p=>p.isAI&&p.alive)&&(m.nextAiTickAt||0)<=now){changed=runAITick(m,now)||changed;ticked=true}
     if(changed||ticked)await this.saveMatch(m);
     if(changed)this.broadcastMatchState(m);
     meta.phase=m.phase;await this.saveMeta(meta);await this.scheduleNextAlarm(m,meta)
@@ -262,7 +265,8 @@ export class GameRoom extends DurableObject{
         players.push(createAIPlayer(players.length,c.id,r.id,profiles[Math.floor(Math.random()*profiles.length)]));
       }
       this.recipeCache.clear();
-      const match={matchId:crypto.randomUUID(),roomName:roomSettings(meta).name,aiSettings:roomSettings(meta),phase:"playing",createdAt:Date.now(),startedAt:Date.now(),updatedAt:Date.now(),players,nextAiTickAt:Date.now()+1000};
+      const startNow=Date.now();
+      const match={matchId:crypto.randomUUID(),roomName:roomSettings(meta).name,aiSettings:roomSettings(meta),phase:"playing",createdAt:startNow,startedAt:startNow+5000,introCompleted:false,updatedAt:startNow,players,nextAiTickAt:startNow+6000};
       for(const p of match.players){p.tempEffects=[];p.statusImmunity={};p.cdCUntil=0;p.cdAUntil=0;p.lastSatietyAt=match.startedAt;p.nextStatusTick=match.startedAt}
       match.wildTemplates=WILD_TEMPLATES;match.eventCatalog=ENCOUNTER_EVENTS;initWorld(match);
       meta.phase="playing";meta.startedAt=match.startedAt;await Promise.all([this.saveMeta(meta),this.saveMatch(match)]);await this.scheduleNextAlarm(match,meta);await this.updateDirectory(meta);this.broadcast("match_started",{matchId:match.matchId,serverNow:Date.now(),competitors:match.players.length,aiCount:match.players.filter(p=>p.isAI).length});this.broadcastMatchState(match);return
@@ -270,6 +274,7 @@ export class GameRoom extends DurableObject{
     if(msg.type==="request_state"){const m=await this.getMatch();if(!m){send(ws,"error",{error:"match_not_started"});return}const changed=await this.completeDueActions(m,Date.now(),{defer:true});if(changed){await this.saveMatch(m);this.broadcastMatchState(m)}this.sendMatchState(ws,m,{force:true});return}
     if(msg.type==="command_inventory"){
       const m=await this.getMatch();if(!m){send(ws,"inventory_result",{result:{ok:false,error:"match_not_playing"}});return}
+      if(Date.now()<m.startedAt){send(ws,"inventory_result",{result:{ok:false,error:"match_starting"}});return}
       const changed=await this.completeDueActions(m,Date.now(),{defer:true});settleMatch(m);
       const p=this.matchPlayerForSession(m,session.sessionId),result=inventoryOperation(m,p,msg);
       if(result.ok){updatePassiveTime(m,Date.now());m.updatedAt=Date.now()}

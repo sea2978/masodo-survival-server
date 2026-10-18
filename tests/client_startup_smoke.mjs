@@ -83,3 +83,15 @@ try{
  gardenNow+=30000;perf+=30000;await gardenRoom.room.completeDueActions(active,gardenNow);net.emit('match_state',{match:gardenRoom.room.snapshot(active,'s0',gardenNow)});assert(!gardenRoom.room.snapshot(active,'s0',gardenNow).self.inGarden);assert.equal(vm.runInContext('debuffHud.buttons.size',ctx),0);
 }finally{Date.now=priorGardenNow}
 console.log('PASS: full original client skill click -> actual room/alarm -> 30-second garden -> enemy bind/delay HUD -> expiry, current dynamic catalog text (DOM/socket mocks, no live visual assertion)');
+
+// Start from an actual lobby; all clients receive a roster while the server holds actions.
+const introRoom=createHarness(Room,{humans:2,ai:0,now:t+200000});const introMeta=await introRoom.room.getMeta();Object.assign(introMeta,{phase:'lobby',aiMode:'fixed',aiCount:2});await introRoom.room.saveMeta(introMeta);for(const [ws,s]of introRoom.room.sessions){s.ready=true;ws.serializeAttachment(s)}
+let introNow=t+200000;const oldIntroNow=Date.now;Date.now=()=>introNow;
+const introDeliver=()=>{for(const msg of introRoom.sockets[0].messages.splice(0)){const incoming=net.acceptStateMessage(msg);if(incoming)net.emit(incoming.type,incoming)}};
+try{
+ await introRoom.room.webSocketMessage(introRoom.sockets[0],JSON.stringify({type:'request_start'}));introDeliver();assert(!document.querySelector('#matchIntro').hidden);assert(document.querySelector('#gameScreen').hidden);assert.equal(document.querySelector('#introCards').children.length,4);assert.equal(document.querySelector('#introCountdown').textContent,'5');
+ await introRoom.room.webSocketMessage(introRoom.sockets[0],JSON.stringify({type:'command_search'}));assert.equal(introRoom.sockets[0].messages.at(-1).error,'match_starting');introDeliver();assert(!document.querySelector('#matchIntro').hidden);
+ perf+=5000;for(const [id,fn]of [...frames]){frames.delete(id);fn()}assert(document.querySelector('#matchIntro').hidden);assert(!document.querySelector('#gameScreen').hidden);assert.equal(document.querySelector('#elapsed').textContent,'0');
+ introNow+=5000;await introRoom.fireAlarm();introDeliver();assert(document.querySelector('#matchIntro').hidden);await document.querySelector('#search').onclick();await introRoom.room.webSocketMessage(introRoom.sockets[0],JSON.stringify(sent.at(-1)));introDeliver();assert.equal((await introRoom.room.getMatch()).players[0].pendingAction.type,'search');
+}finally{Date.now=oldIntroNow}
+console.log('PASS: original full HTML lobby start -> 4 human/AI cards -> server input guard -> local countdown -> game at 00:00 -> server release -> search accepted (DOM/socket mocks, not live browser visual QA)');
