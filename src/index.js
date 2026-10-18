@@ -92,6 +92,6 @@ export default {
     }
 
     if (url.pathname.startsWith("/api/")) return withCors(json({ ok: false, error: "api_not_found" }, 404));
-    return env.ASSETS.fetch(request);
+    return new Response("Game API only. Open the downloaded HTML client.", {status:404,headers:{"content-type":"text/plain; charset=utf-8","cache-control":"public, max-age=3600"}});
   },
 };

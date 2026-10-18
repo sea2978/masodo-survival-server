@@ -15,6 +15,8 @@ jobs:
       - run: npm install
       - name: Regular client and preserved mobile layout
         run: npm run test:formal-client && npm run test:lobby-login && npm run test:item-codex && npm run test:enemy-contacts && npm run test:enemy-traces && npm run test:event-wait && npm run test:clock-contacts && npm run test:death-hud && npm run test:portrait-reactions && npm run test:client-startup
+      - name: API-only server and standalone client separation
+        run: node tests/api_only_server_smoke.mjs
       - name: Active skill bonus tuning
         run: node tests/skill_bonus_audit.mjs
       - name: Passive minimum tuning

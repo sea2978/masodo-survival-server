@@ -1,10 +1,6 @@
 name: Build standalone HTML
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "public/MasodoSurvival.html"
   workflow_dispatch:
 
 permissions:
