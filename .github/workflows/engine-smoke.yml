@@ -47,9 +47,9 @@ jobs:
         run: npm run test:full-audit
       - name: Runtime parity audit
         run: npm run test:phase2p-runtime
-      - name: All 51 combat skills
+      - name: All 52 combat skills
         run: npm run test:all-combat
-      - name: All 51 additional actions
+      - name: All 52 additional actions
         run: npm run test:all-actions
       - name: All consumables
         run: npm run test:all-consumables
