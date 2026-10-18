@@ -603,7 +603,12 @@ for(const [method,type] of Object.entries({move:'move',rest:'rest',craft:'craft'
     catch(e){clearLocalAction();renderMatch(M);gameLog(String(e.message||e));return false}
   };
 }
-net.on('action_accepted',m=>{if(localAction?.type===m.action?.type)localAction.accepted=true});
+net.on('action_accepted',m=>{
+ if(localAction&&m.action&&(localAction.type===m.action.type||(['attack','skill'].includes(localAction.type)&&['attack','skill'].includes(m.action.type)))){
+  localAction.type=m.action.type;localAction.accepted=true;
+  $('#actionLoading').textContent=ACTION_LOADING_TEXT[m.action.type]||'행동 중';
+ }
+});
 net.on('action_result',()=>clearLocalAction());
 net.on('event_result',()=>clearLocalAction());
 net.on('error',()=>{clearLocalAction();if(M)renderMatch(M)});
@@ -1085,6 +1090,12 @@ function syncMatchClock(m){
   }
   paintMatchClock();
 }
+function confusedCombatInput(){
+ const s=M?.self?.statuses?.confusion;if(!s)return false;
+ const sample=matchClockAnchor;
+ const now=sample?.matchId===M.matchId&&Number.isFinite(sample.serverNow)?sample.serverNow+performance.now()-sample.at:(M.serverNow??Date.now());
+ return s.until>now;
+}
 const skillCooldowns={skill:null,charAction:null};let skillCooldownFrame=null;
 function clearSkillCooldowns(){
   if(skillCooldownFrame!==null)cancelAnimationFrame(skillCooldownFrame);skillCooldownFrame=null;
@@ -1096,7 +1107,7 @@ function paintSkillCooldowns(){
     const remaining=state?Math.max(0,(state.end-performance.now())/1000):0,btn=$('#'+id);
     btn.classList.toggle('cooling',remaining>0);
     btn.style.setProperty('--cooldown-angle',(state?Math.min(1,remaining/state.total)*360:0)+'deg');
-    if(M?.self){btn.disabled=busy()||!M.self.alive||!!M.pendingEvent||(id==='skill'?!M.encounter:!!M.encounter)||remaining>0}
+    if(M?.self){btn.disabled=busy()||!M.self.alive||!!M.pendingEvent||(id==='skill'?!M.encounter:!!M.encounter)||(remaining>0&&!(id==='skill'&&confusedCombatInput()))}
     if(remaining>0)running=true;
   }
   if(running)skillCooldownFrame=requestAnimationFrame(paintSkillCooldowns);

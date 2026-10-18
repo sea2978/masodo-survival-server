@@ -219,12 +219,12 @@ export const COMBAT_SKILL_DEFS={
       [
         "bind",
         0.35,
-        2.5
+        5
       ],
       [
         "slow",
         0.55,
-        6
+        10
       ]
     ]
   },
@@ -236,12 +236,12 @@ export const COMBAT_SKILL_DEFS={
       [
         "confusion",
         0.55,
-        5
+        10
       ],
       [
         "silence",
         0.3,
-        3
+        10
       ]
     ]
   },
@@ -278,7 +278,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "silence",
         0.6,
-        3
+        10
       ]
     ]
   },
@@ -291,7 +291,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "slow",
         0.4,
-        6
+        10
       ]
     ]
   },
@@ -303,7 +303,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "confusion",
         0.5,
-        5
+        10
       ]
     ]
   },
@@ -321,7 +321,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "slow",
         0.45,
-        6
+        10
       ]
     ]
   },
@@ -333,7 +333,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "bleed",
         0.45,
-        10
+        null
       ]
     ]
   },
@@ -351,7 +351,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "actionDelay",
         0.55,
-        3
+        10
       ]
     ]
   },
@@ -393,7 +393,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "bleed",
         0.4,
-        10
+        null
       ]
     ],
     "killHeal": 6
@@ -419,7 +419,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "actionDelay",
         0.35,
-        3
+        10
       ]
     ]
   },
@@ -452,7 +452,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "bind",
         0.45,
-        2.5
+        5
       ]
     ]
   },
@@ -471,12 +471,12 @@ export const COMBAT_SKILL_DEFS={
       [
         "bind",
         0.55,
-        2.5
+        5
       ],
       [
         "silence",
         0.35,
-        3
+        10
       ]
     ]
   },
@@ -500,7 +500,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "bleed",
         0.35,
-        10
+        null
       ]
     ]
   },
@@ -517,7 +517,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "slow",
         0.3,
-        6
+        10
       ]
     ]
   },
@@ -535,7 +535,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "actionDelay",
         0.35,
-        3
+        10
       ]
     ]
   },
@@ -597,7 +597,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "bind",
         0.45,
-        2.5
+        5
       ],
       [
         "fear",
@@ -627,7 +627,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "sleep",
         0.65,
-        3
+        10
       ]
     ]
   },
@@ -639,7 +639,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "confusion",
         0.65,
-        5
+        10
       ]
     ]
   },
@@ -658,7 +658,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "bind",
         1,
-        2.5
+        5
       ]
     ]
   },
@@ -677,7 +677,7 @@ export const COMBAT_SKILL_DEFS={
       [
         "slow",
         0.4,
-        6
+        10
       ]
     ]
   },

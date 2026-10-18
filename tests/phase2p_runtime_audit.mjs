@@ -55,7 +55,7 @@ const makeMatch=(players,id="audit")=>{const m={matchId:id,phase:"playing",creat
   const a=beginServerAction(m,p,"skill",{},t0);const done=a.action.completeAt+1;completeAction(m,p,done);Math.random=old;
   assert.ok(t.statuses.bind);
   const seconds=(t.statuses.bind.until-done)/1000;
-  assert.ok(seconds>2.64&&seconds<2.66,`bind duration ${seconds}`);
+  assert.ok(seconds>5.29&&seconds<5.31,`bind duration ${seconds}`);
 }
 
 // Crow harassment applies the missing next-attack accuracy penalty.

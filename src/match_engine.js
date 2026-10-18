@@ -10,9 +10,9 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const nowSec=(match,now=Date.now())=>Math.max(0,(now-match.startedAt)/1000);
 const item=id=>ITEMS[id]||null;
-const STATUS_DEFS={
-  poison:{duration:8,max:3},bleed:{duration:10,max:3},slow:{duration:6,max:2},bind:{duration:2.5,max:1},
-  sleep:{duration:3,max:1},fear:{duration:5,max:1},confusion:{duration:5,max:1},silence:{duration:3,max:1},actionDelay:{duration:3,max:1}
+export const STATUS_DEFS={
+  poison:{duration:8,max:3},bleed:{duration:null,max:5},slow:{duration:10,max:2},bind:{duration:5,max:1},
+  sleep:{duration:10,max:1},fear:{duration:5,max:1},confusion:{duration:10,max:1},silence:{duration:10,max:1},actionDelay:{duration:10,max:1}
 };
 const char=p=>CHARACTER_BY_ID.get(p.charId)||CHARACTER_BY_ID.get("c01");
 const SPECIAL_ROUTE_REGION={
@@ -218,13 +218,13 @@ function craftItem(match,p,id,payload={}){
   if(it.t==="e"&&it.weaponType){match.craftStats??={};match.craftStats[it.weaponType]=(match.craftStats[it.weaponType]||0)+1}
   return {ok:true,itemId:id,itemName:it.n,...(discarded?{discarded:discarded.id}:{})};
 }
-function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.until>now?s:null}
-function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null){
+function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.stacks>0&&(s.until===null||s.until>now)?s:null}
+export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null){
   p.statuses??={};const defn=STATUS_DEFS[id];if(!defn)return false;
   if((p.statusImmunity?.[id]||0)>now)return false;
   const targetFx=match?combinedFx(p,match,now):{};
   if(id==="actionDelay"&&targetFx.delayResist&&Math.random()<targetFx.delayResist)return false;
-  let dur=duration??defn.duration;
+  let dur=id==="poison"?(duration??defn.duration):defn.duration;
   if(source&&match&&["slow","bind","sleep","fear","confusion","silence","actionDelay"].includes(id)){
     if((source.eq||[]).includes("spell_amp"))dur*=1.06;
     dur*=1+(combinedFx(source,match,now).statusDuration||0);
@@ -233,11 +233,11 @@ function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),so
   if(id==="poison"&&(p.eq||[]).includes("detox"))dur*=.80;
   const old=p.statuses[id];
   if(id==="bind"&&old?.until>now){
-    old.until=Math.min(now+3500,old.until+1000);
+    old.until=Math.min(now+dur*1000,old.until+1000);
     if(sourceId!=null)old.sourceId=sourceId;
     return true;
   }
-  p.statuses[id]={stacks:clamp((old?.until>now?old.stacks:0)+stacks,1,defn.max),until:now+dur*1000,sourceId};
+  p.statuses[id]={stacks:clamp((old&&old.stacks>0&&(old.until===null||old.until>now)?old.stacks:0)+stacks,1,defn.max),until:id==="bleed"?null:now+dur*1000,sourceId};
   return true;
 }
 function wakeOnDamage(p,now=Date.now()){
@@ -271,7 +271,11 @@ function awardStatusKill(match,victim,sourceId,now,cause){
   return {killed:true,killerId:killer?.playerId||null};
 }
 function cleanseExpired(p,now){
-  for(const[id,s]of Object.entries(p.statuses||{}))if(!s||s.until<=now)delete p.statuses[id];
+  for(const[id,s]of Object.entries(p.statuses||{})){
+    if(!s||s.stacks<=0||(s.until!==null&&s.until<=now)){delete p.statuses[id];continue}
+    // Active legacy timed bleeds migrate to count-based persistence.
+    if(id==='bleed'){s.until=null;s.stacks=Math.min(5,s.stacks)}
+  }
   p.tempEffects=(p.tempEffects||[]).filter(e=>e?.until>now);
 }
 function updateSatiety(match,p,now){
@@ -357,7 +361,8 @@ function onTargetDetected(seeker,target,match,now){
 }
 function triggerBleedAction(match,p,now){
   const s=status(p,"bleed",now);if(!s||!p.alive)return 0;
-  const d=2*(s.stacks||1);p.hp-=d;recordCombatNotice(match,s.sourceId,p,d,'출혈',now);wakeOnDamage(p,now);
+  const d=2*s.stacks;s.stacks--;if(s.stacks<=0)delete p.statuses.bleed;else s.until=null;
+  p.hp-=d;recordCombatNotice(match,s.sourceId,p,d,'출혈',now);wakeOnDamage(p,now);
   if(p.hp<=0)awardStatusKill(match,p,s.sourceId,now,"출혈");
   return d;
 }
@@ -383,7 +388,7 @@ function modifyAttackDamage(match,p,target,d,ctx,now){
   if(ctx.quietReady&&fx.quietDamage)mult*=1+fx.quietDamage;
   if((p.eq||[]).includes("toxin_kit")&&status(target,"poison",now))mult*=1.03;
   if(status(target,"poison",now)&&fx.poisonVsDamage)mult*=1+fx.poisonVsDamage;
-  const anyStatus=Object.values(target.statuses||{}).some(s=>s&&s.until>now);
+  const anyStatus=Object.keys(target.statuses||{}).some(id=>!!status(target,id,now));
   if(anyStatus&&fx.statusTargetDamage)mult*=1+fx.statusTargetDamage;
   if(ctx.movedRecently&&fx.afterMoveDamage)mult*=1+fx.afterMoveDamage;
   if(p.hp/maxHp(p,match,now)<.4&&fx.lowHpDamage)mult*=1+fx.lowHpDamage;
@@ -403,7 +408,7 @@ function applyOnHitStatuses(match,p,target,now){
 }
 function hitRoll(p,skill,bonus,match,now){
   let chance=.80+profHit(p)+bonus;
-  if(status(p,"fear",now))chance-=.08;if(skill&&status(p,"confusion",now))chance-=.06;
+  if(status(p,"fear",now))chance-=.10;if(status(p,"confusion",now))chance-=.10;
   chance+=combinedFx(p,match,now).hit||0;
   return Math.random()<clamp(chance,.55,.95);
 }
@@ -724,7 +729,7 @@ function useConsumable(match,p,id,now){
 function firstCorpseInRegion(match,p,now){return (match.corpses||[]).find(c=>c.region===p.region&&c.expiresAt>now)}
 function removeAnyStatus(p,n=1,now=Date.now()){
   let removed=0;
-  for(const id of Object.keys(p.statuses||{})){if(removed>=n)break;const s=p.statuses[id];if(s&&s.until>now){delete p.statuses[id];removed++}}
+  for(const id of Object.keys(p.statuses||{})){if(removed>=n)break;const s=status(p,id,now);if(s){delete p.statuses[id];removed++}}
   return removed;
 }
 function charAction(match,p,now){
@@ -752,7 +757,7 @@ function charAction(match,p,now){
   if(d.cleanseAny)removeAnyStatus(p,d.cleanseAny,now);
   if(d.cleanse){
     let n=d.cleanseCount||1;
-    for(const id of d.cleanse){if(n<=0)break;const s=p.statuses?.[id];if(s&&s.until>now){delete p.statuses[id];n--}}
+    for(const id of d.cleanse){if(n<=0)break;const s=status(p,id,now);if(s){delete p.statuses[id];n--}}
   }
   if(d.cleanseSpecific)for(const[id,n]of Object.entries(d.cleanseSpecific))removeStatusStacks(p,id,n);
 
@@ -951,11 +956,16 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   return {ok:true};
 }
 export function beginServerAction(match,p,type,payload={},now=Date.now()){
+  const requestedType=type;
+  if(p&&['attack','skill'].includes(type)&&status(p,'confusion',now)){
+    type=Math.random()<.5?'attack':'skill';
+    if(type==='skill'&&(p.cdCUntil||0)>now)type='attack';
+  }
   const v=validateAction(match,p,type,payload,now);if(!v.ok)return v;
   let duration=actionDuration(match,p,type,payload,now),meta=v.meta||{};
-  if(type==="move"){const slow=status(p,"slow",now)?.stacks||0,fx=combinedFx(p,match,now);const slowMult=slow>=2?1.25:slow===1?1.15:1;duration=(meta.durationMs/1000)*slowMult*(1+(fx.moveTime||0))*Math.max(.65,1+(fx.actionTime||0));if(status(p,"actionDelay",now))duration*=1.25}
-  if(type==="flee"){const slow=status(p,"slow",now)?.stacks||0;duration*=slow>=2?1.25:slow===1?1.15:1;if(status(p,"fear",now))duration*=1.10}
-  p.pendingAction={type,payload,startedAt:now,completeAt:now+duration*1000,meta};
+  if(type==="move"){const slow=status(p,"slow",now)?.stacks||0,fx=combinedFx(p,match,now);const slowMult=slow>=2?1.50:slow===1?1.25:1;duration=(meta.durationMs/1000)*slowMult*(status(p,"fear",now)?.8:1)*(1+(fx.moveTime||0))*Math.max(.65,1+(fx.actionTime||0));if(status(p,"actionDelay",now))duration*=1.25}
+  if(type==="flee"){const slow=status(p,"slow",now)?.stacks||0;duration*=slow>=2?1.50:slow===1?1.25:1;if(status(p,"fear",now))duration*=.80}
+  p.pendingAction={type,payload,startedAt:now,completeAt:now+duration*1000,meta:{...meta,...(requestedType!==type?{requestedType}: {})}};
   return {ok:true,action:p.pendingAction};
 }
 export function completeAction(match,p,now=Date.now()){
@@ -1233,7 +1243,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
     }
   }
 
-  if(/독\/출혈 지속시간 50% 감소/.test(text))for(const id of["poison","bleed"]){const s=p.statuses?.[id];if(s&&s.until>now)s.until=now+(s.until-now)*.5}
+  if(/독(?:\/출혈)? 지속시간 50% 감소/.test(text)){const s=status(p,'poison',now);if(s)s.until=now+(s.until-now)*.5}
   if(/공포·혼란 지속시간 -20%/.test(text))for(const id of["fear","confusion"]){const s=p.statuses?.[id];if(s&&s.until>now)s.until=now+(s.until-now)*.8}
   if(/피발견률 -5% 30초/.test(text))addTemp(p,{conceal:.05},30,now);
   if(/탐색시간 -5%/.test(text))addTemp(p,{searchTime:-.05},30,now);
@@ -1293,7 +1303,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if(/25초간 상태이상 지속 -5%/.test(text))addTemp(p,{incomingStatusDuration:-.05},25,now);
   if((mmod=text.match(/이후 SP회복 -(\d+)% (\d+)초/)))addTemp(p,{spRecovery:-(+mmod[1]/100)},+mmod[2],now);
   if((mmod=text.match(/포만도 \+(\d+)/)))p.satiety=clamp((p.satiety??100)+(+mmod[1]),0,100);
-  if(/출혈 지속시간 50% 감소/.test(text)){const s=p.statuses?.bleed;if(s&&s.until>now)s.until=now+(s.until-now)*.5}
+  if(/출혈 (?:지속시간|중첩) 50% 감소/.test(text)){const s=status(p,'bleed',now);if(s)removeStatusStacks(p,'bleed',Math.ceil(s.stacks*.5))}
   if((mmod=text.match(/(\d+)% 상태이상/))&&Math.random()<+mmod[1]/100)applyStatus(p,pick(["poison","bleed","slow","fear","confusion"]),1,null,null,now,null,match);
   if((mmod=text.match(/(\d+)% 혼란(?!\s*\d)/))&&Math.random()<+mmod[1]/100)applyStatus(p,"confusion",1,5,null,now,null,match);
   recordAdvancedEventIntel(match,p,text,now);

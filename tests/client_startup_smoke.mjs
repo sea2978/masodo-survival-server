@@ -1,6 +1,6 @@
 import {loadRoom,createHarness} from './room_test_harness.mjs';
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
-const html=fs.readFileSync(new URL('../public/MasodoSurvival.html',import.meta.url),'utf8');
+const html=fs.readFileSync(process.env.MASODO_CLIENT_HTML||new URL('../public/MasodoSurvival.html',import.meta.url),'utf8');
 let navigations=0,clickPromise=null,fail=false;assert(!html.includes('<script type="module">'));assert(/<button id="connectServer" type="button" disabled>/.test(html));assert(html.includes('<form id="loginForm" onsubmit="return false"'));
 const ids=new Set([...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1]));const nodes=new Map();
 const node=()=>({value:'',textContent:'',innerHTML:'',hidden:false,disabled:false,open:false,style:{setProperty(){},removeProperty(){}},classList:{add(){},remove(){},toggle(){}},dataset:{},children:[],options:[],appendChild(x){this.children.push(x)},append(...x){this.children.push(...x)},prepend(){},setAttribute(){},removeAttribute(){},addEventListener(){},removeEventListener(){},querySelectorAll:()=>[],querySelector:()=>node(),showModal(){this.open=true},close(){this.open=false},replaceChildren(){this.children=[]},click(){if(this.disabled)return;let prevented=false;clickPromise=Promise.resolve(this.onclick?.({preventDefault(){prevented=true}}));if(this.type==='submit'&&!prevented)navigations++;return clickPromise},getBoundingClientRect:()=>({width:100,height:100})});
@@ -36,3 +36,14 @@ try{
  assert.equal(vm.runInContext('searchLoading',ctx),null);
 }finally{Date.now=realNow}
 console.log('PASS: full-page match rendering -> clock advances -> click search -> real room action/alarm -> result/state -> loading clears (DOM/socket mocks)');
+
+// Confusion keeps both combat inputs usable during cooldown, and acknowledges the resolved action.
+const actor=h.match.players[0],target=h.match.players[1],sample=t+20000;
+actor.pendingAction=null;actor.encounter={kind:'player',targetId:target.playerId};actor.statuses={confusion:{stacks:1,until:sample+10000}};actor.cdCUntil=sample+60000;actor.cdCDuration=60;
+perf=20000;net.emit('match_state',{match:h.room.snapshot(h.match,'s0',sample)});
+assert.equal(document.querySelector('#skill').disabled,false,'confusion permits pressing the skill button during cooldown');
+await document.querySelector('#skill').onclick();assert.equal(sent.at(-1).type,'command_skill');
+net.emit('action_accepted',{action:{type:'attack'}});assert.equal(vm.runInContext('localAction.type',ctx),'attack');assert.equal(document.querySelector('#actionLoading').textContent,'공격 중');
+net.emit('action_result',{result:{ok:true}});assert.equal(vm.runInContext('localAction',ctx),null);
+perf=31000;vm.runInContext('paintSkillCooldowns()',ctx);assert.equal(document.querySelector('#skill').disabled,true,'expired confusion restores cooldown lock without another snapshot');
+console.log('PASS: full client cooldown input during confusion, resolved action acknowledgement/loading text, result unlock and local confusion expiry');
