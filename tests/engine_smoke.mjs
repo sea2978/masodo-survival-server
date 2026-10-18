@@ -4,7 +4,7 @@ import { CHARACTERS, REGIONS, createAIPlayer, createServerPlayer } from "../src/
 import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "../src/offline_content.js";
 import { beginServerAction, completeAction, initWorld, publicPlayer, resolveEventChoice, runAIStep } from "../src/match_engine.js";
 
-assert.equal(CHARACTERS.length,51);
+assert.equal(CHARACTERS.length,52);
 assert.equal(REGIONS.length,13);
 assert.equal(Object.keys(ITEMS).length,172);
 assert.equal(WILD_TEMPLATES.length,12);

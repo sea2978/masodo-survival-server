@@ -254,10 +254,10 @@ export class GameRoom extends DurableObject{
     if(msg.type==="request_start"){
       const room=this.roomState(meta);if(meta.hostSessionId!==session.sessionId){send(ws,"error",{error:"host_only"});return}if(!room.allReady){send(ws,"error",{error:"not_all_ready"});return}if(meta.phase!=="lobby"){send(ws,"error",{error:"already_started"});return}
       const humans=this.joinedSessions(),players=humans.map((s,i)=>({...createServerPlayer(s,i),pickupChoices:!!s.pickupChoices}));
-      const profiles=["balanced","craft","aggro","safe"];
+      const profiles=["balanced","craft","aggro","safe"],aiCharacters=CHARACTERS.filter(c=>!c.testOnly);
       const targetCompetitors=players.length+plannedAICount(meta,players.length);
       while(players.length<targetCompetitors){
-        const c=CHARACTERS[Math.floor(Math.random()*CHARACTERS.length)];
+        const c=aiCharacters[Math.floor(Math.random()*aiCharacters.length)];
         const r=REGIONS[Math.floor(Math.random()*REGIONS.length)];
         players.push(createAIPlayer(players.length,c.id,r.id,profiles[Math.floor(Math.random()*profiles.length)]));
       }

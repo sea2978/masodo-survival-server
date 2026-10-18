@@ -11,7 +11,7 @@ const adapter=fs.readFileSync(new URL("../public/network_adapter.js",import.meta
 const room=fs.readFileSync(new URL("../src/room.js",import.meta.url),"utf8");
 const api=fs.readFileSync(new URL("../src/index.js",import.meta.url),"utf8");
 
-assert.equal(CHARACTERS.length,51);
+assert.equal(CHARACTERS.length,52);
 assert.equal(REGIONS.length,13);
 assert.match(index,/net\.catalog\.characters\.map/);
 assert.match(index,/id="char"/);
@@ -53,7 +53,7 @@ for(const id of synergyIds)assert.ok(ITEMS[id],"missing synergy item "+id);
 for(const id of Object.keys(NAMED_GEAR_FX))assert.ok(ITEMS[id],"named gear FX without item: "+id);
 assert.equal(Object.keys(NAMED_GEAR_FX).length,41);
 
-assert.equal(GAME_VERSION,"0.8.36-online");
+assert.equal(GAME_VERSION,"0.8.37-online");
 assert.equal(PHASE,"3A");
 assert.equal(PROTOCOL_VERSION,14);
 assert.equal(INTENTIONAL_SOURCE_GAPS.length,3);

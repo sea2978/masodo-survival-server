@@ -207,6 +207,9 @@ export const PASSIVE_FX={
   "c51": {
     "profGain": 0.2,
     "statusChance": 0.2
+  },
+  "c52": {
+    "invincible": true
   }
 };
 export const COMBAT_SKILL_DEFS={
@@ -687,6 +690,12 @@ export const COMBAT_SKILL_DEFS={
     "cd": 50,
     "sp": 11,
     "randomControl": 0.3
+  },
+  "c52": {
+    "mult": 1,
+    "cd": 0,
+    "sp": 0,
+    "execute": true
   }
 };
 export const ACTION_SKILL_DEFS={
@@ -1112,6 +1121,11 @@ export const ACTION_SKILL_DEFS={
       "statusChance": 0.15
     },
     "duration": 25
+  },
+  "c52": {
+    "cd": 0,
+    "time": 0.5,
+    "selfDebuffs": true
   }
 };
 

@@ -29,5 +29,5 @@ console.log('PASS: login validation/success/failure, five lobby popups, codex se
 
 let workerSource=fs.readFileSync(new URL('../src/index.js',import.meta.url),'utf8').replace('export { GameRoom } from "./room.js";','');workerSource=workerSource.replace(/from "\.\/([^\"]+)"/g,(_,p)=>'from '+JSON.stringify(new URL('../src/'+p,import.meta.url).href));
 const worker=(await import('data:text/javascript;base64,'+Buffer.from(workerSource).toString('base64'))).default;
-const response=await worker.fetch(new Request('https://example.test/api/catalog'),{}),catalog=await response.json();assert.equal(response.status,200);assert.equal(catalog.characters.length,51);assert.equal(Object.keys(catalog.items).length,Object.keys(ITEMS).length);assert(catalog.items.final_22.r.special_37);
+const response=await worker.fetch(new Request('https://example.test/api/catalog'),{}),catalog=await response.json();assert.equal(response.status,200);assert.equal(catalog.characters.length,52);assert.equal(Object.keys(catalog.items).length,Object.keys(ITEMS).length);assert(catalog.items.final_22.r.special_37);
 console.log('PASS: real catalog API supplies character skills and complete item recipes for lobby codices');

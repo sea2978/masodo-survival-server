@@ -18,7 +18,7 @@ jobs:
       - name: API-only server and standalone client separation
         run: node tests/api_only_server_smoke.mjs
       - name: Debuff rules and confusion actions
-        run: npm run test:debuffs && npm run test:debuff-hud
+        run: npm run test:debuffs && npm run test:debuff-hud && npm run test:test-character
       - name: Active skill bonus tuning
         run: node tests/skill_bonus_audit.mjs
       - name: Passive minimum tuning

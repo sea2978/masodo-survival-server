@@ -25,5 +25,5 @@ for(const [idx,ch] of CHARACTERS.entries()){
   }
 }
 Math.random=realRandom;
-assert.equal(cases,102);
+assert.equal(cases,104);
 console.log("all combat skills runtime audit ok",{cases});

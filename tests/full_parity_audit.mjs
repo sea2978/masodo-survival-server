@@ -4,25 +4,25 @@ import { ITEMS, WILD_TEMPLATES, ENCOUNTER_EVENTS } from "../src/offline_content.
 import { PASSIVE_FX, COMBAT_SKILL_DEFS, ACTION_SKILL_DEFS, NAMED_GEAR_FX } from "../src/skill_defs.js";
 import { INTENTIONAL_SOURCE_GAPS } from "../src/audit_manifest.js";
 
-assert.equal(CHARACTERS.length,51);
-assert.equal(Object.keys(PASSIVE_FX).length,51);
-assert.equal(Object.keys(COMBAT_SKILL_DEFS).length,51);
-assert.equal(Object.keys(ACTION_SKILL_DEFS).length,51);
+assert.equal(CHARACTERS.length,52);
+assert.equal(Object.keys(PASSIVE_FX).length,52);
+assert.equal(Object.keys(COMBAT_SKILL_DEFS).length,52);
+assert.equal(Object.keys(ACTION_SKILL_DEFS).length,52);
 for(const c of CHARACTERS){
   assert.ok(PASSIVE_FX[c.id],`missing passive: ${c.id}`);
   assert.ok(COMBAT_SKILL_DEFS[c.id],`missing combat skill: ${c.id}`);
   assert.ok(ACTION_SKILL_DEFS[c.id],`missing action skill: ${c.id}`);
 }
 
-const passiveKeys=new Set(["searchLoot","restHeal","conceal","confusionChance","heal","incomingStatusDuration","taken","lowHpDamage","detect","hit","moveTime","afterMoveHit","skillSpFlat","statusDuration","restSp","timeAtk","timeAtkEvery","timeAtkCap","damage","moveSp","statusChance","slowChance","poisonChance","poisonVsDamage","afterMoveDamage","killHeal","killSp","skillHit","prep","crit","lowDef","randomSkill","profGain","defFlat","chainPerHit","chainMax","revive","fearChance","sleepChance","bindChance","cdRate","craftTime","quietDamage","woundedDetect"]);
-const combatKeys=new Set(["mult","cd","sp","hit","statuses","heal","lowHpMult","restoreSp","timeScale","crit","prep","multMin","multMax","randomStatus","forcePoison","killHeal","tempGuard","tempGuardDuration","randomControl","doubleRandomStatus","drainSp","defIgnore","selfDamage","dispelOne","dispelBonus","quietBonus","freeMove","lifesteal","mark"]);
-const actionKeys=new Set(["cd","time","heal","tempFx","duration","nextDetect","sp","nextMoveFree","nextSkillSpDiscount","trap","nextHit","cleanse","cleanseCount","cleanseSpecific","material","materialQty","consumable","nextCraftTimeMult","nextDamage","corpseHeal","noCorpseSp","reduceCombatCd","refundActionCd","luckAction","skillOnlyDamage","nextSearch","cleanseAny","healIfRevUsed","randomMetal","selfDamage","nextStatus","consumeCorpse","noCorpseHeal"]);
+const passiveKeys=new Set(["invincible","searchLoot","restHeal","conceal","confusionChance","heal","incomingStatusDuration","taken","lowHpDamage","detect","hit","moveTime","afterMoveHit","skillSpFlat","statusDuration","restSp","timeAtk","timeAtkEvery","timeAtkCap","damage","moveSp","statusChance","slowChance","poisonChance","poisonVsDamage","afterMoveDamage","killHeal","killSp","skillHit","prep","crit","lowDef","randomSkill","profGain","defFlat","chainPerHit","chainMax","revive","fearChance","sleepChance","bindChance","cdRate","craftTime","quietDamage","woundedDetect"]);
+const combatKeys=new Set(["execute","mult","cd","sp","hit","statuses","heal","lowHpMult","restoreSp","timeScale","crit","prep","multMin","multMax","randomStatus","forcePoison","killHeal","tempGuard","tempGuardDuration","randomControl","doubleRandomStatus","drainSp","defIgnore","selfDamage","dispelOne","dispelBonus","quietBonus","freeMove","lifesteal","mark"]);
+const actionKeys=new Set(["selfDebuffs","cd","time","heal","tempFx","duration","nextDetect","sp","nextMoveFree","nextSkillSpDiscount","trap","nextHit","cleanse","cleanseCount","cleanseSpecific","material","materialQty","consumable","nextCraftTimeMult","nextDamage","corpseHeal","noCorpseSp","reduceCombatCd","refundActionCd","luckAction","skillOnlyDamage","nextSearch","cleanseAny","healIfRevUsed","randomMetal","selfDamage","nextStatus","consumeCorpse","noCorpseHeal"]);
 const gearKeys=new Set(["hit","crit","detect","conceal","skillSpFlat","statusChance","prep","moveTime","searchLoot","skillDamage","statusDuration","heal","restHeal","fearChance","poisonChance","poisonVsDamage","restSp","afterMoveHit","killHeal","taken","lowDef","moveSp","chainPerHit","chainMax","damage","slowChance","afterMoveDamage","killSp","lowHpDamage","thirdHit","incomingStatusDuration","confusionChance","bleedChance","extraChance","extraRatio","statusTargetDamage","quietDamage","skillHit"]);
 
 for(const [id,row] of Object.entries(PASSIVE_FX))for(const k of Object.keys(row))assert.ok(passiveKeys.has(k),`unreviewed passive key ${id}.${k}`);
 for(const [id,row] of Object.entries(COMBAT_SKILL_DEFS))for(const k of Object.keys(row))assert.ok(combatKeys.has(k),`unreviewed combat key ${id}.${k}`);
 for(const [id,row] of Object.entries(ACTION_SKILL_DEFS))for(const k of Object.keys(row))assert.ok(actionKeys.has(k),`unreviewed action key ${id}.${k}`);
-const tempFxKeys=new Set(["searchLoot","conceal","defFlat","detect","statusChance","moveTime","moveSp","crit","woundedDetect","prep","taken","incomingStatusDuration","profGain","damage","hit","sleepChance","bindChance","poisonChance","lowDef"]);
+const tempFxKeys=new Set(["invincible","searchLoot","conceal","defFlat","detect","statusChance","moveTime","moveSp","crit","woundedDetect","prep","taken","incomingStatusDuration","profGain","damage","hit","sleepChance","bindChance","poisonChance","lowDef"]);
 for(const [id,row] of Object.entries(ACTION_SKILL_DEFS))for(const k of Object.keys(row.tempFx||{}))assert.ok(tempFxKeys.has(k),`unreviewed action tempFx key ${id}.${k}`);
 for(const [id,row] of Object.entries(NAMED_GEAR_FX))for(const k of Object.keys(row))assert.ok(gearKeys.has(k),`unreviewed gear key ${id}.${k}`);
 

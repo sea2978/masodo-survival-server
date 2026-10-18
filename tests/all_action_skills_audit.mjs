@@ -22,5 +22,5 @@ for(const [idx,ch] of CHARACTERS.entries()){
   cases++;
 }
 Math.random=realRandom;
-assert.equal(cases,51);
+assert.equal(cases,52);
 console.log("all additional actions runtime audit ok",{cases});

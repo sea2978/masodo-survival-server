@@ -1,9 +1,10 @@
+import {CHARACTERS} from '../src/game_data.js';
 import {loadRoom,createHarness} from './room_test_harness.mjs';
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
 const html=fs.readFileSync(process.env.MASODO_CLIENT_HTML||new URL('../public/MasodoSurvival.html',import.meta.url),'utf8');
 let navigations=0,clickPromise=null,fail=false;assert(!html.includes('<script type="module">'));assert(/<button id="connectServer" type="button" disabled>/.test(html));assert(html.includes('<form id="loginForm" onsubmit="return false"'));
 const ids=new Set([...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1]));const nodes=new Map();
-const node=()=>({value:'',textContent:'',innerHTML:'',hidden:false,disabled:false,open:false,style:{setProperty(){},removeProperty(){}},classList:{add(){},remove(){},toggle(){}},dataset:{},children:[],options:[],appendChild(x){this.children.push(x)},append(...x){this.children.push(...x)},prepend(){},setAttribute(){},removeAttribute(){},addEventListener(){},removeEventListener(){},querySelectorAll:()=>[],querySelector:()=>node(),showModal(){this.open=true},close(){this.open=false},replaceChildren(){this.children=[]},click(){if(this.disabled)return;let prevented=false;clickPromise=Promise.resolve(this.onclick?.({preventDefault(){prevented=true}}));if(this.type==='submit'&&!prevented)navigations++;return clickPromise},getBoundingClientRect:()=>({width:100,height:100})});
+const node=()=>({value:'',textContent:'',innerHTML:'',hidden:false,disabled:false,open:false,style:{setProperty(){},removeProperty(){}},classList:{add(){},remove(){},toggle(){}},dataset:{},children:[],options:[],appendChild(x){this.children.push(x);x.parentNode=this},append(...x){this.children.push(...x)},prepend(){},remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(x=>x!==this)},setAttribute(){},removeAttribute(){},addEventListener(){},removeEventListener(){},querySelectorAll:()=>[],querySelector:()=>node(),showModal(){this.open=true},close(){this.open=false},replaceChildren(){this.children=[]},click(){if(this.disabled)return;let prevented=false;clickPromise=Promise.resolve(this.onclick?.({preventDefault(){prevented=true}}));if(this.type==='submit'&&!prevented)navigations++;return clickPromise},getBoundingClientRect:()=>({width:100,height:100})});
 const document={querySelector(s){if(s.startsWith('#')&&!s.includes(' ')){if(!ids.has(s.slice(1))){if(s==='#gameLog')return null;throw Error('missing DOM '+s)}if(!nodes.has(s))nodes.set(s,node());const el=nodes.get(s);if(s==='#connectServer'&&!el.initialized){el.disabled=true;el.type='button';el.initialized=true}return el}return node()},querySelectorAll:()=>[],createElement:()=>node(),addEventListener(){},body:node(),documentElement:node()};
 let perf=0;const frames=new Map();let frameSeq=0;
 const requests=[];const ctx={fetch:async url=>{requests.push(url);if(fail)throw Error('offline');return {ok:true,json:async()=>url.endsWith('/api/catalog')?{ok:true,characters:[{id:'c01',name:'서노리'}],regions:[{id:'city',name:'도심'}],items:{},version:'test'}:{ok:true,rooms:[]}}},document,console,location:{origin:'null',protocol:'file:'},matchMedia:()=>({matches:false,addEventListener(){}}),URL,Map,Set,Math,Date,performance:{now:()=>perf},setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},requestAnimationFrame:fn=>{frames.set(++frameSeq,fn);return frameSeq},cancelAnimationFrame:id=>frames.delete(id),localStorage:{getItem:()=>null,setItem(){},removeItem(){}},navigator:{},screen:{},ResizeObserver:class{observe(){}},Image:class{},WebSocket:{OPEN:1},alert(){},confirm:()=>true};ctx.window=ctx;ctx.window.addEventListener=()=>{};vm.createContext(ctx);
@@ -47,3 +48,22 @@ net.emit('action_accepted',{action:{type:'attack'}});assert.equal(vm.runInContex
 net.emit('action_result',{result:{ok:true}});assert.equal(vm.runInContext('localAction',ctx),null);
 perf=31000;vm.runInContext('paintSkillCooldowns()',ctx);assert.equal(document.querySelector('#skill').disabled,true,'expired confusion restores cooldown lock without another snapshot');
 console.log('PASS: full client cooldown input during confusion, resolved action acknowledgement/loading text, result unlock and local confusion expiry');
+
+// Existing original-image client receives the new character dynamically from the catalog.
+const testRoom=createHarness(Room,{humans:2,ai:0,now:t+40000}),testActor=testRoom.match.players[0];testActor.charId='c52';testActor.sp=testActor.maxSp=100;testRoom.match.matchId='test-character-flow';
+net.catalog.characters=CHARACTERS;
+let apiNow=t+40000;const savedNow=Date.now;Date.now=()=>apiNow;
+const deliver=()=>{const list=testRoom.sockets[0].messages.splice(0);for(const msg of list){const incoming=net.acceptStateMessage(msg);if(incoming)net.emit(incoming.type,incoming)}};
+try{
+ await testRoom.room.saveMatch(testRoom.match);testRoom.room.sendMatchState(testRoom.sockets[0],testRoom.match,{force:true,now:apiNow});deliver();
+ assert.equal(vm.runInContext("charInfo('c52').name",ctx),'{user}');
+ await document.querySelector('#charAction').onclick();assert.equal(sent.at(-1).type,'command_char_action');await testRoom.room.webSocketMessage(testRoom.sockets[0],JSON.stringify(sent.at(-1)));deliver();
+ apiNow=(await testRoom.room.getMatch()).players[0].pendingAction.completeAt;perf+=500;await testRoom.fireAlarm();deliver();
+ assert.equal(vm.runInContext('debuffHud.buttons.size',ctx),9,'self-test skill displays all nine debuff icons');assert.equal(vm.runInContext('M.self.hp',ctx),100);
+ apiNow+=11000;perf+=11000;const ready=await testRoom.room.getMatch();await testRoom.room.completeDueActions(ready,apiNow);testRoom.room.sendMatchState(testRoom.sockets[0],ready,{force:true,now:apiNow});deliver();
+ assert.equal(vm.runInContext('debuffHud.buttons.size',ctx),1);assert.equal(vm.runInContext('M.self.hp',ctx),100);
+ const duel=await testRoom.room.getMatch();duel.players[0].encounter={kind:'player',targetId:duel.players[1].playerId};duel.players[1].charId='c37';await testRoom.room.saveMatch(duel);testRoom.room.sendMatchState(testRoom.sockets[0],duel,{force:true,now:apiNow});deliver();
+ await document.querySelector('#skill').onclick();await testRoom.room.webSocketMessage(testRoom.sockets[0],JSON.stringify(sent.at(-1)));deliver();apiNow=(await testRoom.room.getMatch()).players[0].pendingAction.completeAt;perf+=650;await testRoom.fireAlarm();deliver();
+ assert.equal(vm.runInContext('M.phase',ctx),'finished');assert(document.querySelector('#resultTitle').textContent.includes('승리'));assert.equal(vm.runInContext('M.self.kills',ctx),1);
+}finally{Date.now=savedNow}
+console.log('PASS: original client dynamic {user} catalog -> self-debuff skill -> 9 HUD icons -> invulnerable wait/expiry -> instant skill kill -> victory results (real room actions/alarms with DOM/socket mocks)');

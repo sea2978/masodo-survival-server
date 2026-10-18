@@ -10,6 +10,8 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const nowSec=(match,now=Date.now())=>Math.max(0,(now-match.startedAt)/1000);
 const item=id=>ITEMS[id]||null;
+function invincible(p){return !!PASSIVE_FX[p?.charId]?.invincible}
+function damagePlayer(p,amount){const damage=invincible(p)?0:Math.max(0,Number(amount)||0);p.hp-=damage;return damage}
 export const STATUS_DEFS={
   poison:{duration:8,max:3},bleed:{duration:null,max:5},slow:{duration:10,max:2},bind:{duration:5,max:1},
   sleep:{duration:10,max:1},fear:{duration:5,max:1},confusion:{duration:10,max:1},silence:{duration:10,max:1},actionDelay:{duration:10,max:1}
@@ -255,6 +257,7 @@ function recordDeathSource(match,victim,source,now,cause){
     name:source?.playerName||(source?.templateId?wildTemplate(source)?.n:null)||null,cause,at:now};
 }
 function awardStatusKill(match,victim,sourceId,now,cause){
+  if(invincible(victim)){victim.hp=Math.max(1,victim.hp);return {immune:true}}
   const killer=match.players.find(x=>x.playerId===sourceId&&x!==victim&&x.alive);
   const fx=PASSIVE_FX[victim.charId]||{};
   if(fx.revive&&!victim.rev){victim.rev=true;victim.hp=Math.min(18,maxHp(victim,match,now));victim.statuses={};return {revived:true,killerId:killer?.playerId||null}}
@@ -290,9 +293,9 @@ function applyStatusTicks(match,p,now){
     p.nextStatusTick+=2000;
     const poison=p.statuses?.poison;
     if(poison?.until>p.nextStatusTick){
-      const damage=Math.max(1,Math.round(maxHp(p,match,p.nextStatusTick)*.02*(poison.stacks||1)));
-      p.hp-=damage;recordCombatNotice(match,poison.sourceId,p,damage,'독',p.nextStatusTick);
-      wakeOnDamage(p,p.nextStatusTick);
+      const damage=damagePlayer(p,Math.max(1,Math.round(maxHp(p,match,p.nextStatusTick)*.02*(poison.stacks||1))));
+      recordCombatNotice(match,poison.sourceId,p,damage,'독',p.nextStatusTick);
+      if(damage>0)wakeOnDamage(p,p.nextStatusTick);
       if(p.hp<=0){awardStatusKill(match,p,poison.sourceId,p.nextStatusTick,"독");break}
     }
   }
@@ -362,8 +365,8 @@ function onTargetDetected(seeker,target,match,now){
 }
 function triggerBleedAction(match,p,now){
   const s=status(p,"bleed",now);if(!s||!p.alive)return 0;
-  const d=2*s.stacks;s.stacks--;if(s.stacks<=0)delete p.statuses.bleed;else s.until=null;
-  p.hp-=d;recordCombatNotice(match,s.sourceId,p,d,'출혈',now);wakeOnDamage(p,now);
+  const d=invincible(p)?0:2*s.stacks;s.stacks--;if(s.stacks<=0)delete p.statuses.bleed;else s.until=null;
+  damagePlayer(p,d);recordCombatNotice(match,s.sourceId,p,d,'출혈',now);if(d>0)wakeOnDamage(p,now);
   if(p.hp<=0)awardStatusKill(match,p,s.sourceId,now,"출혈");
   return d;
 }
@@ -430,14 +433,16 @@ function createDeathCorpse(match,p,now){
 }
 function environmentDeath(match,p,now,forced=false,source=null,cause="환경 피해"){
   if(!p.alive)return false;
+  if(invincible(p)){p.hp=Math.max(1,p.hp);return false}
   const fx=PASSIVE_FX[p.charId]||{};
   if(!forced&&fx.revive&&!p.rev){p.rev=true;p.hp=Math.min(18,maxHp(p,match,now));p.statuses={};return false}
   recordDeathSource(match,p,source,now,cause);
   p.alive=false;p.encounter=null;p.pendingAction=null;createDeathCorpse(match,p,now);return true;
 }
-function killPlayer(match,a,b,now){
+function killPlayer(match,a,b,now,force=false){
+  if(invincible(b)){b.hp=Math.max(1,b.hp);return {immune:true}}
   const fx=PASSIVE_FX[b.charId]||{};
-  if(fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));b.statuses={};return {revived:true}}
+  if(!force&&fx.revive&&!b.rev){b.rev=true;b.hp=Math.min(18,maxHp(b,match,now));b.statuses={};return {revived:true}}
   recordDeathSource(match,b,a,now,"전투");
   b.alive=false;b.encounter=null;b.pendingAction=null;a.kills++;
   const linked=linkedSpecialForChar(b.charId);
@@ -457,7 +462,7 @@ function recordCombatNotice(match,source,target,damage,kind,now,hit=true){
 }
 function wildCounter(match,p,w,now){
   if(!p.alive||!w.alive)return 0;
-  const t=wildTemplate(w),d=wildDamage(p,w,match,now);p.hp-=d;recordCombatNotice(match,w,p,d,'반격',now);wakeOnDamage(p,now);
+  const t=wildTemplate(w),d=damagePlayer(p,wildDamage(p,w,match,now));recordCombatNotice(match,w,p,d,'반격',now);if(d>0)wakeOnDamage(p,now);
   if(t.skill==="bite_bleed"&&Math.random()<.20)applyStatus(p,"bleed",1,10,w.id,now,null,match);
   else if(t.skill==="harass"&&Math.random()<.25)p.nextHitBonus=(p.nextHitBonus||0)-.06;
   else if(t.skill==="scan_delay"&&Math.random()<.20)applyStatus(p,"actionDelay",1,3,w.id,now,null,match);
@@ -478,7 +483,7 @@ function applySkillSelfEffects(match,p,sd,damageDealt=0,killed=false,now=Date.no
   const fx=combinedFx(p,match,now);
   if(sd.heal)p.hp=clamp(p.hp+sd.heal,0,maxHp(p,match,now));
   if(sd.restoreSp)recoverSp(p,sd.restoreSp,match,now);
-  if(sd.selfDamage){p.hp-=sd.selfDamage;if(p.hp<=0)environmentDeath(match,p,now,false,null,"스킬 반동")}
+  if(sd.selfDamage){damagePlayer(p,sd.selfDamage);if(p.hp<=0)environmentDeath(match,p,now,false,null,"스킬 반동")}
   if(sd.freeMove)p.nextMoveFree=true;
   if(sd.lifesteal&&damageDealt>0)p.hp=clamp(p.hp+damageDealt*sd.lifesteal,0,maxHp(p,match,now));
   if(sd.killHeal&&killed)p.hp=clamp(p.hp+sd.killHeal,0,maxHp(p,match,now));
@@ -507,7 +512,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
-  if(!hitRoll(p,skill,bonus,match,now)){
+  if(!(skill&&sd.execute)&&!hitRoll(p,skill,bonus,match,now)){
     recordCombatNotice(match,p,t,0,skill?'전투 스킬':'일반 공격',now,false);
     gainProf(p,.5,match,now);p.attackChainTarget=t.playerId;p.attackChainHits=0;
     if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
@@ -525,7 +530,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   const crit=canSkillCrit&&Math.random()<clamp(.05+(skill?(sd.crit||0):0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,t,d,ctx,now);
-  t.hp-=d;recordCombatNotice(match,p,t,d,skill?'전투 스킬':'일반 공격',now);wakeOnDamage(t,now);recordBattle(match,p,t,now);gainProf(p,1.5,match,now);
+  if(skill&&sd.execute)d=t.hp;d=damagePlayer(t,d);recordCombatNotice(match,p,t,d,skill?'전투 스킬':'일반 공격',now);if(d>0)wakeOnDamage(t,now);recordBattle(match,p,t,now);gainProf(p,1.5,match,now);
 
   if(skill){
     for(const row of sd.statuses||[]){
@@ -542,7 +547,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
 
   if((p.eq||[]).includes("toxin_kit")&&Math.random()<clamp(.06+(combinedFx(p,match,now).statusChance||0),0,.95))applyStatus(t,"poison",1,8,p.playerId,now,p,match);
   applyOnHitStatuses(match,p,t,now);
-  const death=t.hp<=0?killPlayer(match,p,t,now):null,killed=!!death?.killed;
+  const death=t.hp<=0?killPlayer(match,p,t,now,!!(skill&&sd.execute)):null,killed=!!death?.killed;
   if(skill)applySkillSelfEffects(match,p,sd,d,killed,now);
   if(killed){
     const kfx=combinedFx(p,match,now);
@@ -567,7 +572,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
-  if(!hitRoll(p,skill,bonus,match,now)){
+  if(!(skill&&sd.execute)&&!hitRoll(p,skill,bonus,match,now)){
     recordCombatNotice(match,p,w,0,skill?'전투 스킬':'일반 공격',now,false);
     gainProf(p,.5,match,now);p.attackChainTarget=w.id;p.attackChainHits=0;
     if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
@@ -584,6 +589,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,w,d,ctx,now);
   if(t.skill==="guard"&&w.guardReady){w.guardReady=false;d=Math.max(1,Math.round(d*.8))}
+  if(skill&&sd.execute)d=w.hp;
   w.hp-=d;recordCombatNotice(match,p,w,d,skill?'전투 스킬':'일반 공격',now);gainProf(p,1.5,match,now);
 
   let drop=null,extra=[],killed=false;
@@ -686,8 +692,8 @@ function searchResult(match,p,now){
 function useConsumable(match,p,id,now){
   const it=item(id);if(!it||it.t!=="c"||owned(p,id)<=0)return {ok:false,error:"item_missing"};
   if(id==="carbonara_mint_fish"&&p.charId!=="c49"){
-    consumeItem(p,id,1);p.hp=0;environmentDeath(match,p,now,true,null,it.n+" 섭취");
-    return {ok:true,itemId:id,itemName:it.n,special:"아바돈 이외의 캐릭터 섭취 시 즉사",dead:true};
+    consumeItem(p,id,1);if(!invincible(p))p.hp=0;environmentDeath(match,p,now,true,null,it.n+" 섭취");
+    return {ok:true,itemId:id,itemName:it.n,special:invincible(p)?"무적으로 즉사 무효":"아바돈 이외의 캐릭터 섭취 시 즉사",dead:!p.alive};
   }
   const inCombat=!!p.encounter,combat=inCombat?(it.combatEff??.75):1,repeat=foodRepeatMultiplier(p,id,it,now);
   const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.08:1,healMult=repeat*combat*recoveryMult*(1+(fx.heal||0)),spMult=repeat*combat;
@@ -736,11 +742,15 @@ function removeAnyStatus(p,n=1,now=Date.now()){
 function charAction(match,p,now){
   const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
   if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
-  p.cdAUntil=now+((d.cd||45)/Math.max(.25,1+(combinedFx(p,match,now).cdRate||0)))*1000;p.cdADuration=(p.cdAUntil-now)/1000;
+  p.cdAUntil=now+((d.cd??45)/Math.max(.25,1+(combinedFx(p,match,now).cdRate||0)))*1000;p.cdADuration=(p.cdAUntil-now)/1000;
 
+  if(d.selfDebuffs){
+    p.statusImmunity??={};
+    for(const id of Object.keys(STATUS_DEFS)){delete p.statusImmunity[id];applyStatus(p,id,1,null,p.playerId,now,null,match)}
+  }
   if(d.heal)p.hp=clamp(p.hp+d.heal,0,maxHp(p,match,now));
   if(d.sp)recoverSp(p,d.sp,match,now);
-  if(d.selfDamage){p.hp-=d.selfDamage;if(p.hp<=0){environmentDeath(match,p,now,false,null,"스킬 반동");return {ok:true,selfDeath:!p.alive}}}
+  if(d.selfDamage){damagePlayer(p,d.selfDamage);if(p.hp<=0){environmentDeath(match,p,now,false,null,"스킬 반동");return {ok:true,selfDeath:!p.alive}}}
   if(d.tempFx)addTemp(p,d.tempFx,d.duration||20,now);
   if(d.nextDetect)p.nextDetectBonus=(p.nextDetectBonus||0)+d.nextDetect;
   if(d.nextSearch)p.nextSearchLootBonus=(p.nextSearchLootBonus||0)+d.nextSearch;
@@ -1218,14 +1228,14 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
     probabilisticHpSpans.push([m.index,m.index+m[0].length]);
     const risk=clamp(+m[1]/100-(successMod?.bonus||0)-hazardReduce,0,1);
     if(Math.random()<risk){
-      const d=+m[2];p.hp=clamp(p.hp-d,0,maxHp(p,match,now));summary.push("확률 피해 HP -"+d);
+      const d=damagePlayer(p,+m[2]);p.hp=Math.max(0,p.hp);summary.push("확률 피해 HP -"+d);
     }else summary.push("위험 판정 회피");
   }
   const overlapsProbHp=(idx,len)=>probabilisticHpSpans.some(([a,b])=>idx<b&&idx+len>a);
   for(const m of text.matchAll(/HP\s*([+-])\s*(\d+)/g)){
     if(overlapsProbHp(m.index,m[0].length))continue;
     if(/가능/.test(text.slice(Math.max(0,m.index-8),m.index+m[0].length+8))&&Math.random()>=.50)continue;
-    const n=+m[2]*(m[1]==="-"?-1:1);p.hp=clamp(p.hp+n,0,maxHp(p,match,now));summary.push("HP "+(n>=0?"+":"")+n);
+    const n=+m[2]*(m[1]==="-"?-1:1);if(n>=0)p.hp=clamp(p.hp+n,0,maxHp(p,match,now));else{damagePlayer(p,-n);p.hp=Math.max(0,p.hp)}summary.push("HP "+(n>=0?"+":"")+n);
   }
   for(const m of text.matchAll(/SP\s*([+-])\s*(\d+)/g)){
     const n=+m[2]*(m[1]==="-"?-1:1);p.sp=clamp(p.sp+n,0,p.maxSp);summary.push("SP "+(n>=0?"+":"")+n);
