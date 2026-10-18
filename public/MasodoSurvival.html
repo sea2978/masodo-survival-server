@@ -348,6 +348,15 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 @media(pointer:coarse) and (max-width:1400px){
  #gameScreen .player-hud{--bust-width:clamp(144px,22vw,176px);width:calc(var(--mobile-left) + var(--bust-width) - 48px)}
 }
+/* Mobile player bars below portrait; encounter card overlays the standing image. */
+@media(pointer:coarse) and (max-width:1400px){
+ #gameScreen .player-hud{width:var(--bust-width)}
+ #gameScreen .player-profile-block{grid-template-columns:minmax(0,1fr);gap:5px}
+ #gameScreen .profile-copy{width:100%}
+}
+@media(pointer:coarse) and (max-width:1400px) and (orientation:landscape){
+ #gameScreen .visual-stage{bottom:max(12px,env(safe-area-inset-bottom))}
+}
 </style></head><body>
 <div class="wrap">
   <section id="loginScreen">
