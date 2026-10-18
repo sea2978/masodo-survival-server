@@ -158,7 +158,7 @@ export class GameRoom extends DurableObject{
   async completeDueActions(match,now=Date.now(),{defer=false}={}){
     if(now<match.startedAt)return false;
     const introChanged=match.introCompleted===false;if(introChanged)match.introCompleted=true;
-    const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects]),match.noises]);
+    const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects,p.enemyContacts,p.heardNoiseIds]),match.noises]);
     const before=passiveView();
     let changed=updateRegionRestrictions(match,now)||introChanged;
     for(const p of match.players){

@@ -39,7 +39,7 @@
     "test:lobby-login": "node tests/lobby_login_smoke.mjs",
     "test:item-codex": "node tests/item_codex_tree_smoke.mjs",
     "test:enemy-contacts": "node tests/enemy_contacts_smoke.mjs",
-    "test:audit": "npm run test:match-intro && npm run test:garden && npm run test:test-character && npm run test:debuff-hud && npm run test:debuffs && npm run test:client-startup && npm run test:portrait-reactions && npm run test:death-hud && npm run test:clock-contacts && npm run test:event-wait && npm run test:enemy-traces && npm run test:enemy-contacts && npm run test:item-codex && npm run test:lobby-login && npm run test:formal-client && npm run test:repeatable-equipment && npm run test:regions && npm run test:info-refresh && npm run test:room-settings && npm run test:craft-equipment && npm run test:inventory && npm run test:network && npm run test:engine && npm run test:catalog && npm run test:full-audit && npm run test:phase2p-runtime && npm run test:all-combat && npm run test:all-actions && npm run test:all-consumables && npm run test:all-events && npm run test:static-audit && npm run test:craft-preflight && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:phase2o",
+    "test:audit": "npm run test:activity-notices && npm run test:match-intro && npm run test:garden && npm run test:test-character && npm run test:debuff-hud && npm run test:debuffs && npm run test:client-startup && npm run test:portrait-reactions && npm run test:death-hud && npm run test:clock-contacts && npm run test:event-wait && npm run test:enemy-traces && npm run test:enemy-contacts && npm run test:item-codex && npm run test:lobby-login && npm run test:formal-client && npm run test:repeatable-equipment && npm run test:regions && npm run test:info-refresh && npm run test:room-settings && npm run test:craft-equipment && npm run test:inventory && npm run test:network && npm run test:engine && npm run test:catalog && npm run test:full-audit && npm run test:phase2p-runtime && npm run test:all-combat && npm run test:all-actions && npm run test:all-consumables && npm run test:all-events && npm run test:static-audit && npm run test:craft-preflight && npm run test:recommendations && npm run test:event-e004 && npm run test:event-e008 && npm run test:intel && npm run test:concurrency && npm run test:combat-concurrency && npm run test:passive-audit && npm run test:phase2o",
     "test:enemy-traces": "node tests/enemy_trace_disappearance_smoke.mjs",
     "test:event-wait": "node tests/event_wait_smoke.mjs",
     "test:clock-contacts": "node tests/clock_contact_regression.mjs",
@@ -50,7 +50,8 @@
     "test:debuff-hud": "node tests/debuff_hud_smoke.mjs",
     "test:test-character": "node tests/test_character_smoke.mjs",
     "test:garden": "node tests/garden_rework_smoke.mjs",
-    "test:match-intro": "node tests/match_intro_smoke.mjs"
+    "test:match-intro": "node tests/match_intro_smoke.mjs",
+    "test:activity-notices": "node tests/activity_notice_smoke.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

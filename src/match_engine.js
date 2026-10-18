@@ -312,6 +312,13 @@ export function updatePassiveTime(match,now=Date.now()){
   for(const w of match.wilds||[])if(w.statuses)cleanseExpired(w,now);
   for(const p of match.players){
     if(!p.alive)continue;
+    const activeNoises=(match.noises||[]).filter(x=>x.expiresAt>now);
+    if(activeNoises.length||p.heardNoiseIds?.length){
+    p.heardNoiseIds=(p.heardNoiseIds||[]).filter(id=>activeNoises.some(x=>x.id===id));
+    for(const x of activeNoises)if(x.playerId!==p.playerId&&x.region===p.region&&!p.heardNoiseIds.includes(x.id)){
+      rememberIncoming(p,{playerId:x.playerId},x.playerName,x.createdAt,"noise");p.heardNoiseIds.push(x.id);
+    }
+    }
     processDelayedEffects(p,now);cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
     p.hp=Math.min(p.hp,maxHp(p,match,now));
   }
@@ -759,13 +766,20 @@ function charAction(match,p,now){
   if(d.garden){
     match.regionGardens??={};match.regionGardens[p.region]={installedAt:now,until:now+30000,ownerId:p.playerId};
     const targets=[...match.players,...(match.wilds||[])].filter(q=>q!==p&&q.alive&&q.region===p.region);
+    const detected=[];
     for(const q of targets){
       let affected=false;
       for(const id of ["bind","actionDelay"])affected=applyStatus(q,id,1,null,p.playerId,now,p,match,true)||affected;
       if(affected&&q.playerId){
+        detected.push({playerId:q.playerId,name:q.playerName});
         onTargetDetected(p,q,match,now);
         rememberEnemy(p,{id:q.playerId,name:q.playerName,kind:"player",source:"encounter",hp:Math.max(0,q.hp),maxHp:maxHp(q,match,now),alive:q.alive},now);
       }
+    }
+    if(detected.length){
+      p.gardenDetectionSeq=(p.gardenDetectionSeq||0)+1;
+      (p.gardenDetectionNotices??=[]).push({id:p.gardenDetectionSeq,region:p.region,targets:detected,at:now});
+      p.gardenDetectionNotices=p.gardenDetectionNotices.slice(-16);
     }
     gardenResult={region:p.region,affected:targets.length};
   }
@@ -910,7 +924,9 @@ function recordPlayerTraceIntel(match,p,now){
   const candidates=match.players.filter(x=>x!==p&&x.alive&&!((ensureEventMods(x).traceHiddenUntil||0)>now));
   if(!candidates.length)return null;
   const target=pick(candidates),row={kind:"player_trace",playerId:target.playerId,name:target.playerName,region:target.region,regionName:regionName(target.region),at:now};
-  pushIntel(ensureIntel(p).playerTraces,row);return row;
+  pushIntel(ensureIntel(p).playerTraces,row);
+  if(target.region===p.region)rememberIncoming(p,target,target.playerName,now,"trace");
+  return row;
 }
 function recordSpecialCandidateIntel(match,p,now){
   const ids=[...groundSpecialsInRegion(match,p.region),...regionSpecialCandidates(match,p.region)];

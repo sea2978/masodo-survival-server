@@ -10,9 +10,9 @@ export function rememberEnemy(player,contact,at){
  }else rows.unshift({...contact,at,region:player.region});
  book[player.region]=rows.slice(0,32);
 }
-export function rememberIncoming(player,source,name,at){
+export function rememberIncoming(player,source,name,at,reason=null){
  const id=source?.playerId||source?.id;if(!id)return;
- rememberEnemy(player,{id,name,kind:source.playerId?'player':'wild',source:'incoming',hp:null,maxHp:null,alive:null},at);
+ rememberEnemy(player,{id,name,kind:source.playerId?'player':'wild',source:'incoming',...(reason?{reason}:{}),hp:null,maxHp:null,alive:null},at);
 }
 export function pruneEnemyTraces(match,player,at){
  const rows=player.enemyContacts?.[player.region]||[];

@@ -495,15 +495,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
     </section>
 
-    <dialog id="infoPanel" class="game-popup"><div class="popup-head"><h2>정보</h2><button data-close-panel>닫기</button></div><button id="refresh">상태 갱신</button>      <details>
-        <summary>획득 정보</summary>
-        <div id="intel" class="scroll compact-list"></div>
-      </details>
-      <details>
-        <summary>다른 생존자</summary>
-        <div id="others" class="scroll compact-list"></div>
-      </details>
-</dialog>
+    <dialog id="infoPanel" class="game-popup"><div class="popup-head"><h2>플레이어 목록</h2><button data-close-panel>닫기</button></div><button id="refresh">상태 갱신</button><div id="others" class="scroll compact-list"></div></dialog>
     <footer class="scene-action-dock">
       <div class="scene-secondary-row rest-row"><button id="rest" class="btn">휴식</button></div>
       <div id="exploreControls" class="scene-controls-group">
@@ -799,6 +791,25 @@ function craft(p,id,replacement=null){
  net.craft(id,replacement||{});$('#craftPanel').close();
 }
 function toast(title,name,detail='',kind='item',duration=2400){const root=$('#toastStack');if(!root)return;while(root.children.length>=3)root.firstElementChild.remove();const el=document.createElement('div');el.className='top-toast '+kind;for(const [cls,text]of [['top-toast-title',title],['top-toast-main',name],['top-toast-sub',detail]]){const part=document.createElement('div');part.className=cls;part.textContent=text;el.appendChild(part)}root.appendChild(el);requestAnimationFrame(()=>el.classList.add('show'));setTimeout(()=>{el.classList.add('hide');setTimeout(()=>el.remove(),220)},duration)}
+let activityNoticeKey='',heardNoiseIds=new Set(),seenTraceIds=new Set();
+function notifyActivity(m){
+ const p=m.self;if(!p||m.phase!=='playing')return;
+ const key=(m.matchId||'')+'|'+p.playerId;
+ const first=activityNoticeKey!==key;
+ if(first){activityNoticeKey=key;heardNoiseIds.clear();seenTraceIds.clear()}
+ for(const x of p.intel?.playerTraces||[]){
+  const id=JSON.stringify([x.at,x.playerId,x.region,x.name]);if(seenTraceIds.has(id))continue;seenTraceIds.add(id);
+  if(!first)toast('흔적 발견',(x.name||'생존자')+'의 흔적을 발견했습니다.',x.regionName||rname(x.region),'combat',4000);
+ }
+ if(seenTraceIds.size>128)seenTraceIds=new Set([...seenTraceIds].slice(-64));
+ for(const x of p.nearbyNoise||[]){
+  if(!x.id||heardNoiseIds.has(x.id)||x.expiresAt<=(m.serverNow||0))continue;
+  heardNoiseIds.add(x.id);
+  toast('소음 감지',(x.regionName||rname(x.region))+'에서 소음이 들립니다.','소음 '+x.level+' · '+(x.region===p.region?'현재 지역의 활동 흔적':'인접 지역의 활동 흔적'),'combat',4000);
+ }
+ if(heardNoiseIds.size>128)heardNoiseIds=new Set([...heardNoiseIds].slice(-64));
+}
+
 let noticeSnapshot=null;
 function notifyMatchChanges(m){const p=m.self;if(!p)return;const counts=new Map();for(const group of [p.inventory.eq,p.inventory.mat,p.inventory.con])for(const it of group){const prev=counts.get(it.id);counts.set(it.id,{count:(prev?.count||0)+(it.count??1),name:it.n||it.name||I(it.id)?.n||it.id})}
 const key=(m.matchId||'')+'|'+(p.playerId||p.charId);if(noticeSnapshot?.key===key){const gained=[];for(const[id,it]of counts){const delta=it.count-(noticeSnapshot.counts.get(id)?.count||0);if(delta>0)gained.push(it.name+' ×'+delta)}if(gained.length)toast('아이템 획득',gained.join(' · '),'인벤토리에 반영되었습니다.','item');const events=(m.combatNotices||[]).filter(e=>e.id>(noticeSnapshot.combatSeq||0));
@@ -808,11 +819,13 @@ for(const e of events){
   const amount=Math.round(e.damage*10)/10;
   toast(dealt?'공격 적중':'피격 / 피해',dealt?e.targetName+'에게 '+amount+' 피해':e.sourceName+'에게 '+amount+' 피해를 받음',e.kind,'combat',3000);
 }
+const discoveries=(p.gardenDetectionNotices||[]).filter(x=>x.id>(noticeSnapshot.gardenSeq||0));
+for(const x of discoveries)toast('정원 · 속박',(x.targets||[]).map(t=>t.name).join(' · ')+'을 속박했습니다.',(rname(x.region)||x.region)+' · 정원 설치로 감지','combat',4000);
 const gone=(p.enemyTraceNotices||[]).filter(x=>x.id>(noticeSnapshot.traceSeq||0));
 if(gone.length)toast('흔적 사라짐',gone.map(x=>x.name).join(' · ')+'의 흔적이 사라졌습니다.','조우 표시를 제거했습니다.','combat',4000);
 const damage=noticeSnapshot.hp-p.hp;
 if(damage>0&&!events.some(e=>e.targetId===p.playerId))toast('피해','HP -'+Math.round(damage*10)/10,'환경·이벤트 또는 자신의 효과로 인한 HP 감소','combat',2200);
-}noticeSnapshot={key,counts,hp:p.hp,combatSeq:m.combatNoticeSeq||0,traceSeq:p.enemyTraceSeq||0}}
+}noticeSnapshot={key,counts,hp:p.hp,combatSeq:m.combatNoticeSeq||0,traceSeq:p.enemyTraceSeq||0,gardenSeq:p.gardenDetectionSeq||0};notifyActivity(m)}
 
 
 let craftShopCategory='recommended',craftShopQuery='',craftShopSelected=null;
@@ -1235,7 +1248,7 @@ function renderEnemyContacts(m){
  root.innerHTML=rows.map(row=>{
   const known=row.source==='encounter'&&Number.isFinite(row.hp)&&Number.isFinite(row.maxHp)&&row.maxHp>0;
   const hp=known?Math.ceil(row.hp)+' / '+Math.ceil(row.maxHp):'?';
-  return '<article class="enemy-contact"><div><b>'+escapeRoomText(row.name)+'</b><span>HP '+hp+'</span></div><small>'+(known?'마지막 조우 · 행동 결과':'피격 확인 · 체력 미확인')+'</small></article>';
+  return '<article class="enemy-contact"><div><b>'+escapeRoomText(row.name)+'</b><span>HP '+hp+'</span></div><small>'+(known?'마지막 조우 · 행동 결과':row.reason==='noise'?'소음 확인 · 체력 미확인':row.reason==='trace'?'흔적 확인 · 체력 미확인':'피격 확인 · 체력 미확인')+'</small></article>';
  }).join('');
 }
 function renderVitalBars(p){
@@ -1271,14 +1284,6 @@ $('#consumableQuickSlots').querySelectorAll('[data-quick-use]').forEach(b=>b.onc
 $('#mat').innerHTML=p.inventory.mat.length?p.inventory.mat.map(it=>`<div>${it.name} ×${it.count}</div>`).join(""):'<span class="muted">없음</span>';
 $('#con').innerHTML=p.inventory.con.length?p.inventory.con.map(it=>`<div class="card"><b>${it.n} ×${it.count}</b><button data-use="${it.id}" ${(busy()||inEvent)?'disabled':''}>사용</button><button data-con-drop="${it.id}" ${dis?'disabled':''}>전체 버리기</button></div>`).join(""):'<span class="muted">없음</span>';$('#con').querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>net.useItem(b.dataset.use));$('#con').querySelectorAll('[data-con-drop]').forEach(b=>b.onclick=()=>{const it=p.inventory.con.find(x=>x.id===b.dataset.conDrop);confirmInventory({mode:'drop_consumable',id:it.id},'소모품 버리기',it.n+' ×'+it.count+' 전체를 버리고 한 칸을 비웁니다.')});
 renderCraft();renderRouteGuide();
-const intel=p.intel||{};
-const intelRows=[];
-for(const x of intel.playerTraces||[])intelRows.push(`<div class="card"><b>플레이어 흔적</b><div>${x.name||'생존자'} · ${x.regionName||rname(x.region)}</div></div>`);
-for(const x of intel.specialCandidates||[])intelRows.push(`<div class="card"><b>특수재료 후보 · ${x.regionName||rname(x.region)}</b><div class="muted">${(x.items||[]).map(v=>v.name+' ['+v.state+']').join(' · ')||'후보 없음'}</div></div>`);
-for(const x of intel.materialHints||[])intelRows.push(`<div class="card"><b>추천 파밍 · ${x.targetName||''}</b><div class="muted">${(x.regions||[]).map(v=>v.regionName||rname(v.region)).join(' → ')||'지역 정보 없음'}</div></div>`);
-for(const x of intel.eventHints||[])intelRows.push(`<div class="card"><b>이벤트 정보</b><div>${x.name||x.eventId} · ${x.type||''}</div></div>`);
-for(const x of p.nearbyNoise||[])intelRows.push(`<div class="card"><b>소음 감지 · ${x.level}</b><div>${x.regionName||rname(x.region)}에서 활동 흔적</div><div class="muted">${x.source||'원인 불명'} · 잠시 동안 발견되기 쉬움</div></div>`);
-$('#intel').innerHTML=intelRows.length?intelRows.slice(0,10).join(''):'<span class="muted">아직 획득한 정보가 없습니다.</span>';
 renderOtherSurvivors(m);
 $('#encounter').innerHTML=m.encounter?`<div class="card enemy"><b>조우: ${m.encounter.name}</b><div>HP ${Math.max(0,Math.round(m.encounter.hp))}/${m.encounter.maxHp}</div><div class="muted">${m.encounter.skillText||''}</div></div>`:"";
 $('#eventBox').innerHTML=m.pendingEvent?`<div class="card event"><b>${m.pendingEvent.name}</b><p>${m.pendingEvent.type}</p><div class="event-choices">${m.pendingEvent.choices.map((c,i)=>`<div class="event-choice"><button data-event="${i}" ${c.available===false?'disabled':''}>${c.label}${c.available===false?' · 사용 불가':''}</button><div class="muted">${c.result.replace(/시간 \+(\d+)초/g,'소요 $1초')}${c.available===false&&c.reason?' · '+c.reason:''}</div></div>`).join("")}</div></div>`:"";$('#eventBox').querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>net.eventChoice(Number(b.dataset.event)));
