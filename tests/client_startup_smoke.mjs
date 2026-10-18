@@ -67,3 +67,19 @@ try{
  assert.equal(vm.runInContext('M.phase',ctx),'finished');assert(document.querySelector('#resultTitle').textContent.includes('승리'));assert.equal(vm.runInContext('M.self.kills',ctx),1);
 }finally{Date.now=savedNow}
 console.log('PASS: original client dynamic {user} catalog -> self-debuff skill -> 9 HUD icons -> invulnerable wait/expiry -> instant skill kill -> victory results (real room actions/alarms with DOM/socket mocks)');
+
+// The current downloadable client drives garden installation and receives enemy control states.
+const gardenRoom=createHarness(Room,{humans:2,ai:0,now:t+100000});gardenRoom.match.matchId='garden-client-flow';
+let gardenNow=t+100000;const priorGardenNow=Date.now;Date.now=()=>gardenNow;
+function gardenDeliver(){for(const msg of gardenRoom.sockets[0].messages.splice(0)){const incoming=net.acceptStateMessage(msg);if(incoming)net.emit(incoming.type,incoming)}}
+try{
+ await gardenRoom.room.saveMatch(gardenRoom.match);gardenRoom.room.sendMatchState(gardenRoom.sockets[0],gardenRoom.match,{force:true,now:gardenNow});gardenDeliver();
+ assert(vm.runInContext("charInfo('c01').actionEffectText",ctx).includes('30초'));
+ await document.querySelector('#charAction').onclick();assert.equal(sent.at(-1).type,'command_char_action');await gardenRoom.room.webSocketMessage(gardenRoom.sockets[0],JSON.stringify(sent.at(-1)));gardenDeliver();
+ const pending=await gardenRoom.room.getMatch();assert(!pending.regionGardens.city);gardenNow=pending.players[0].pendingAction.completeAt;perf+=1000;await gardenRoom.fireAlarm();gardenDeliver();
+ const active=await gardenRoom.room.getMatch();assert.equal(active.regionGardens.city.until,gardenNow+30000);assert(document.querySelector('#actionLoading').hidden);
+ assert(document.querySelector('#enemyContactHud').innerHTML.includes('QA1'));assert(document.querySelector('#enemyContactHud').innerHTML.includes('HP 102 / 102'));
+ net.emit('match_state',{match:gardenRoom.room.snapshot(active,'s1',gardenNow)});assert.equal(vm.runInContext('debuffHud.buttons.size',ctx),2,'target client displays both garden debuffs');
+ gardenNow+=30000;perf+=30000;await gardenRoom.room.completeDueActions(active,gardenNow);net.emit('match_state',{match:gardenRoom.room.snapshot(active,'s0',gardenNow)});assert(!gardenRoom.room.snapshot(active,'s0',gardenNow).self.inGarden);assert.equal(vm.runInContext('debuffHud.buttons.size',ctx),0);
+}finally{Date.now=priorGardenNow}
+console.log('PASS: full original client skill click -> actual room/alarm -> 30-second garden -> enemy bind/delay HUD -> expiry, current dynamic catalog text (DOM/socket mocks, no live visual assertion)');

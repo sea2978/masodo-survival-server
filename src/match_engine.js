@@ -105,6 +105,11 @@ function tempFx(p,match,now=Date.now()){
 }
 function combinedFx(p,match,now=Date.now()){
   const out={...(PASSIVE_FX[p.charId]||{})};
+  if(match.regionGardens?.[p.region]?.until>now){
+    out.searchLoot=(out.searchLoot||0)+(out.gardenSearchLoot||0);
+    out.restHeal=(out.restHeal||0)+(out.gardenRestHeal||0);
+    out.restSp=(out.restSp||0)+(out.gardenRestSp||0);
+  }
   for(const[k,v]of Object.entries(tempFx(p,match,now)))out[k]=(out[k]||0)+v;
   for(const id of p.eq||[]){
     const it=item(id);if(!it)continue;
@@ -221,11 +226,11 @@ function craftItem(match,p,id,payload={}){
   return {ok:true,itemId:id,itemName:it.n,...(discarded?{discarded:discarded.id}:{})};
 }
 function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.stacks>0&&(s.until===null||s.until>now)?s:null}
-export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null){
+export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null,guaranteed=false){
   p.statuses??={};const defn=STATUS_DEFS[id];if(!defn)return false;
   if((p.statusImmunity?.[id]||0)>now)return false;
   const targetFx=match?combinedFx(p,match,now):{};
-  if(id==="actionDelay"&&targetFx.delayResist&&Math.random()<targetFx.delayResist)return false;
+  if(!guaranteed&&id==="actionDelay"&&targetFx.delayResist&&Math.random()<targetFx.delayResist)return false;
   let dur=id==="poison"?(duration??defn.duration):defn.duration;
   if(source&&match&&["slow","bind","sleep","fear","confusion","silence","actionDelay"].includes(id)){
     if((source.eq||[]).includes("spell_amp"))dur*=1.06;
@@ -303,6 +308,8 @@ function applyStatusTicks(match,p,now){
 export function updatePassiveTime(match,now=Date.now()){
   if(match.phase==="finished")return;
   updateRegionRestrictions(match,now);
+  for(const [region,garden] of Object.entries(match.regionGardens||{}))if(!(garden.until>now))delete match.regionGardens[region];
+  for(const w of match.wilds||[])if(w.statuses)cleanseExpired(w,now);
   for(const p of match.players){
     if(!p.alive)continue;
     processDelayedEffects(p,now);cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
@@ -315,7 +322,7 @@ export function initWorld(match){
   match.regionRestrictions={round:0,locked:[],final:false,nextAt:180};
   let seq=1;match.wilds=[];
   for(const t of WILD_TEMPLATES)for(const region of t.regions)match.wilds.push({id:"w"+seq++,templateId:t.id,region,hp:t.hp,alive:true,guardReady:t.skill==="guard"});
-  match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.regionTraps={};match.noises=[];match.battleLog=[];match.craftStats={};match.uniqueSpecials=initUniqueSpecials();
+  match.regionGardens={};match.eventPity={};match.lastEventId=null;match.corpses=[];match.worldLog=[];match.regionTraps={};match.noises=[];match.battleLog=[];match.craftStats={};match.uniqueSpecials=initUniqueSpecials();
 }
 function wildTemplate(w){return WILD_TEMPLATES.find(x=>x.id===w.templateId)}
 function playerById(match,id){return match.players.find(p=>p.playerId===id)}
@@ -510,6 +517,8 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
     p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;p.cdCDuration=(p.cdCUntil-now)/1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
+    if(sd.bindMult&&status(t,"bind",now))mult=sd.bindMult;
+    else if(sd.delayMult&&status(t,"actionDelay",now))mult=sd.delayMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!(skill&&sd.execute)&&!hitRoll(p,skill,bonus,match,now)){
@@ -570,6 +579,8 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     p.sp-=spCost;p.nextSkillSpDiscount=0;p.cdCUntil=now+((sd.cd??55)/Math.max(.25,1+(fx.cdRate||0)))*1000;p.cdCDuration=(p.cdCUntil-now)/1000;bonus+=sd.hit||0;
     mult=sd.multMin!=null?sd.multMin+Math.random()*(sd.multMax-sd.multMin):(sd.mult??1.08);
     if(sd.lowHpMult!=null&&p.hp/maxHp(p,match,now)<.5)mult=sd.lowHpMult;
+    if(sd.bindMult&&status(w,"bind",now))mult=sd.bindMult;
+    else if(sd.delayMult&&status(w,"actionDelay",now))mult=sd.delayMult;
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!(skill&&sd.execute)&&!hitRoll(p,skill,bonus,match,now)){
@@ -744,6 +755,20 @@ function charAction(match,p,now){
   if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
   p.cdAUntil=now+((d.cd??45)/Math.max(.25,1+(combinedFx(p,match,now).cdRate||0)))*1000;p.cdADuration=(p.cdAUntil-now)/1000;
 
+  let gardenResult;
+  if(d.garden){
+    match.regionGardens??={};match.regionGardens[p.region]={installedAt:now,until:now+30000,ownerId:p.playerId};
+    const targets=[...match.players,...(match.wilds||[])].filter(q=>q!==p&&q.alive&&q.region===p.region);
+    for(const q of targets){
+      let affected=false;
+      for(const id of ["bind","actionDelay"])affected=applyStatus(q,id,1,null,p.playerId,now,p,match,true)||affected;
+      if(affected&&q.playerId){
+        onTargetDetected(p,q,match,now);
+        rememberEnemy(p,{id:q.playerId,name:q.playerName,kind:"player",source:"encounter",hp:Math.max(0,q.hp),maxHp:maxHp(q,match,now),alive:q.alive},now);
+      }
+    }
+    gardenResult={region:p.region,affected:targets.length};
+  }
   if(d.selfDebuffs){
     p.statusImmunity??={};
     for(const id of Object.keys(STATUS_DEFS)){delete p.statusImmunity[id];applyStatus(p,id,1,null,p.playerId,now,null,match)}
@@ -800,7 +825,7 @@ function charAction(match,p,now){
     match.regionTraps??={};
     match.regionTraps[p.region]={ownerId:p.playerId,until:now+45000,hitBonus:d.nextHit||.20};
   }
-  return {ok:true};
+  return {ok:true,...(gardenResult?{garden:gardenResult}:{})};
 }
 function normalizedFxText(it){
   if(!it?.fx)return "";
@@ -903,7 +928,7 @@ function recordMaterialHintIntel(p,now){
 }
 export function publicPlayer(match,p,now=Date.now(),advance=true){
   if(advance)updatePassiveTime(match,now);else p={...p,intel:p.intel?{...p.intel}:undefined};ensureIntel(p);
-  return {...p,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
+  return {...p,inGarden:(match.regionGardens?.[p.region]?.until||0)>now,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
     inventory:{eq:(p.eq||[]).map(id=>({id,...item(id),salvage:equipmentSalvage(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
 }

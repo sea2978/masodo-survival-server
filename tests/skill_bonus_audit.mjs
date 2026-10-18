@@ -9,10 +9,10 @@ const t=1700000000000;
 for(const id of ['c01','c08','c25','c12']){
  const p=createServerPlayer({sessionId:id,playerName:id,charId:id,startRegion:'city'},0),m={phase:'playing',startedAt:t,players:[p],corpses:[]};initWorld(m);const oldRandom=Math.random;Math.random=()=>.99;
  try{const a=beginServerAction(m,p,'char_action',{},t);assert(a.ok);assert(completeAction(m,p,a.action.completeAt+1).ok)}finally{Math.random=oldRandom}
- if(id==='c01')assert(p.tempEffects.some(x=>x.fx.searchLoot===.2));
+ if(id==='c01')assert(m.regionGardens.city);
  if(id==='c08')assert(p.tempEffects.some(x=>x.fx.statusChance===.15));
  if(id==='c25')assert.equal(p.nextCritBonus,.2);
  if(id==='c12')assert.equal(m.regionTraps.city.hitBonus,.2);
 }
-assert.equal(C.c01.mult,1.05);assert.equal(A.c01.heal,6);assert.equal(A.c01.cd,45);assert.equal(A.c01.duration,18);assert.equal(A.c51.tempFx.profGain,.3);assert.equal(C.c44.prep,1.2);assert.equal(A.c44.tempFx.moveTime,.2);
+assert.equal(C.c01.mult,1.5);assert.equal(C.c01.cd,60);assert.equal(A.c01.garden,true);assert.equal(A.c01.cd,45);assert.equal(A.c51.tempFx.profGain,.3);assert.equal(C.c44.prep,1.2);assert.equal(A.c44.tempFx.moveTime,.2);
 console.log('skill bonuses PASS: 102 skill definitions/descriptions, bonus floors, actual search/status/luck/trap buffs, original damage/healing/time and stronger bonuses retained');

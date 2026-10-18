@@ -1,8 +1,9 @@
 // Extracted verbatim from the v0.6.4 offline build.
 export const PASSIVE_FX={
   "c01": {
-    "searchLoot": 0.2,
-    "restHeal": 0.2
+    "gardenSearchLoot": 0.3,
+    "gardenRestHeal": 0.35,
+    "gardenRestSp": 0.35
   },
   "c02": {
     "conceal": 0.2,
@@ -213,24 +214,7 @@ export const PASSIVE_FX={
   }
 };
 export const COMBAT_SKILL_DEFS={
-  "c01": {
-    "mult": 1.05,
-    "cd": 58,
-    "sp": 12,
-    "hit": 0,
-    "statuses": [
-      [
-        "bind",
-        0.35,
-        5
-      ],
-      [
-        "slow",
-        0.55,
-        10
-      ]
-    ]
-  },
+  "c01": {"mult": 1.5, "delayMult": 2, "bindMult": 2.5, "cd": 60, "sp": 12},
   "c02": {
     "mult": 0.9,
     "cd": 52,
@@ -699,15 +683,7 @@ export const COMBAT_SKILL_DEFS={
   }
 };
 export const ACTION_SKILL_DEFS={
-  "c01": {
-    "cd": 45,
-    "time": 1,
-    "heal": 6,
-    "tempFx": {
-      "searchLoot": 0.2
-    },
-    "duration": 18
-  },
+  "c01": {"cd": 45, "time": 1, "garden": true},
   "c02": {
     "cd": 48,
     "time": 0.8,

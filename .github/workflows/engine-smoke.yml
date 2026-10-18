@@ -19,6 +19,8 @@ jobs:
         run: node tests/api_only_server_smoke.mjs
       - name: Debuff rules and confusion actions
         run: npm run test:debuffs && npm run test:debuff-hud && npm run test:test-character
+      - name: Seonori garden rework
+        run: npm run test:garden
       - name: Active skill bonus tuning
         run: node tests/skill_bonus_audit.mjs
       - name: Passive minimum tuning
