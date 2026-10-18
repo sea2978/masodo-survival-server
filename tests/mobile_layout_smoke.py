@@ -43,7 +43,7 @@ assert "message.textContent='서버 연결 성공: '+url.origin" not in html
 print('PASS: CSS rules and geometry checks only; real mobile/browser layout has not been asserted')
 
 # Final mobile-only overrides stack bars below the unchanged bust and overlap encounter art.
-mobile=html.split('/* Mobile player bars below portrait;',1)[1].split('</style>',1)[0]
+mobile=html.split('/* Mobile player bars below portrait;',1)[1].split('/* Icon-only player debuffs',1)[0].split('</style>',1)[0]
 assert 'grid-template-columns:minmax(0,1fr)' in mobile
 assert '#gameScreen .player-hud{width:var(--bust-width)}' in mobile
 assert '#gameScreen .visual-stage{bottom:max(12px,env(safe-area-inset-bottom))}' in mobile

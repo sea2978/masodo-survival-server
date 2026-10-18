@@ -357,6 +357,21 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 @media(pointer:coarse) and (max-width:1400px) and (orientation:landscape){
  #gameScreen .visual-stage{bottom:max(12px,env(safe-area-inset-bottom))}
 }
+/* Icon-only player debuffs, with local countdown and an anchored explanation bubble. */
+#selfDebuffs{position:fixed;z-index:13;left:50%;bottom:calc(132px + var(--encounter-info-height,0px));transform:translateX(-50%);display:flex;flex-flow:row nowrap;gap:6px;max-width:min(520px,calc(100vw - 32px));padding:3px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+#selfDebuffs[hidden],#debuffBubble[hidden]{display:none!important}
+#selfDebuffs .debuff-icon{position:relative;flex:0 0 42px;width:42px;height:42px;min-width:42px;min-height:42px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;background:#0a111be8;color:var(--debuff-color);box-shadow:0 2px 8px #0008;cursor:pointer;transform:none}
+#selfDebuffs .debuff-icon:hover,#selfDebuffs .debuff-icon:focus-visible{outline:2px solid var(--debuff-color);outline-offset:-1px;filter:brightness(1.2);transform:none}
+.debuff-timer{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke-width:2.5}.debuff-track{stroke:#354252}.debuff-ring{stroke:var(--debuff-color);stroke-dasharray:100;stroke-dashoffset:var(--debuff-offset,0);transform:rotate(-90deg);transform-origin:center;stroke-linecap:round}
+.debuff-symbol{width:55%;height:55%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#debuffBubble{position:fixed;z-index:1600;width:min(280px,calc(100vw - 16px));padding:11px 13px;border:1px solid #7c94ab;border-radius:10px;background:#0e1b2bf5;color:#edf4fc;box-shadow:0 6px 24px #0009;font-size:12px;line-height:1.5;pointer-events:auto;overflow-wrap:anywhere}
+#debuffBubble::after{content:'';position:absolute;top:100%;left:var(--bubble-arrow-left,50%);transform:translateX(-50%);border:8px solid transparent;border-top-color:#7c94ab}
+#debuffBubble strong,#debuffBubble span,#debuffBubble small{display:block}#debuffBubble strong{font-size:14px;margin-bottom:4px}#debuffBubble small{color:#b7c8da;margin-top:6px;font-size:10px}
+@media(pointer:coarse) and (max-width:1400px){
+ #selfDebuffs{bottom:calc(var(--encounter-info-height,0px) + 16px + env(safe-area-inset-bottom));max-width:min(520px,calc(100vw - var(--mobile-left) - var(--mobile-right) - 28px));gap:4px;padding:2px}
+ #selfDebuffs .debuff-icon{flex-basis:clamp(28px,3.2vw,32px);width:clamp(28px,3.2vw,32px);height:clamp(28px,3.2vw,32px);min-width:clamp(28px,3.2vw,32px);min-height:clamp(28px,3.2vw,32px)}
+ #debuffBubble{font-size:11px;padding:8px 10px}#debuffBubble strong{font-size:12px}
+}
 </style></head><body>
 <div class="wrap">
   <section id="loginScreen">
@@ -438,6 +453,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       <div id="encounter" class="encounter-panel"></div>
       <div id="eventBox" class="event-panel"></div>
     </section>
+    <div id="selfDebuffs" role="group" aria-label="나에게 걸린 디버프" hidden></div>
     <div id="noMatch" class="no-match-card">경기 시작 전입니다.</div>
 
     <aside class="inventory-hud glass-panel">
@@ -500,6 +516,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 <button id="mobileFullscreen" class="mobile-only" type="button">전체화면</button>
 <div id="mobileScreenHint" class="mobile-only" role="status" hidden></div>
 <div id="rotateGuide"><h2>기기를 가로로 돌려주세요</h2><p>가로 화면에서 플레이할 수 있습니다.<br>자동 회전이 꺼져 있다면 켜주세요.</p><button id="rotateFullscreen" type="button">전체화면으로 시작</button></div>
+<div id="debuffBubble" role="tooltip" hidden></div>
 <div id="actionLoading" role="status" aria-live="polite" hidden></div>
 <dialog id="reconnectPanel" aria-labelledby="reconnectTitle"><h2 id="reconnectTitle">서버 연결 중</h2><p id="reconnectDetail" role="status" aria-live="polite">연결이 끊어졌습니다. 기존 경기로 다시 접속하고 있습니다.</p></dialog>
 <dialog id="resultPanel" aria-labelledby="resultTitle">
@@ -510,6 +527,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 <script type="module">
 import{MasodoNetworkAdapter}from"./network_adapter.js";
 import{PortraitReactions,EnemyExitReaction}from"./portrait_reactions.js";
+import{DebuffHud}from"./debuff_hud.js";
 import{PORTRAIT_EXPRESSIONS}from"./portrait_expressions.js";const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
 const mobileScreenQuery=matchMedia('(pointer: coarse) and (max-width: 1400px)');
 let mobileHintTimer=null;
@@ -616,7 +634,7 @@ net.on('close',()=>{loadingDisconnected=true;clearLocalAction()});
 net.on('connected',()=>{loadingDisconnected=false});
 let serverReady=false;
 function showLogin(){showLobby();$('#loginScreen').hidden=false;$('#lobbyScreen').hidden=true}
-function showLobby(){ clearMatchClock();clearSkillCooldowns();hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#loginScreen').hidden=serverReady;$('#lobbyScreen').hidden=!serverReady; $('#gameScreen').hidden=true; }
+function showLobby(){ debuffHud.clear();clearMatchClock();clearSkillCooldowns();hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#loginScreen').hidden=serverReady;$('#lobbyScreen').hidden=!serverReady; $('#gameScreen').hidden=true; }
 function showGame(){ $('#loginScreen').hidden=true;document.querySelectorAll('.lobby-popup[open],#createRoomPanel[open]').forEach(d=>d.close());document.body.classList.add("game-active"); $('#lobbyScreen').hidden=true; $('#gameScreen').hidden=false; }
 const gameLog=x=>{const el=$('#gameLog');if(!el)return;el.textContent+=x+"\n";el.scrollTop=999999};
 const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
@@ -1090,6 +1108,7 @@ function syncMatchClock(m){
   }
   paintMatchClock();
 }
+
 function confusedCombatInput(){
  const s=M?.self?.statuses?.confusion;if(!s)return false;
  const sample=matchClockAnchor;
@@ -1097,6 +1116,8 @@ function confusedCombatInput(){
  return s.until>now;
 }
 const skillCooldowns={skill:null,charAction:null};let skillCooldownFrame=null;
+const debuffHud=new DebuffHud($('#selfDebuffs'),$('#debuffBubble'));
+
 function clearSkillCooldowns(){
   if(skillCooldownFrame!==null)cancelAnimationFrame(skillCooldownFrame);skillCooldownFrame=null;
   for(const id of Object.keys(skillCooldowns)){skillCooldowns[id]=null;$('#'+id).classList.remove('cooling');$('#'+id).style.removeProperty('--cooldown-angle')}
@@ -1220,7 +1241,7 @@ function renderVitalBars(p){
 function renderOtherSurvivors(m){
  $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(characterName(o.charId))} / 처치 ${o.kills??0}</div>`).join('');
 }
-function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderVitalBars(p);renderActionLoading(m);renderResult(m);renderPickup(m);
+function renderMatch(m){notifyMatchChanges(m);M=m;showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderVitalBars(p);debuffHud.update(m);renderActionLoading(m);renderResult(m);renderPickup(m);
 $('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
 $('#exploreControls').classList.toggle('hidden',inEncounter);$('#encounterControls').classList.toggle('hidden',!inEncounter);$('#actionSkillName').textContent=charInfo(p.charId)?.action||'추가 행동';$('#combatSkillName').textContent=charInfo(p.charId)?.combat||'전투 스킬';

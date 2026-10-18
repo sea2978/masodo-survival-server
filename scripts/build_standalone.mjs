@@ -8,6 +8,8 @@ const adapterPath = path.join(publicDir, "network_adapter.js");
 const outputPath = path.join(publicDir, "MasodoSurvival.html");
 
 let html = fs.readFileSync(indexPath, "utf8");
+const debuffs=fs.readFileSync(path.join(publicDir,"debuff_hud.js"),"utf8").replace("export class DebuffHud","class DebuffHud");
+html=html.replace('import{DebuffHud}from"./debuff_hud.js";',debuffs);
 const reactions=fs.readFileSync(path.join(publicDir,'portrait_reactions.js'),'utf8').replace(/^export\s+class/gm,'class');
 const expressions=fs.readFileSync(path.join(publicDir,'portrait_expressions.js'),'utf8').replace(/^export\s+const/m,'const');
 html=html.replace('import{PortraitReactions,EnemyExitReaction}from"./portrait_reactions.js";',reactions).replace('import{PORTRAIT_EXPRESSIONS}from"./portrait_expressions.js";',expressions);

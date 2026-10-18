@@ -234,10 +234,11 @@ export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.n
   const old=p.statuses[id];
   if(id==="bind"&&old?.until>now){
     old.until=Math.min(now+dur*1000,old.until+1000);
+    old.startedAt=now;old.durationMs=old.until-now;
     if(sourceId!=null)old.sourceId=sourceId;
     return true;
   }
-  p.statuses[id]={stacks:clamp((old&&old.stacks>0&&(old.until===null||old.until>now)?old.stacks:0)+stacks,1,defn.max),until:id==="bleed"?null:now+dur*1000,sourceId};
+  p.statuses[id]={stacks:clamp((old&&old.stacks>0&&(old.until===null||old.until>now)?old.stacks:0)+stacks,1,defn.max),until:id==="bleed"?null:now+dur*1000,startedAt:now,durationMs:id==="bleed"?null:dur*1000,sourceId};
   return true;
 }
 function wakeOnDamage(p,now=Date.now()){
