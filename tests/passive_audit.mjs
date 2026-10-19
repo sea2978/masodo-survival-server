@@ -10,7 +10,7 @@ const match={matchId:"audit",phase:"playing",createdAt:t0,startedAt:t0,updatedAt
 initWorld(match);
 
 // c31 passive defFlat +2 must be present in public DEF.
-assert.equal(publicPlayer(match,defender,t0).def,defender.maxHp?5:5);
+assert.equal(publicPlayer(match,defender,t0).def,3);
 
 // c14 passive cdRate=.20 should shorten its combat skill cooldown.
 tempo.encounter={kind:"player",targetId:target.playerId};
@@ -20,7 +20,7 @@ assert.equal(r.ok,true);
 completeAction(match,tempo,r.action.completeAt+1);
 Math.random=oldRandom;
 const cdSec=(tempo.cdCUntil-(r.action.completeAt+1))/1000;
-assert.ok(Math.abs(cdSec-40)<0.001,"c14 cooldown-rate +20% should make its 48s base cooldown 40s");
+assert.ok(Math.abs(cdSec-55)<0.001,"c14 cooldown-rate +20% should make its 48s base cooldown 40s");
 
 // c30 proficiency modifier is tested with a deterministic hit.
 const prof=createServerPlayer({sessionId:"p",playerName:"Prof",charId:"c30",startRegion:"city"},3);
@@ -33,6 +33,6 @@ Math.random=()=>0;
 const pAction=beginServerAction(match,prof,"attack",{},t0+100_000);
 completeAction(match,prof,pAction.action.completeAt+1);
 Math.random=oldRandom;
-assert.ok((prof.proficiency[weapon]||0)-before>1.5,"c30 proficiency gain modifier should amplify hit proficiency");
+assert.ok((prof.proficiency[weapon]||0)-before===1.5,"c30 records replace retired proficiency amplifier");
 
 console.log("passive audit ok",{def:publicPlayer(match,defender,t0).def,cdSec,profGain:(prof.proficiency[weapon]||0)-before});

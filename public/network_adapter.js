@@ -257,9 +257,10 @@ export class MasodoNetworkAdapter {
   inventoryOperation(payload) { return this.send("command_inventory", payload); }
   useItem(id) { return this.send("command_use_item", { id }); }
   attack() { return this.send("command_attack"); }
-  skill() { return this.send("command_skill"); }
+  skill(payload = {}) { return this.send("command_skill", payload); }
   flee() { return this.send("command_flee"); }
-  charAction() { return this.send("command_char_action"); }
+  charAction(payload = {}) { return this.send("command_char_action", payload); }
+  removeObject(objectId) { return this.send("command_remove_object", {objectId}); }
   eventChoice(index) { return this.send("event_choice", { index }); }
   lootCorpse(corpseId, kind, id, qty = 1, replace = false) { return this.send("command_loot_corpse", { corpseId, kind, id, qty, replace }); }
   chat(text) { return this.send("chat", { text }); }

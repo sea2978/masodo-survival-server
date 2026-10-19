@@ -79,7 +79,7 @@ support.sp=10;match.players.push(support);
 r=beginServerAction(match,support,"char_action",{},t0+60_000);
 assert.equal(r.ok,true);
 completeAction(match,support,r.action.completeAt+1);
-assert.ok(support.sp>10,"c07 additional action should restore SP rather than spend it");
+assert.equal(support.sp,2,"avatar placement costs SP 8");assert.ok(match.reworkObjects.some(o=>o.kind==="avatar"&&o.ownerId===support.playerId));
 
 const haku=createServerPlayer({sessionId:"s4",playerName:"Haku",charId:"c13",startRegion:"city"},3);
 haku.con.mint_choco_fish=1;match.players.push(haku);
@@ -101,13 +101,13 @@ assert.ok(eater.hp<40+36,"repeat food healing should be reduced on repeated use"
 
 const healer=createServerPlayer({sessionId:"s6",playerName:"Healer",charId:"c13",startRegion:"city"},5);
 const dummy=createAIPlayer(6,"c02","city","balanced");
-healer.hp=30;healer.encounter={kind:"player",targetId:dummy.playerId};match.players.push(healer,dummy);
+healer.rework.resources.light=3;healer.hp=30;healer.encounter={kind:"player",targetId:dummy.playerId};match.players.push(healer,dummy);
 let oldRnd=Math.random;Math.random=()=>0.999;
 r=beginServerAction(match,healer,"skill",{},t0+90_000);
 assert.equal(r.ok,true);
 completeAction(match,healer,r.action.completeAt+1);
 Math.random=oldRnd;
-assert.ok(healer.hp>=50,"c13 combat heal should apply even when the skill misses");
+assert.ok(healer.hp>=48.75,"c13 combat heal should apply even when the skill misses");
 
 const sleeper=createAIPlayer(7,"c03","city","balanced");
 const striker=createServerPlayer({sessionId:"s8",playerName:"Striker",charId:"c38",startRegion:"city"},7);

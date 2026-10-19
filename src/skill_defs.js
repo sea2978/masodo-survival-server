@@ -1,3 +1,4 @@
+import {REWORK_CONFIG} from "./character_reworks.js";
 // Extracted verbatim from the v0.6.4 offline build.
 export const PASSIVE_FX={
   "c01": {
@@ -1149,3 +1150,6 @@ export const NAMED_GEAR_FX={
   final_23:{damage:.04,bleedChance:.10},
   final_24:{extraChance:.15,extraRatio:.35}
 };
+
+// Replace, never add to the retired character effects.
+for(const [id,c] of Object.entries(REWORK_CONFIG)){PASSIVE_FX[id]=id==="c37"?{revive:true}:{};COMBAT_SKILL_DEFS[id]={mult:1.5,sp:12,cd:c.combatCd,rework:true};ACTION_SKILL_DEFS[id]={cd:c.cd,time:c.time,rework:true};}

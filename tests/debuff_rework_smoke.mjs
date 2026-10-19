@@ -18,8 +18,8 @@ const attack=(m,p,q,type='attack',now=t,draw=.1)=>{p.encounter={kind:'player',ta
 }
 {
  const h=fresh(),m=h.match,[p,q]=m.players;p.statuses.bleed={stacks:3,until:t+10000,sourceId:q.playerId};updatePassiveTime(m,t+1000);assert.equal(p.statuses.bleed.until,null);updatePassiveTime(m,t+60000);assert.equal(p.statuses.bleed.stacks,3);
- p.charId='c03';p.pendingAction=null;const a=beginServerAction(m,p,'char_action',{},t+61000);assert(a.ok);completeAction(m,p,a.action.completeAt);assert(!p.statuses.bleed,'specific cleanse removes permanent bleed');
- p.charId='c35';p.cdAUntil=0;applyStatus(p,'bleed',5,null,null,t+65000);const b=beginServerAction(m,p,'char_action',{},t+65000);assert(b.ok);completeAction(m,p,b.action.completeAt);assert(!p.statuses.bleed,'generic cleanse removes permanent bleed');
+ p.charId='c03';p.pendingAction=null;const a=beginServerAction(m,p,'char_action',{choice:'bleed'},t+61000);assert(a.ok);completeAction(m,p,a.action.completeAt);assert(!p.statuses.bleed,'specific cleanse removes permanent bleed');
+ p.charId='c50';p.rework.resources.flow=2;p.cdAUntil=0;applyStatus(p,'bleed',5,null,null,t+65000);const b=beginServerAction(m,p,'char_action',{choice:'cleanse'},t+65000);assert(b.ok);completeAction(m,p,b.action.completeAt);assert(!p.statuses.bleed,'generic cleanse removes permanent bleed');
 }
 for(const [id,seconds]of [['slow',10],['bind',5],['sleep',10],['fear',5],['confusion',10],['silence',10],['actionDelay',10]]){
  const h=fresh(),p=h.match.players[0];applyStatus(p,id,1,1,null,t);assert.equal(p.statuses[id].until,t+seconds*1000,id+' ignores obsolete source duration');

@@ -17,7 +17,7 @@ export function substantivePatch(patch){
 }
 export function compactSnapshot(snapshot){
   // Clients already receive the versioned catalog with the complete baseline.
-  const fields=['playerId','playerName','charId','region','maxHp','maxSp','hp','sp','satiety','alive','kills','statuses','buffs','proficiency','pendingAction','pendingPickup','enemyContacts','enemyTraceSeq','enemyTraceNotices','gardenDetectionSeq','gardenDetectionNotices','rev','isAI','intel','nearbyNoise','atk','def','cdC','cdA','cdCUntil','cdAUntil','cdCDuration','cdADuration','tempEffects','inventory','diedAt','finishRank','deathSource'];
+  const fields=['playerId','playerName','charId','region','maxHp','maxSp','hp','sp','satiety','alive','kills','statuses','buffs','rework','reworkOptions','proficiency','pendingAction','pendingPickup','enemyContacts','enemyTraceSeq','enemyTraceNotices','gardenDetectionSeq','gardenDetectionNotices','rev','isAI','intel','nearbyNoise','atk','def','cdC','cdA','cdCUntil','cdAUntil','cdCDuration','cdADuration','tempEffects','inventory','diedAt','finishRank','deathSource'];
   const s={...snapshot,self:snapshot.self?Object.fromEntries(fields.filter(k=>k in snapshot.self).map(k=>[k,snapshot.self[k]])):null};
   if(s.self?.inventory){const inv=s.self.inventory;s.self.inventory={eq:inv.eq.map(x=>({id:x.id,salvage:x.salvage})),mat:inv.mat.map(x=>({id:x.id,count:x.count})),con:inv.con.map(x=>({id:x.id,count:x.count}))}}
   return JSON.parse(JSON.stringify(s));

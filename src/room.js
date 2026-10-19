@@ -109,7 +109,7 @@ export class GameRoom extends DurableObject{
       const w=match.wilds.find(x=>x.id===self.encounter.wildId);if(!w?.alive||w.region!==self.region)return null;
       const t=(match.wildTemplates||[]).find(x=>x.id===w.templateId);return{kind:"wild",wildId:w.id,name:t?.n||w.templateId,hp:w.hp,maxHp:t?.hp||w.hp,skillText:t?.skillText||""}
     })():null;
-    return{introPending:now<match.startedAt,regionGardens:match.regionGardens||{},regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.phase==="playing"?Math.max(0,Math.floor((now-match.startedAt)/1000)):(match.elapsed||0),self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
+    return{introPending:now<match.startedAt,reworkRegions:(match.reworkObjects||[]).filter(o=>o.kind==="mist").map(o=>({region:o.region,until:o.until})),regionGardens:match.regionGardens||{},regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.phase==="playing"?Math.max(0,Math.floor((now-match.startedAt)/1000)):(match.elapsed||0),self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
       pendingEvent:self?.pendingEvent?(()=>{
         const e=match.eventCatalog.find(e=>e.id===self.pendingEvent);if(!e)return null;
         return {...e,choices:(e.choices||[]).map((choice,index)=>({...choice,...eventChoiceAvailability(e,self,index)}))}
@@ -143,6 +143,16 @@ export class GameRoom extends DurableObject{
       if(match.phase==="playing"&&match.startedAt>now)times.push(match.startedAt);
       times.push(...Object.values(match.regionGardens||{}).flatMap(g=>(g.sources||[g]).map(x=>x.until)));
       times.push(...match.players.map(p=>p.pendingAction?.completeAt).filter(Number.isFinite));
+      times.push(...(match.reworkStrikes||[]).map(v=>v.at));
+      for(const o of match.reworkObjects||[]){times.push(o.until);if(o.matureAt>now&&!o.bloomed)times.push(o.matureAt);}
+      for(const p of match.players.filter(p=>p.alive)){
+        for(const st of Object.values(p.statuses||{}))if(st.until>now)times.push(st.until);
+        if(p.statuses?.poison?.until>now)times.push((p.nextStatusTick||now)+2000);
+        for(const st of Object.values(p.rework?.timed||{})){if(st.until>now)times.push(st.until);if(st.nextTick>now&&st.nextTick<=st.until)times.push(st.nextTick);}
+        const rw=p.rework;if(rw?.resources?.attention&&rw.lastPvp)times.push(Math.max(rw.lastPvp+25000,(rw.attentionDecayAt||0)+5000));
+        if(p.charId==="c05"&&rw?.resources?.charge)times.push((rw.lastFight||now)+15001);
+        if(p.charId==="c23"&&rw?.resources?.will)times.push((rw.lastPvp||now)+20001);
+      }
       if(match.phase==="playing"){const lockAt=nextRegionLockAt(match);if(lockAt!==null)times.push(lockAt)}
       if(match.phase==="playing"&&match.players.some(p=>p.isAI&&p.alive)){
         if(!Number.isFinite(match.nextAiTickAt)||match.nextAiTickAt<now)match.nextAiTickAt=now+1000;
@@ -159,7 +169,7 @@ export class GameRoom extends DurableObject{
   async completeDueActions(match,now=Date.now(),{defer=false}={}){
     if(now<match.startedAt)return false;
     const introChanged=match.introCompleted===false;if(introChanged)match.introCompleted=true;
-    const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects,p.enemyContacts,p.heardNoiseIds]),match.noises,match.regionGardens]);
+    const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects,p.enemyContacts,p.heardNoiseIds,p.rework,p.reworkPause]),match.noises,match.regionGardens,match.reworkObjects,match.reworkStrikes]);
     const before=passiveView();
     let changed=updateRegionRestrictions(match,now)||introChanged;
     for(const p of match.players){
@@ -286,10 +296,13 @@ export class GameRoom extends DurableObject{
     }
     if(msg.type==="chat"){const text=safeText(msg.text,120,"");if(text)this.broadcast("chat",{from:session.sessionId,playerName:session.playerName,text,at:Date.now()});return}
 
-    const commandMap={command_move:"move",command_search:"search",command_rest:"rest",command_craft:"craft",command_use_item:"use_item",command_attack:"attack",command_skill:"skill",command_flee:"flee",command_char_action:"char_action",command_loot_corpse:"loot_corpse"};
+    const commandMap={command_remove_object:"remove_object",command_move:"move",command_search:"search",command_rest:"rest",command_craft:"craft",command_use_item:"use_item",command_attack:"attack",command_skill:"skill",command_flee:"flee",command_char_action:"char_action",command_loot_corpse:"loot_corpse"};
     if(commandMap[msg.type]){
       const m=await this.getMatch();if(!m||m.phase!=="playing"){send(ws,"error",{error:"match_not_playing"});return}
       const dueChanged=await this.completeDueActions(m,Date.now(),{defer:true});settleMatch(m);if(m.phase!=="playing"){await this.saveMatch(m);send(ws,"error",{error:"match_not_playing"});this.broadcastMatchState(m);return}const p=this.matchPlayerForSession(m,session.sessionId);const type=commandMap[msg.type],payload={to:msg.to,id:msg.id};
+      if(type==="char_action")Object.assign(payload,{choice:msg.choice,targetId:msg.targetId,region:msg.region,words:msg.words,dispelKey:msg.dispelKey});
+      if(type==="remove_object")payload.objectId=msg.objectId;
+      if(type==="skill")payload.dispelKey=msg.dispelKey;
       if(type==="craft"){payload.replaceIndex=msg.replaceIndex;payload.replaceId=msg.replaceId}
       if(type==="loot_corpse"){payload.corpseId=msg.corpseId;payload.kind=msg.kind;payload.qty=msg.qty;payload.replace=!!msg.replace}
       const r=beginServerAction(m,p,type,payload,Date.now());if(!r.ok){if(dueChanged||r.error==="no_encounter"){await this.saveMatch(m);this.broadcastMatchState(m)}send(ws,"error",{error:r.error});return}

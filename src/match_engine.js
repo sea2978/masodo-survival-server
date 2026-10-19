@@ -1,3 +1,4 @@
+import {createReworkSystem,REWORK_CONFIG,reworkState} from "./character_reworks.js";
 import {rememberEnemy,rememberIncoming,pruneEnemyTraces} from "./enemy_contacts.js";
 import {updateRegionRestrictions,isRegionLocked} from "./region_restrictions.js";
 import {uniqueMaterialExists,isUniqueMaterial} from "./unique_materials.js";
@@ -16,7 +17,71 @@ export const STATUS_DEFS={
   poison:{duration:8,max:3},bleed:{duration:null,max:5},slow:{duration:10,max:2},bind:{duration:5,max:1},
   sleep:{duration:10,max:1},fear:{duration:5,max:1},confusion:{duration:10,max:1},silence:{duration:10,max:1},actionDelay:{duration:10,max:1}
 };
+const REWORK_STATUS_DEFS={timeStop:{duration:2,max:1},awe:{duration:10,max:1},reverseAmp:{duration:8,max:1},fragrance:{duration:10,max:1},talisman:{duration:15,max:1},starTarget:{duration:30,max:1},domination:{duration:10,max:1},suggestion:{duration:15,max:1},chainMark:{duration:15,max:1}
+};
 const char=p=>CHARACTER_BY_ID.get(p.charId)||CHARACTER_BY_ID.get("c01");
+const reworks=createReworkSystem({
+ status,fx:combinedFx,maxHp,heal:healPlayer,sp:recoverSp,apply:applyStatus,notice:recordCombatNotice,
+ known:(m,p,t,n,exact)=>{if(!t?.playerId)return;if(exact)rememberEnemy(p,{id:t.playerId,name:t.playerName,kind:'player',source:'encounter',hp:Math.max(0,t.hp),maxHp:maxHp(t,m,n),alive:t.alive},n);else rememberIncoming(p,t,t.playerName,n,'trace');},
+ locked:isRegionLocked,adjacency:ADJACENCY,kill:killPlayer,wildDeath:()=>{},prof:gainProf,bleed:triggerBleedAction,
+ noise:recordNoise,cleanse:removeAnyStatus,damage:damagePlayer,invincible,environmentDeath,removeStacks:removeStatusStacks,
+ wildName:w=>wildTemplate(w)?.n||w.id,firstCorpse:firstCorpseInRegion,isFood:id=>!!item(id)?.sat&&!['water'].includes(id)
+});
+function healPlayer(p,amount,m,n=Date.now(),allowLight=true){
+ const f=combinedFx(p,m,n),value=Math.max(0,amount)*(1+(f.heal||0)),before=p.hp;
+ p.hp=clamp(p.hp+value,0,maxHp(p,m,n));reworks.healObserved(p,p.hp-before,m,n,allowLight);return p.hp-before;
+}
+function reworkSkillPrep(p,n){const r=reworkState(p);if(p.charId==='c04'&&r.mode==='rail')return 1.5;if(['c05','c20','c44'].includes(p.charId))return p.charId==='c05'?1.2:1.5;if(p.charId==='c37'&&r.mode==='sword')return 1.2;return .65;}
+function reworkSkillCost(p,base,fx,n){return REWORK_CONFIG[p.charId]?(reworks.live(p,'freeSpell',n)?0:base*(1+(fx.allSp||0))):base;}
+function reworkAIChoice(m,p,n){const cfg=REWORK_CONFIG[p.charId];if(!cfg)return {};let choice=cfg.choices[0];if(p.charId==='c04')choice=reworkState(p).mode==='blade'?'rail':'blade';if(p.charId==='c08')choice=p.hp<p.maxHp*.5?'life':'earth';if(p.charId==='c41')choice=p.hp<p.maxHp*.5?'regen':'shell';if(p.charId==='c50')choice=Object.keys(p.statuses||{}).length?'cleanse':'cycle';return {choice,...(p.charId==='c51'?{words:['tracking','flame']}:{})};}
+function reworkCombat(m,p,t,skill,n){
+ if(!t?.alive||t.region!==p.region)return {ok:false,error:'target_lost'};
+ if(status(t,'timeStop',n))return {ok:false,error:'target_time_stopped'};
+ const f=combinedFx(p,m,n),base=COMBAT_SKILL_DEFS[p.charId],cost=reworkSkillCost(p,Math.max(0,(base.sp??12)*((p.eq||[]).includes("focus")?.95:1)*(1+(f.skillSp||0))-(f.skillSpFlat||0)-(p.nextSkillSpDiscount||0)),f,n);
+ if(skill){if(status(p,'silence',n))return {ok:false,error:'silenced'};if((p.cdCUntil||0)>n)return {ok:false,error:'skill_cooldown'};if(p.sp<cost)return {ok:false,error:'not_enough_sp'};p.sp-=cost;p.nextSkillSpDiscount=0;p.cdCUntil=n+base.cd/Math.max(.25,1+(f.cdRate||0))*1000;p.cdCDuration=(p.cdCUntil-n)/1000;reworks.consume(p,'freeSpell',n);}
+ const quietReady=n-(p.lastAttackAt||0)>=10000,ctx=attackContext(m,p,t,skill,n);ctx.quietReady=quietReady;
+ const spec=skill?reworks.skillSpec(m,p,t,n):{mult:1,rows:[],hits:1};spec.hits??=1;if(skill){spec.legacySkillBonus=p.nextSkillDamageBonus||0;}
+ if(!skill&&p.charId==='c36')reworks.consume(p,'invisible',n);
+ const volley={sourceId:p.playerId,targetId:t.playerId||t.id,region:p.region,skill,spec,ctx,remaining:spec.hits,index:0,total:0,hit:false,at:n};
+ const result=reworkStrike(m,volley,n);
+ if(volley.remaining>0){(m.reworkStrikes??=[]).push(volley);}
+ const bleedDamage=triggerBleedAction(m,p,n);
+ if(!t.playerId&&t.alive&&p.alive&&volley.remaining===0)result.counter=wildCounter(m,p,t,n);
+ return {...result,bleedDamage,volley:spec.hits>1};
+}
+function reworkStrike(m,v,n){
+ const p=m.players.find(p=>p.playerId===v.sourceId),t=[...m.players,...(m.wilds||[])].find(t=>(t.playerId||t.id)===v.targetId),s=v.spec;
+ if(!p?.alive||!t?.alive||p.region!==v.region||t.region!==v.region||isRegionLocked(m,v.region)||status(t,'timeStop',n)){v.remaining=0;if(p&&t)reworks.afterSkill(m,p,t,s,v.hit,v.total,false,n);return {ok:false,error:'target_lost'};}
+ const f=combinedFx(p,m,n),bonus=v.ctx.hitBonus+(v.skill?(s.hit||0):0)+reworks.hitBonus(m,p,t,v.skill,n);
+ const hit=hitRoll(p,v.skill,bonus,m,n);let d=0,killed=false,drop=null,death=null;
+ if(hit){
+  const raw=t.playerId?skillDamageVsPlayer(m,p,t,s,n):skillDamageVsWild(m,p,t,s,n);
+  if(v.skill&&s.legacySkillBonus){p.nextSkillDamageBonus=0;}
+  d=(raw*s.mult+(s.flat||0)*(t.playerId?100/(100+def(t,m,n)):100/(100+wildTemplate(t).def)))/s.hits;
+  if(v.skill)d*=1+(s.damageBonus||0)+(s.legacySkillBonus||0)+(f.skillDamage||0);else{d*=1+(f.basicDamage||0);if(Math.random()<clamp(.05+(f.crit||0)+(v.ctx.actionCritBonus||0),0,.5))d*=1.4;}
+  d=modifyAttackDamage(m,p,t,d,v.ctx,n)*reworks.damageMult(m,p,t,v.skill,n,v.ctx);
+  if(t.playerId)d*=Math.max(.4/Math.max(.01,incomingMult(t,m,n)),reworks.reduction(t,p,m,n));
+  if(!t.playerId&&t.guardReady){t.guardReady=false;d*=.8;}
+  d=reworks.takeDirect(m,t,p,Math.max(1,Math.round(d)),n);if(d>0)wakeOnDamage(t,n);
+  v.total+=Math.min(Math.max(0,(t.hp||0)+d),d);v.hit=true;gainProf(p,1.5,m,n);
+  reworks.afterDirect(m,p,t,v.skill,true,d,n);
+  if((p.eq||[]).includes("toxin_kit")&&Math.random()<clamp(.06+(f.statusChance||0),0,.95))applyStatus(t,"poison",1,8,p.playerId,n,p,m);
+  applyOnHitStatuses(m,p,t,n);
+  if(t.playerId){recordBattle(m,p,t,n);if(t.hp<=0){death=killPlayer(m,p,t,n);killed=!!death?.killed;}}
+  else if(t.hp<=0){t.alive=false;t.hp=0;killed=true;const wt=wildTemplate(t);drop=pick(wt.drop);if(!addItem(p,drop)){if(item(drop)?.t==='e')offerEquipment(m,p,drop);else if(item(drop)?.t==='c')offerSearchConsumable(m,p,drop);}if(wt.skill==='supply_cache')for(let i=0;i<2;i++){const x=pick(wt.drop);if(!addItem(p,x)){if(item(x)?.t==='e')offerEquipment(m,p,x);else if(item(x)?.t==='c')offerSearchConsumable(m,p,x);}}}
+  if(killed){reworks.killed(m,p,t,n);const kfx=combinedFx(p,m,n);if(kfx.killHeal)healPlayer(p,kfx.killHeal,m,n);if(kfx.killSp)recoverSp(p,kfx.killSp,m,n);}
+ }else{gainProf(p,.5,m,n);reworks.afterDirect(m,p,t,v.skill,false,0,n);}
+ recordCombatNotice(m,p,t,d,v.skill?'전투 스킬':'일반 공격',n,hit);
+ v.index++;v.remaining--;v.at=n+200;
+ if(killed)v.remaining=0;
+ if(v.remaining===0&&v.skill)reworks.afterSkill(m,p,t,s,v.hit,v.total,killed,n);
+ if(!v.skill){for(const k of ['aimOnce','armHit'])reworks.consume(p,k,n);if(p.charId==='c15')reworks.consume(p,'heard',n);}
+ return {ok:true,hit,damage:d,killed,death,drop,dispelled:!!s.dispelled};
+}
+function processReworkStrikes(m,n){
+ const pending=m.reworkStrikes||[];m.reworkStrikes=[];
+ for(const v of pending){while(v.remaining>0&&v.at<=n)reworkStrike(m,v,v.at);if(v.remaining>0)m.reworkStrikes.push(v);}
+}
 const SPECIAL_ROUTE_REGION={
   special_01:"estate",special_02:"city",special_03:"church",special_04:"mgmt_lab",
   special_05:"mgmt_training",special_06:"mgmt_training",special_07:"mgmt_admin",special_08:"church",
@@ -76,6 +141,7 @@ function noiseSpec(level){
   return null;
 }
 function recordNoise(match,p,level,source,now=Date.now()){
+  if(p.charId==="c36"&&reworks.live(p,"invisible",now)&&String(source).includes("이동"))return;
   const spec=noiseSpec(level);if(!spec)return null;
   match.noises??=[];
   const row={id:"noise_"+p.playerId+"_"+now,playerId:p.playerId,playerName:p.playerName,region:p.region,level:spec.level,detect:spec.detect,source,createdAt:now,expiresAt:now+spec.duration*1000};
@@ -138,6 +204,7 @@ function combinedFx(p,match,now=Date.now()){
     if(id==="accel"||id==="synergy_08"){}
     if(id==="focus"||id==="synergy_12"){out.delayResist=(out.delayResist||0)+.10}
   }
+  for(const[k,v]of Object.entries(reworks.effects(p,match,now)))out[k]=(out[k]||0)+v;
   return out;
 }
 function maxHp(p,match,now=Date.now()){return Math.max(1,p.maxHp+(tempFx(p,match,now).maxHpFlat||0))}
@@ -146,21 +213,21 @@ function equipmentDef(p){return (p.eq||[]).reduce((s,id)=>s+(item(id)?.def||0),0
 function atk(p,match,now=Date.now()){
   let v=char(p).baseAtk+equipmentAtk(p),fx=combinedFx(p,match,now);
   if(fx.timeAtk&&fx.timeAtkEvery)v+=Math.min(fx.timeAtkCap??Infinity,Math.floor(nowSec(match,now)/fx.timeAtkEvery)*fx.timeAtk);
-  return v*(enemyGarden(match,p,now)?.9:1);
+  return v*(1+(fx.atkPct||0))*(enemyGarden(match,p,now)?.9:1);
 }
 function def(p,match,now=Date.now()){
   let v=char(p).baseDef+equipmentDef(p);
   const fx=combinedFx(p,match,now);
   v+=fx.defFlat||0;
   if(p.hp/maxHp(p,match,now)<.5)v+=fx.lowDef||0;
-  return Math.max(0,v)*(enemyGarden(match,p,now)?.9:1);
+  return Math.max(0,v)*(1+(fx.defPct||0))*(enemyGarden(match,p,now)?.9:1);
 }
 function incomingMult(p,match,now=Date.now()){
   const fx=combinedFx(p,match,now);
   let m=1+(fx.damageTaken||0)+(fx.taken||0);
   if((p.eq||[]).includes("plate")&&p.hp/maxHp(p,match,now)>=.5)m*=.97;
   if(p.tempGuardUntil>now)m*=1-(p.tempGuardRate||0);
-  return Math.max(.25,m);
+  return Math.max(.4,m);
 }
 function addTemp(p,fx,seconds,now=Date.now()){(p.tempEffects??=[]).push({fx:{...fx},until:now+seconds*1000})}
 function scheduleDelayedFx(p,delaySeconds,fx,durationSeconds,now=Date.now()){
@@ -184,6 +251,7 @@ function foodRepeatMultiplier(p,id,it,now=Date.now()){
 function removeStatusStacks(p,id,n){
   const s=p.statuses?.[id];if(!s)return 0;
   const removed=Math.min(n,s.stacks||1);s.stacks=(s.stacks||1)-removed;
+  if(s.owners){let left=removed;for(const key of Object.keys(s.owners)){const v=Math.min(left,s.owners[key]);s.owners[key]-=v;left-=v;if(!s.owners[key])delete s.owners[key];if(left<=0)break;}}
   if(s.stacks<=0)delete p.statuses[id];
   return removed;
 }
@@ -243,19 +311,22 @@ function craftItem(match,p,id,payload={}){
 }
 function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.stacks>0&&(s.until===null||s.until>now)?s:null}
 export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null){
-  p.statuses??={};const defn=STATUS_DEFS[id];if(!defn)return false;
+  p.statuses??={};const defn=STATUS_DEFS[id]||REWORK_STATUS_DEFS[id];if(!defn)return false;
   if((p.statusImmunity?.[id]||0)>now)return false;
   const targetFx=match?combinedFx(p,match,now):{};
+  if(id==="poison"&&p.charId==="c17")return false;
+  if(id==="bind"&&source?.charId==="c48"&&(p.edenBindImmune?.[sourceId]||0)>now)return false;
   const resist=clamp((targetFx.statusResist||0)+(id==="actionDelay"?(targetFx.delayResist||0):0),0,1);
   if(resist>0&&Math.random()<resist)return false;
-  let dur=id==="poison"?(duration??defn.duration):defn.duration;
+  let dur=["poison","timeStop","awe","reverseAmp","fragrance","talisman","starTarget","domination","suggestion","chainMark"].includes(id)?(duration??defn.duration):defn.duration;
+  if(["slow","actionDelay"].includes(id)&&p.charId==="c11")dur*=.75;
   if(source&&match&&["slow","bind","sleep","fear","confusion","silence","actionDelay"].includes(id)){
     if((source.eq||[]).includes("spell_amp"))dur*=1.06;
     dur*=1+(combinedFx(source,match,now).statusDuration||0);
   }
   if(targetFx.incomingStatusDuration)dur*=Math.max(.5,1+targetFx.incomingStatusDuration);
   if(id==="poison"&&(p.eq||[]).includes("detox"))dur*=.80;
-  const old=p.statuses[id];
+  const old=p.statuses[id],wasActive=!!status(p,id,now);
   if(id==="bind"&&old?.until>now){
     old.until=Math.min(now+dur*1000,old.until+1000);
     old.startedAt=now;old.durationMs=old.until-now;
@@ -263,6 +334,15 @@ export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.n
     return true;
   }
   p.statuses[id]={stacks:clamp((old&&old.stacks>0&&(old.until===null||old.until>now)?old.stacks:0)+stacks,1,defn.max),until:id==="bleed"?null:now+dur*1000,startedAt:now,durationMs:id==="bleed"?null:dur*1000,sourceId};
+  if(id==="poison"){
+    const owners=old&&old.until>now?{...(old.owners||{[old.sourceId]:old.stacks})}:{};owners[sourceId]=(owners[sourceId]||0)+stacks;
+    let excess=Object.values(owners).reduce((a,b)=>a+b,0)-p.statuses[id].stacks;
+    for(const key of Object.keys(owners))if(key!==String(sourceId)&&excess>0){const cut=Math.min(excess,owners[key]);owners[key]-=cut;excess-=cut;if(!owners[key])delete owners[key];}
+    if(excess>0)owners[sourceId]-=excess;p.statuses[id].owners=owners;
+  }
+  if(id==="bind"&&source?.charId==="c48"){p.edenBindImmune??={};p.edenBindImmune[sourceId]=p.statuses[id].until+10000;}
+  if(id==="timeStop")p.statuses[id].name="시간정지";
+  if(source&&match&&!(id==="sleep"&&wasActive))reworks.afterApplied(match,source,p,id,now);
   return true;
 }
 function wakeOnDamage(p,now=Date.now()){
@@ -290,7 +370,7 @@ function awardStatusKill(match,victim,sourceId,now,cause){
     const linked=linkedSpecialForChar(victim.charId);
     if(linked&&specialAvailable(match,linked))grantSpecial(match,killer,linked);
     const kfx=combinedFx(killer,match,now);
-    if(kfx.killHeal)killer.hp=clamp(killer.hp+kfx.killHeal,0,maxHp(killer,match,now));
+    if(kfx.killHeal)healPlayer(killer,kfx.killHeal,match,now);
     if(kfx.killSp)recoverSp(killer,kfx.killSp,match,now);
   }
   createDeathCorpse(match,victim,now);
@@ -307,7 +387,7 @@ function cleanseExpired(p,now){
 function updateSatiety(match,p,now){
   const elapsed=Math.max(0,now-(p.lastSatietyAt||match.startedAt));
   const ticks=Math.floor(elapsed/20000);
-  if(ticks>0){p.satiety=clamp((p.satiety??100)-ticks*5,0,100);p.lastSatietyAt=(p.lastSatietyAt||match.startedAt)+ticks*20000}
+  if(ticks>0){p.satiety=clamp((p.satiety??100)-ticks*5*(p.charId==="c49"?1.25:1),0,100);p.lastSatietyAt=(p.lastSatietyAt||match.startedAt)+ticks*20000}
 }
 function applyStatusTicks(match,p,now){
   p.nextStatusTick??=match.startedAt;
@@ -315,7 +395,7 @@ function applyStatusTicks(match,p,now){
     p.nextStatusTick+=2000;
     const poison=p.statuses?.poison;
     if(poison?.until>p.nextStatusTick){
-      const damage=damagePlayer(p,Math.max(1,Math.round(maxHp(p,match,p.nextStatusTick)*.02*(poison.stacks||1))));
+      const damage=damagePlayer(p,Math.max(1,Math.round(maxHp(p,match,p.nextStatusTick)*.02*Object.entries(poison.owners||{[poison.sourceId]:poison.stacks||1}).reduce((sum,[id,count])=>sum+count*(match.players.find(q=>q.playerId===id)?.charId==="c43"?1.25:1),0))));
       recordCombatNotice(match,poison.sourceId,p,damage,'독',p.nextStatusTick);
       if(damage>0)wakeOnDamage(p,p.nextStatusTick);
       if(p.hp<=0){awardStatusKill(match,p,poison.sourceId,p.nextStatusTick,"독");break}
@@ -326,6 +406,8 @@ export function updatePassiveTime(match,now=Date.now()){
   if(match.phase==="finished"||now<match.startedAt)return;
   updateRegionRestrictions(match,now);
   refreshGardens(match,now);
+  reworks.tick(match,now);
+  processReworkStrikes(match,now);
   for(const w of match.wilds||[])if(w.statuses)cleanseExpired(w,now);
   for(const p of match.players){
     if(!p.alive)continue;
@@ -333,7 +415,7 @@ export function updatePassiveTime(match,now=Date.now()){
     if(activeNoises.length||p.heardNoiseIds?.length){
     p.heardNoiseIds=(p.heardNoiseIds||[]).filter(id=>activeNoises.some(x=>x.id===id));
     for(const x of activeNoises)if(x.playerId!==p.playerId&&x.region===p.region&&!p.heardNoiseIds.includes(x.id)){
-      rememberIncoming(p,{playerId:x.playerId},x.playerName,x.createdAt,"noise");p.heardNoiseIds.push(x.id);
+      rememberIncoming(p,{playerId:x.playerId},x.playerName,x.createdAt,"noise");reworks.heard(match,p,{playerId:x.playerId},x.createdAt);p.heardNoiseIds.push(x.id);
     }
     }
     processDelayedEffects(p,now);cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
@@ -452,6 +534,7 @@ function baseDamage(a,b,match,now){
 }
 function wildDamage(a,w,match,now){
   const t=wildTemplate(w);let wa=t.atk;if(t.skill==="berserk"&&w.hp/t.hp<=.4)wa*=1.25;
+  wa*=1+(reworks.effects(w,match,now).atkPct||0);
   if(enemyGarden(match,w,now))wa*=.9;
   return Math.max(1,Math.round(wa*100/(100+def(a,match,now))*incomingMult(a,match,now)));
 }
@@ -494,7 +577,7 @@ function recordCombatNotice(match,source,target,damage,kind,now,hit=true){
 }
 function wildCounter(match,p,w,now){
   if(!p.alive||!w.alive)return 0;
-  const t=wildTemplate(w),d=damagePlayer(p,wildDamage(p,w,match,now));recordCombatNotice(match,w,p,d,'반격',now);if(d>0)wakeOnDamage(p,now);
+  const t=wildTemplate(w),d=reworks.takeDirect(match,p,w,wildDamage(p,w,match,now)*reworks.reduction(p,w,match,now),now);recordCombatNotice(match,w,p,d,'반격',now);if(d>0)wakeOnDamage(p,now);
   if(t.skill==="bite_bleed"&&Math.random()<.20)applyStatus(p,"bleed",1,10,w.id,now,null,match);
   else if(t.skill==="harass"&&Math.random()<.25)p.nextHitBonus=(p.nextHitBonus||0)-.06;
   else if(t.skill==="scan_delay"&&Math.random()<.20)applyStatus(p,"actionDelay",1,3,w.id,now,null,match);
@@ -513,12 +596,12 @@ function clearOneNegativeStatus(p,now=Date.now()){
 }
 function applySkillSelfEffects(match,p,sd,damageDealt=0,killed=false,now=Date.now()){
   const fx=combinedFx(p,match,now);
-  if(sd.heal)p.hp=clamp(p.hp+sd.heal,0,maxHp(p,match,now));
+  if(sd.heal)healPlayer(p,sd.heal,match,now);
   if(sd.restoreSp)recoverSp(p,sd.restoreSp,match,now);
   if(sd.selfDamage){damagePlayer(p,sd.selfDamage);if(p.hp<=0)environmentDeath(match,p,now,false,null,"스킬 반동")}
   if(sd.freeMove)p.nextMoveFree=true;
-  if(sd.lifesteal&&damageDealt>0)p.hp=clamp(p.hp+damageDealt*sd.lifesteal,0,maxHp(p,match,now));
-  if(sd.killHeal&&killed)p.hp=clamp(p.hp+sd.killHeal,0,maxHp(p,match,now));
+  if(sd.lifesteal&&damageDealt>0)healPlayer(p,damageDealt*sd.lifesteal,match,now);
+  if(sd.killHeal&&killed)healPlayer(p,sd.killHeal,match,now);
   if(sd.tempGuard){p.tempGuardUntil=now+(sd.tempGuardDuration||8)*1000;p.tempGuardRate=sd.tempGuard}
 }
 function skillDamageVsPlayer(match,p,t,sd,now){
@@ -530,6 +613,7 @@ function skillDamageVsWild(match,p,w,sd,now){
   return Math.max(1,atk(p,match,now)*100/(100+d));
 }
 function attackPlayer(match,p,t,skill=false,now=Date.now()){
+  if(REWORK_CONFIG[p.charId])return reworkCombat(match,p,t,skill,now);
   const sd=COMBAT_SKILL_DEFS[p.charId]||{mult:1.08,sp:12,cd:55};
   const ctx=attackContext(match,p,t,skill,now);
   let spCost=0,bonus=ctx.hitBonus,mult=1;
@@ -564,7 +648,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   const crit=canSkillCrit&&Math.random()<clamp(.05+(skill?(sd.crit||0):0)+(fx.crit||0)+(ctx.actionCritBonus||0),0,.5);
   if(crit)d*=1.4;
   d=modifyAttackDamage(match,p,t,d,ctx,now);
-  if(skill&&sd.execute)d=t.hp;d=damagePlayer(t,d);recordCombatNotice(match,p,t,d,skill?'전투 스킬':'일반 공격',now);if(d>0)wakeOnDamage(t,now);recordBattle(match,p,t,now);gainProf(p,1.5,match,now);
+  if(skill&&sd.execute)d=t.hp;d=(skill&&sd.execute)?damagePlayer(t,d):reworks.takeDirect(match,t,p,d*reworks.reduction(t,p,match,now),now);recordCombatNotice(match,p,t,d,skill?'전투 스킬':'일반 공격',now);if(d>0)wakeOnDamage(t,now);reworks.afterDirect(match,p,t,skill,true,d,now);recordBattle(match,p,t,now);gainProf(p,1.5,match,now);
 
   if(skill){
     for(const row of sd.statuses||[]){
@@ -585,13 +669,14 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   if(skill)applySkillSelfEffects(match,p,sd,d,killed,now);
   if(killed){
     const kfx=combinedFx(p,match,now);
-    if(kfx.killHeal)p.hp=clamp(p.hp+kfx.killHeal,0,maxHp(p,match,now));
+    if(kfx.killHeal)healPlayer(p,kfx.killHeal,match,now);
     if(kfx.killSp)recoverSp(p,kfx.killSp,match,now);
   }
   const bleedDamage=triggerBleedAction(match,p,now);
   return {ok:true,hit:true,crit,damage:d,death,dispelled,bleedDamage};
 }
 function attackWild(match,p,w,skill=false,now=Date.now()){
+  if(REWORK_CONFIG[p.charId])return reworkCombat(match,p,w,skill,now);
   const t=wildTemplate(w),sd=COMBAT_SKILL_DEFS[p.charId]||{mult:1.08,sp:12,cd:55};
   const ctx=attackContext(match,p,w,skill,now);
   let spCost=0,bonus=ctx.hitBonus,mult=1;
@@ -633,7 +718,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     killed=true;w.alive=false;w.hp=0;drop=pick(t.drop);if(!addItem(p,drop)&&item(drop)?.t==="e")offerEquipment(match,p,drop);
     if(t.skill==="supply_cache")for(let i=0;i<2;i++){const x=pick(t.drop);if(addItem(p,x)||(item(x)?.t==="e"&&offerEquipment(match,p,x)))extra.push(x)}
     const kfx=combinedFx(p,match,now);
-    if(kfx.killHeal)p.hp=clamp(p.hp+kfx.killHeal,0,maxHp(p,match,now));
+    if(kfx.killHeal)healPlayer(p,kfx.killHeal,match,now);
     if(kfx.killSp)recoverSp(p,kfx.killSp,match,now);
   }
   if(skill)applySkillSelfEffects(match,p,sd,d,killed,now);
@@ -671,7 +756,7 @@ function consumeEventChoiceCost(e,p,index){
   if(/정밀부품 1개 소비/.test(text))consumeItem(p,"precision",1);
 }
 function searchResult(match,p,now){
-  p.sp=Math.max(0,p.sp-3);
+  p.sp=Math.max(0,p.sp-3*(1+(combinedFx(p,match,now).allSp||0)));
   const mods=cleanupEventMods(p,now),regionBoost=mods.regionEventBoosts[p.region]?.bonus||0;
   const eventChance=Math.min(.20,.05+(match.eventPity[p.region]||0)+regionBoost);
   if(Math.random()<eventChance){
@@ -734,7 +819,7 @@ function useConsumable(match,p,id,now){
   const inCombat=!!p.encounter,combat=inCombat?(it.combatEff??.75):1,repeat=foodRepeatMultiplier(p,id,it,now);
   const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.08:1,healMult=repeat*combat*recoveryMult*(1+(fx.heal||0)),spMult=repeat*combat;
   if(it.consumableBuff)addTemp(p,it.consumableBuff.fx,it.consumableBuff.duration,now);
-  if(it.heal)p.hp=clamp(p.hp+it.heal*healMult,0,maxHp(p,match,now));
+  if(it.heal)healPlayer(p,it.heal*repeat*combat*recoveryMult*(1+(fx.itemHeal||0)),match,now);
   if(it.sp)recoverSp(p,it.sp*spMult,match,now);
   if(it.sat)p.satiety=clamp(p.satiety+it.sat,0,100);
 
@@ -775,7 +860,8 @@ function removeAnyStatus(p,n=1,now=Date.now()){
   for(const id of Object.keys(p.statuses||{})){if(removed>=n)break;const s=status(p,id,now);if(s){delete p.statuses[id];removed++}}
   return removed;
 }
-function charAction(match,p,now){
+function charAction(match,p,now,payload={}){
+  if(REWORK_CONFIG[p.charId])return reworks.action(match,p,payload,now);
   const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
   if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
   p.cdAUntil=now+((d.cd??45)/Math.max(.25,1+(combinedFx(p,match,now).cdRate||0)))*1000;p.cdADuration=(p.cdAUntil-now)/1000;
@@ -808,9 +894,9 @@ function charAction(match,p,now){
   }
   if(d.selfDebuffs){
     p.statusImmunity??={};
-    for(const id of Object.keys(STATUS_DEFS)){delete p.statusImmunity[id];applyStatus(p,id,1,null,p.playerId,now,null,match)}
+    for(const id of ["poison","bleed","slow","bind","sleep","fear","confusion","silence","actionDelay"]){delete p.statusImmunity[id];applyStatus(p,id,1,null,p.playerId,now,null,match)}
   }
-  if(d.heal)p.hp=clamp(p.hp+d.heal,0,maxHp(p,match,now));
+  if(d.heal)healPlayer(p,d.heal,match,now);
   if(d.sp)recoverSp(p,d.sp,match,now);
   if(d.selfDamage){damagePlayer(p,d.selfDamage);if(p.hp<=0){environmentDeath(match,p,now,false,null,"스킬 반동");return {ok:true,selfDeath:!p.alive}}}
   if(d.tempFx)addTemp(p,d.tempFx,d.duration||20,now);
@@ -841,20 +927,20 @@ function charAction(match,p,now){
   if(d.corpseHeal||d.consumeCorpse){
     const corpse=firstCorpseInRegion(match,p,now);
     if(corpse){
-      p.hp=clamp(p.hp+(d.corpseHeal||0),0,maxHp(p,match,now));
+      healPlayer(p,(d.corpseHeal||0),match,now);
       if(d.consumeCorpse)match.corpses.splice(match.corpses.indexOf(corpse),1);
     }else{
       if(d.noCorpseSp)recoverSp(p,d.noCorpseSp,match,now);
-      if(d.noCorpseHeal)p.hp=clamp(p.hp+d.noCorpseHeal,0,maxHp(p,match,now));
+      if(d.noCorpseHeal)healPlayer(p,d.noCorpseHeal,match,now);
     }
   }
 
-  if(d.healIfRevUsed&&p.rev)p.hp=clamp(p.hp+d.healIfRevUsed,0,maxHp(p,match,now));
+  if(d.healIfRevUsed&&p.rev)healPlayer(p,d.healIfRevUsed,match,now);
   if(d.reduceCombatCd)p.cdCUntil=Math.max(now,(p.cdCUntil||now)-d.reduceCombatCd*1000);
   if(d.refundActionCd)p.cdAUntil=Math.max(now,p.cdAUntil-d.refundActionCd*1000);
   if(d.luckAction){
     const r=Math.random();
-    if(r<.34)p.hp=clamp(p.hp+10,0,maxHp(p,match,now));
+    if(r<.34)healPlayer(p,10,match,now);
     else if(r<.67)recoverSp(p,12,match,now);
     else p.nextCritBonus=(p.nextCritBonus||0)+.20;
   }
@@ -967,8 +1053,8 @@ function recordMaterialHintIntel(p,now){
 }
 export function publicPlayer(match,p,now=Date.now(),advance=true){
   if(advance)updatePassiveTime(match,now);else p={...p,intel:p.intel?{...p.intel}:undefined};ensureIntel(p);
-  const aura=gardenAuras(match,p,now);
-  return {...p,statuses:{...p.statuses,...aura.statuses},buffs:aura.buffs,inGarden:(match.regionGardens?.[p.region]?.until||0)>now,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
+  const aura=gardenAuras(match,p,now),rw=reworks.view(match,p,now);
+  return {...p,...rw,statuses:{...p.statuses,...aura.statuses},buffs:{...aura.buffs,...rw.reworkBuffs},inGarden:(match.regionGardens?.[p.region]?.until||0)>now,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
     inventory:{eq:(p.eq||[]).map(id=>({id,...item(id),salvage:equipmentSalvage(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
 }
@@ -987,6 +1073,10 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
     sec=payload.kind==="eq"?1.2:payload.kind==="con" ? .9:Math.min(1.5,.65+.12*Math.max(0,qty-1));
   }
   sec*=Math.max(.65,1+(combinedFx(p,match,now).actionTime||0));
+  if(type==="skill"&&REWORK_CONFIG[p.charId])sec=reworkSkillPrep(p,now)*(1+(fx.skillPrep||0));
+  if(type==="char_action"&&p.charId==="c18"&&now-match.startedAt>=780000)sec=2;
+  if(type==="remove_object")sec=(match.reworkObjects||[]).find(o=>o.id===payload.objectId)?.kind==="avatar"||(match.reworkObjects||[]).find(o=>o.id===payload.objectId)?.kind==="trap"?2:3;
+  if(type==="skill"&&status(p,"domination",now))sec*=1.25;
   if(status(p,"actionDelay",now))sec*=1.25;
   return sec;
 }
@@ -994,12 +1084,16 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(now<match.startedAt)return {ok:false,error:"match_starting"};
   updatePassiveTime(match,now);
   if(p?.encounter&&!encounterTarget(match,p))p.encounter=null;
-  if(!p?.alive)return {ok:false,error:"player_not_active"};if(p.pendingAction)return {ok:false,error:"action_in_progress"};if(status(p,"sleep",now))return {ok:false,error:"asleep"};
+  if(!p?.alive)return {ok:false,error:"player_not_active"};if(p.pendingAction)return {ok:false,error:"action_in_progress"};if(status(p,"sleep",now))return {ok:false,error:"asleep"};if(status(p,"timeStop",now))return {ok:false,error:"time_stopped"};
   if(p.pendingPickup)return {ok:false,error:"pickup_choice_required"};
   if(p.pendingEvent)return {ok:false,error:"event_choice_required"};
-  if(type!=="attack"&&type!=="skill"&&type!=="flee"&&p.encounter&&type!=="use_item")return {ok:false,error:"encounter_in_progress"};
-  if(type==="move"){if(isRegionLocked(match,payload.to))return {ok:false,error:"region_locked"};if(status(p,"bind",now))return {ok:false,error:"bound"};if(!ADJACENCY[p.region]?.includes(payload.to))return {ok:false,error:"invalid_move"};const mv=movementProfile(p.region,payload.to),cost=p.nextMoveFree?0:Math.max(0,mv.spCost-(combinedFx(p,match,now).moveSp||0));if(p.sp<cost)return {ok:false,error:"not_enough_sp"};return {ok:true,meta:{...mv,spCost:cost}}}
-  if(type==="search"&&p.sp<3)return {ok:false,error:"not_enough_sp"};
+  if(type!=="attack"&&type!=="skill"&&type!=="flee"&&p.encounter&&type!=="use_item"&&type!=="char_action")return {ok:false,error:"encounter_in_progress"};
+  if(type==="remove_object"){if(!(match.reworkObjects||[]).some(o=>o.id===payload.objectId&&o.ownerId!==p.playerId&&o.region===p.region&&o.until>now))return {ok:false,error:"object_missing"};return {ok:true}}
+  if(type==="skill"&&p.charId==="c39"&&p.hp<=5)return {ok:false,error:"not_enough_hp"};
+  if(type==="skill"&&status(encounterTarget(match,p)?.obj||{},"timeStop",now))return {ok:false,error:"target_time_stopped"};
+  if(type==="attack"&&status(encounterTarget(match,p)?.obj||{},"timeStop",now))return {ok:false,error:"target_time_stopped"};
+  if(type==="move"){if(isRegionLocked(match,payload.to))return {ok:false,error:"region_locked"};if(status(p,"bind",now))return {ok:false,error:"bound"};if(!ADJACENCY[p.region]?.includes(payload.to))return {ok:false,error:"invalid_move"};const mv=movementProfile(p.region,payload.to),cost=(p.nextMoveFree||reworks.live(p,"freeMove",now))?0:Math.max(0,(mv.spCost-(combinedFx(p,match,now).moveSp||0))*(1+(combinedFx(p,match,now).allSp||0)));if(p.sp<cost)return {ok:false,error:"not_enough_sp"};return {ok:true,meta:{...mv,spCost:cost}}}
+  if(type==="search"&&p.sp<3*(1+(combinedFx(p,match,now).allSp||0)))return {ok:false,error:"not_enough_sp"};
   if(type==="craft"){if(!canCraft(p,payload.id))return {ok:false,error:"cannot_craft"};if(!canReceiveCraftOutput(p,payload.id,payload))return {ok:false,error:item(payload.id)?.t==="e"?"equipment_full":"inventory_full"}}
   if(type==="use_item"&&owned(p,payload.id)<=0)return {ok:false,error:"item_missing"};
   if(type==="loot_corpse"){
@@ -1020,7 +1114,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(["attack","skill","flee"].includes(type)&&!encounterTarget(match,p))return {ok:false,error:"no_encounter"};
   if(type==="skill"){
     const sd=COMBAT_SKILL_DEFS[p.charId]||{sp:12,cd:55};
-    const fx=combinedFx(p,match,now),cost=Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus") ? .95 : 1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0));
+    const fx=combinedFx(p,match,now),cost=reworkSkillCost(p,Math.max(0,(sd.sp??12)*((p.eq||[]).includes("focus") ? .95 : 1)*(1+(fx.skillSp||0))-(fx.skillSpFlat||0)-(p.nextSkillSpDiscount||0)),fx,now);
     if(status(p,"silence",now))return {ok:false,error:"silenced"};
     if((p.cdCUntil||0)>now)return {ok:false,error:"skill_cooldown"};
     if(p.sp<cost)return {ok:false,error:"not_enough_sp"};
@@ -1028,6 +1122,7 @@ export function validateAction(match,p,type,payload={},now=Date.now()){
   if(type==="char_action"){
     const d=ACTION_SKILL_DEFS[p.charId];if(!d)return {ok:false,error:"action_missing"};
     if((p.cdAUntil||0)>now)return {ok:false,error:"action_cooldown"};
+    const rv=reworks.validate(match,p,payload,now);if(rv&&!rv.ok)return rv;
   }
   if(type==="flee"&&status(p,"bind",now))return {ok:false,error:"bound"};
   return {ok:true};
@@ -1039,29 +1134,37 @@ export function beginServerAction(match,p,type,payload={},now=Date.now()){
     if(type==='skill'&&(p.cdCUntil||0)>now)type='attack';
   }
   const v=validateAction(match,p,type,payload,now);if(!v.ok)return v;
-  let duration=actionDuration(match,p,type,payload,now),meta=v.meta||{};
+    let duration=actionDuration(match,p,type,payload,now),meta=v.meta||{};
   if(type==="move"){const slow=status(p,"slow",now)?.stacks||0,fx=combinedFx(p,match,now);const slowMult=slow>=2?1.50:slow===1?1.25:1;duration=(meta.durationMs/1000)*slowMult*(status(p,"fear",now)?.8:1)*(1+(fx.moveTime||0))*Math.max(.65,1+(fx.actionTime||0));if(status(p,"actionDelay",now))duration*=1.25}
   if(type==="flee"){const slow=status(p,"slow",now)?.stacks||0;duration*=slow>=2?1.50:slow===1?1.25:1;if(status(p,"fear",now))duration*=.80}
+  if(type==="skill"&&status(p,"domination",now))delete p.statuses.domination;
+  if(type==="skill"&&p.charId==="c44")reworkState(p).timed.heavyPrep={until:now+duration*1000,startedAt:now,durationMs:duration*1000};
   p.pendingAction={type,payload,startedAt:now,completeAt:now+duration*1000,meta:{...meta,...(requestedType!==type?{requestedType}: {})}};
   return {ok:true,action:p.pendingAction};
 }
 export function completeAction(match,p,now=Date.now()){
   updateRegionRestrictions(match,now);
   const a=p.pendingAction;if(!a||a.completeAt>now)return null;
+  reworks.tick(match,now);
   if(!p.alive){p.pendingAction=null;return {ok:false,error:"player_not_active",type:a.type}}
+  if(status(p,"timeStop",now))return null;
+  const before={hp:p.hp,region:p.region};
+  if(a.type==="move"&&(isRegionLocked(match,a.payload?.to)||status(p,"bind",now))){p.pendingAction=null;return {ok:false,error:"move_blocked"};}
   p.pendingAction=null;
   const type=a.type,x=a.payload||{},observed=encounterTarget(match,p),actionRegion=p.region;let result={ok:true,type};
   if(type==="move"){p.region=x.to;p.sp=Math.max(0,p.sp-(a.meta?.spCost||0));p.lastMoveAt=now;const fx=combinedFx(p,match,now);p.moveHitReady=(p.eq||[]).includes("propulsion")||!!(fx.afterMoveHit||fx.afterMoveDamage);p.nextMoveFree=false;p.encounter=null;for(const q of match.players)if(q!==p&&q.encounter?.kind==="player"&&q.encounter.targetId===p.playerId)q.encounter=null;result.to=x.to;result.bleedDamage=triggerBleedAction(match,p,now)}
   else if(type==="search"){const mods=cleanupEventMods(p,now);if(mods.instantSearchRegion===p.region)mods.instantSearchRegion=null;result={...result,...searchResult(match,p,now)};}
   else if(type==="event_choice"){p.pendingEvent=x.eventId;result={...result,...resolveEventChoice(match,p,x.index,now)}}
-  else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;p.hp=clamp(p.hp+5*recoveryMult*(1+(fx.restHeal||0)),0,maxHp(p,match,now));recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
+  else if(type==="rest"){const fx=combinedFx(p,match,now),recoveryMult=(p.eq||[]).includes("recovery")?1.05:1;healPlayer(p,5*recoveryMult*(1+(fx.restHeal||0)),match,now);recoverSp(p,12*(1+(fx.restSp||0)),match,now)}
   else if(type==="craft"){result={...result,...craftItem(match,p,x.id,x)};p.nextCraftTimeMult=1}
   else if(type==="use_item")result={...result,...useConsumable(match,p,x.id,now)}
   else if(type==="attack"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,false,now):attackWild(match,p,t.obj,false,now)):{ok:false,error:"target_lost"};p.encounter=null}
-  else if(type==="skill"){const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,true,now):attackWild(match,p,t.obj,true,now)):{ok:false,error:"target_lost"};p.encounter=null}
+  else if(type==="skill"){if(p.charId==="c35")reworkState(p).dispelKey=x.dispelKey||null;const t=encounterTarget(match,p);result=t?(t.kind==="player"?attackPlayer(match,p,t.obj,true,now):attackWild(match,p,t.obj,true,now)):{ok:false,error:"target_lost"};p.encounter=null}
   else if(type==="flee"){result.success=true;p.encounter=null;if((p.eq||[]).includes("evasion"))p.nextMoveFree=true}
-  else if(type==="char_action")result={...result,...charAction(match,p,now)};
+  else if(type==="char_action")result={...result,...charAction(match,p,now,x)};
   else if(type==="loot_corpse")result={...result,...lootCorpse(match,p,x.corpseId,x.kind,x.id,x.qty||1,!!x.replace,now)};
+  if(type==="remove_object"){const o=(match.reworkObjects||[]).find(o=>o.id===x.objectId&&o.region===p.region&&o.until>now&&o.ownerId!==p.playerId);if(o)o.until=now;else result={ok:false,error:"object_missing"};}
+  reworks.afterComplete(match,p,type,x,result,now,before);
   match.corpses=(match.corpses||[]).filter(c=>c.expiresAt>now);
   match.updatedAt=now;updatePassiveTime(match,now);
   const seen=encounterTarget(match,p)||observed;
@@ -1302,7 +1405,7 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   for(const m of text.matchAll(/HP\s*([+-])\s*(\d+)/g)){
     if(overlapsProbHp(m.index,m[0].length))continue;
     if(/가능/.test(text.slice(Math.max(0,m.index-8),m.index+m[0].length+8))&&Math.random()>=.50)continue;
-    const n=+m[2]*(m[1]==="-"?-1:1);if(n>=0)p.hp=clamp(p.hp+n,0,maxHp(p,match,now));else{damagePlayer(p,-n);p.hp=Math.max(0,p.hp)}summary.push("HP "+(n>=0?"+":"")+n);
+    const n=+m[2]*(m[1]==="-"?-1:1);if(n>=0)healPlayer(p,n,match,now);else{damagePlayer(p,-n);p.hp=Math.max(0,p.hp)}summary.push("HP "+(n>=0?"+":"")+n);
   }
   for(const m of text.matchAll(/SP\s*([+-])\s*(\d+)/g)){
     const n=+m[2]*(m[1]==="-"?-1:1);p.sp=clamp(p.sp+n,0,p.maxSp);summary.push("SP "+(n>=0?"+":"")+n);
@@ -1517,6 +1620,7 @@ function aiShouldAvoidFight(match,p,target,now){
 }
 function aiActionUtility(match,p,now){
   if((p.cdAUntil||0)>now||p.encounter||status(p,"sleep",now))return 0;
+  if(REWORK_CONFIG[p.charId])return reworks.validate(match,p,reworkAIChoice(match,p,now),now)?.ok?1.1:0;
   const d=ACTION_SKILL_DEFS[p.charId]||{};let score=.10;
   if(d.heal)score+=Math.max(0,1-aiHpRatio(match,p,now))*(d.heal/8);
   if(d.sp)score+=Math.max(0,1-aiSpRatio(p))*(d.sp/10);
@@ -1574,6 +1678,7 @@ export function runAIStep(match,p,now=Date.now()){
   }
 
   if(p.encounter){
+    if(REWORK_CONFIG[p.charId]&&(p.cdAUntil||0)<=now&&Math.random()<.4){const x=reworkAIChoice(match,p,now);if(reworks.validate(match,p,x,now)?.ok&&aiQueue(match,p,"char_action",x,now))return true;}
     const cmd=aiChooseEncounterCommand(match,p,encounterTarget(match,p),now);
     return cmd?aiQueue(match,p,cmd.type,cmd.payload,now):false;
   }
@@ -1589,7 +1694,7 @@ export function runAIStep(match,p,now=Date.now()){
   }
 
   if(aiShouldUseAction(match,p,now)){
-    if(aiQueue(match,p,"char_action",{},now))return true;
+    if(aiQueue(match,p,"char_action",reworkAIChoice(match,p,now),now))return true;
   }
 
   const craftId=aiChooseCraft(p);

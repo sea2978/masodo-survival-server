@@ -29,6 +29,8 @@ export class DebuffHud{
   const sample=Number.isFinite(m.serverNow)?m.serverNow:Date.now();
   if(!this.anchor||sample>this.anchor.serverNow)this.anchor={serverNow:sample,at:performance.now()};
   this.rows={...(m.self.statuses||{}),...(m.self.buffs||{})};
+  const labels={timeStop:['시간정지','신규 행동과 진행 중 행동의 준비가 잠시 멈춥니다.'],awe:['용의 위압','공격력 −20%'],reverseAmp:['역증폭','공격력 −25%'],fragrance:['이상향의 향기','공격력 −20%'],talisman:['부적 표식','유여울의 공격에 취약해집니다.'],starTarget:['집착 대상','임루나의 추적과 명중 보정 대상입니다.'],domination:['지배','다음 전투 스킬 준비시간 +25%. 사용하면 소모됩니다.'],suggestion:['암시','량아 레하의 다음 전투 스킬이 강화됩니다.'],chainMark:['사슬 표식','에덴의 다음 전투 스킬에 속박 시도가 추가됩니다.']};
+  for(const [id,row]of Object.entries(this.rows))if(!DEBUFF_ICONS[id]){const info=labels[id]||[row.name||'고유 효과',row.description||'캐릭터 고유 효과'];DEBUFF_ICONS[id]={name:info[0],color:id.startsWith('rw_')?'#7cdeac':'#c797db',seconds:10,max:1,icon:'<circle cx="12" cy="12" r="8"/><path d="M12 7v6m0 3v1"/>',describe:()=>info[1]};}
   if(this.frame!==null)cancelAnimationFrame(this.frame);this.frame=null;this.paint();
  }
  show(id,pin=false){
@@ -41,7 +43,7 @@ export class DebuffHud{
  describe(){
   if(!this.active)return;const info=DEBUFF_ICONS[this.active],s=this.rows[this.active];if(!s){this.hide();return}
   const left=this.active==='bleed'?null:Math.max(0,(s.until-this.now())/1000);
-  const title=s.name||info.name,detail=info.describe(s.stacks),foot=left===null?`${s.stacks} / ${info.max}중첩 · 원형 게이지는 남은 중첩`:`남은 시간 ${left.toFixed(1)}초${info.max>1?' · '+s.stacks+'중첩':''}`;
+  const title=s.name||info.name,detail=s.description||info.describe(s.stacks),foot=left===null?`${s.stacks} / ${info.max}중첩 · 원형 게이지는 남은 중첩`:`남은 시간 ${left.toFixed(1)}초${info.max>1?' · '+s.stacks+'중첩':''}`;
   const key=title+detail+foot;if(this.bubbleKey===key)return;this.bubbleKey=key;
   this.bubble.replaceChildren();for(const [tag,content]of [['strong',title],['span',detail],['small',foot]]){const el=document.createElement(tag);el.textContent=content;this.bubble.appendChild(el)}
  }
@@ -59,7 +61,7 @@ export class DebuffHud{
    let b=this.buttons.get(id);
    if(!active){if(b){if(this.active===id)this.hide();b.remove();this.buttons.delete(id)}continue}
    if(!b){
-    b=document.createElement('button');b.type='button';b.className='debuff-icon'+(id==='gardenPassive'?' buff-icon':'');b.dataset.debuff=id;
+    b=document.createElement('button');b.type='button';b.className='debuff-icon'+(id==='gardenPassive'||id.startsWith('rw_')?' buff-icon':'');b.dataset.debuff=id;
     b.style.setProperty('--debuff-color',info.color);b.setAttribute('aria-label',s.name||info.name);
     b.innerHTML='<svg class="debuff-timer" viewBox="0 0 40 40" aria-hidden="true"><circle class="debuff-track" cx="20" cy="20" r="18"/><circle class="debuff-ring" cx="20" cy="20" r="18" pathLength="100"/></svg><svg class="debuff-symbol" viewBox="0 0 24 24" aria-hidden="true">'+info.icon+'</svg>';
     b.addEventListener('mouseenter',()=>{if(!this.pinned)this.show(id)});b.addEventListener('mouseleave',()=>{if(!this.pinned)this.hide()});

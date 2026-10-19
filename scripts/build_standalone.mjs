@@ -9,6 +9,7 @@ const adapterPath = path.join(publicDir, "network_adapter.js");
 const outputPath = path.join(publicDir, "MasodoSurvival.html");
 
 let html = fs.readFileSync(indexPath, "utf8");
+html=html.replace('import{ReworkUI}from"./rework_ui.js";',fs.readFileSync(path.join(publicDir,"rework_ui.js"),"utf8").replace("export class ReworkUI","class ReworkUI"));
 const offlineRuntime=buildOfflineRuntime(root).replace(/export const /g,"const ");
 html=html.replace('import{installOfflineMode}from"./offline_runtime.js";',offlineRuntime);
 const intro=fs.readFileSync(path.join(publicDir,"match_intro.js"),"utf8").replace("export class MatchIntro","class MatchIntro");

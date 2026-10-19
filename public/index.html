@@ -445,7 +445,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
           <div id="playerProfileFallback" class="profile-fallback">PLAYER</div>
         </div>
         <div class="profile-copy">
-          <div class="vital-bars">
+          <div class="vital-bars"><div id="reworkState" style="font-size:11px;line-height:1.4;color:#d9d6ed;white-space:normal" aria-live="polite"></div>
             <div id="hpMeter" class="vital-bar hp-bar" role="progressbar" aria-label="체력" aria-valuemin="0"><i id="hpFill"></i><span>HP</span><b id="hp">-</b></div>
             <div id="spMeter" class="vital-bar sp-bar" role="progressbar" aria-label="스태미나" aria-valuemin="0"><i id="spFill"></i><span>SP</span><b id="sp">-</b></div>
             <div id="satMeter" class="vital-bar sat-bar" role="progressbar" aria-label="포만도" aria-valuemin="0"><i id="satFill"></i><span>포만도</span><b id="sat">-</b></div>
@@ -486,7 +486,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
     </aside>
     <dialog id="movePanel" class="game-popup"><div class="popup-head"><h2>지역 이동</h2><button data-close-panel>닫기</button></div><p id="regionLockStatus" class="muted" role="status"></p><div id="moves" class="move-buttons"></div></dialog>
-    <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 장비</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
+    <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 장비</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><div id="regionalObjects" aria-label="현재 지역 설치물"></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
     <dialog id="inventoryConfirmPanel" class="game-popup"><div class="popup-head"><h2 id="inventoryConfirmTitle">아이템 관리</h2><button data-close-panel>취소</button></div><p id="inventoryConfirmDetail"></p><button id="inventoryConfirmApply">확인</button></dialog>
     <dialog id="craftDiscardPanel" class="game-popup"><div class="popup-head"><h2>버릴 장비 선택</h2><button onclick="this.closest('dialog').close()">취소</button></div><p id="craftDiscardDescription"></p><div id="craftDiscardChoices" class="compact-list"></div><p class="muted">취소하면 장비와 제작 재료를 그대로 보존합니다.</p></dialog>
     <dialog id="pickupPanel" class="game-popup"><div class="popup-head"><h2 id="pickupTitle">아이템 칸이 가득 찼습니다</h2></div><p id="pickupDescription"></p><p id="pickupHelp" class="muted"></p><div id="pickupChoices" class="compact-list"></div><button id="discardPickup">새로 발견한 소모품 버리기</button></dialog>
@@ -529,6 +529,7 @@ import{MasodoNetworkAdapter}from"./network_adapter.js";
 import{PortraitReactions,EnemyExitReaction}from"./portrait_reactions.js";
 import{MatchIntro}from"./match_intro.js";
 import{DebuffHud}from"./debuff_hud.js";
+import{ReworkUI}from"./rework_ui.js";
 import{PORTRAIT_EXPRESSIONS}from"./portrait_expressions.js";const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
 installOfflineMode(net);
 const mobileScreenQuery=matchMedia('(pointer: coarse) and (max-width: 1400px)');
@@ -600,7 +601,7 @@ net.on('action_result',()=>{stopSearchLoading()});
 net.on('error',()=>{stopSearchLoading();if(M)renderMatch(M)});
 net.on('close',()=>{stopSearchLoading();if(M)renderMatch(M)});
 let localAction=null,loadingDisconnected=false;
-const ACTION_LOADING_TEXT={search:'탐색 중',move:'이동 중',rest:'휴식 중',craft:'제작 중',use_item:'아이템 사용 중',attack:'공격 중',skill:'스킬 사용 중',char_action:'추가 행동 중',flee:'도주 중',loot_corpse:'전리품 수집 중',event_choice:'이벤트 진행 중'};
+const ACTION_LOADING_TEXT={search:'탐색 중',move:'이동 중',rest:'휴식 중',craft:'제작 중',use_item:'아이템 사용 중',attack:'공격 중',skill:'스킬 사용 중',char_action:'추가 행동 중',flee:'도주 중',loot_corpse:'전리품 수집 중',remove_object:'설치물 제거 중',event_choice:'이벤트 진행 중'};
 function clearLocalAction(){if(localAction)clearTimeout(localAction.timer);localAction=null;$('#actionLoading').hidden=true}
 function renderActionLoading(m){
   const p=m.self;
@@ -612,7 +613,7 @@ function renderActionLoading(m){
   const type=localAction?.type||p.pendingAction?.type||(searchLoading?'search':null);
   const el=$('#actionLoading');el.textContent=ACTION_LOADING_TEXT[type]||'행동 중';el.hidden=!type;
 }
-for(const [method,type] of Object.entries({move:'move',rest:'rest',craft:'craft',useItem:'use_item',attack:'attack',skill:'skill',charAction:'char_action',flee:'flee',lootCorpse:'loot_corpse',eventChoice:'event_choice'})){
+for(const [method,type] of Object.entries({move:'move',rest:'rest',craft:'craft',useItem:'use_item',attack:'attack',skill:'skill',charAction:'char_action',removeObject:'remove_object',flee:'flee',lootCorpse:'loot_corpse',eventChoice:'event_choice'})){
   const send=net[method].bind(net);
   net[method]=(...args)=>{
     if(localAction||busy()||!M?.self?.alive)return false;
@@ -1150,6 +1151,7 @@ function confusedCombatInput(){
 const skillCooldowns={skill:null,charAction:null};let skillCooldownFrame=null;
 const matchIntro=new MatchIntro($('#matchIntro'),$('#introCards'),$('#introCountdown'),{character:charInfo,sprite:setCharacterSprite,onFinish:renderMatch});
 const debuffHud=new DebuffHud($('#selfDebuffs'),$('#debuffBubble'));
+const reworkUI=new ReworkUI({state:()=>M,send:x=>net.charAction(x),skill:x=>net.skill(x),remove:id=>net.removeObject(id),character:charInfo,region:rname});
 
 function clearSkillCooldowns(){
   if(skillCooldownFrame!==null)cancelAnimationFrame(skillCooldownFrame);skillCooldownFrame=null;
@@ -1275,13 +1277,13 @@ function renderVitalBars(p){
 function renderOtherSurvivors(m){
  $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(characterName(o.charId))} / 처치 ${o.kills??0}</div>`).join('');
 }
-function renderMatch(m){M=m;if(matchIntro.show(m)){showGame();$('#gameScreen').hidden=true;clearMatchClock();clearSkillCooldowns();debuffHud.clear();return}notifyMatchChanges(m);showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderVitalBars(p);debuffHud.update(m);renderActionLoading(m);renderResult(m);renderPickup(m);
+function renderMatch(m){M=m;if(matchIntro.show(m)){showGame();$('#gameScreen').hidden=true;clearMatchClock();clearSkillCooldowns();debuffHud.clear();return}notifyMatchChanges(m);showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderVitalBars(p);debuffHud.update(m);reworkUI.update(m);renderActionLoading(m);renderResult(m);renderPickup(m);
 $('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
 $('#exploreControls').classList.toggle('hidden',inEncounter);$('#encounterControls').classList.toggle('hidden',!inEncounter);$('#actionSkillName').textContent=charInfo(p.charId)?.action||'추가 행동';$('#combatSkillName').textContent=charInfo(p.charId)?.combat||'전투 스킬';
 $('#search').disabled=dis||inEncounter||inEvent;
 $('#rest').disabled=dis||inEncounter||inEvent;
-$('#charAction').disabled=dis||inEncounter||inEvent;
+$('#charAction').disabled=dis||inEvent;
 $('#attack').disabled=dis||!inEncounter||inEvent;
 $('#skill').disabled=dis||!inEncounter||inEvent;
 $('#flee').disabled=dis||!inEncounter||inEvent;
@@ -1311,7 +1313,7 @@ $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{
 $('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,k,id,qty,rep]=b.dataset.loot.split('|');net.lootCorpse(c,k,id,Number(qty)||1,rep==='1')});
 }
 net.on("build",()=>renderBuild());
-net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent=net.offline?'오프라인 모드':'연결됨';$('#status').className="good";$('#gameStatus').textContent=net.offline?'오프라인 모드':'연결됨';$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={match_starting:"참가자 소개가 끝나면 행동할 수 있습니다.",region_locked:"잠긴 지역으로 이동할 수 없습니다.",encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",pickup_choice_required:"발견한 소모품을 먼저 선택해 주세요.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
+net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent=net.offline?'오프라인 모드':'연결됨';$('#status').className="good";$('#gameStatus').textContent=net.offline?'오프라인 모드':'연결됨';$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{if(M){clearLocalAction();renderMatch(M);if(m.error==="corpse_loot_first")openGamePanel("inventoryPanel");}const ko={invalid_skill_choice:"올바른 스킬 선택이 아닙니다.",rework_target_missing:"현재 지역에서 확인한 대상을 골라주세요.",rework_target_unknown:"확인하지 못한 대상입니다.",rework_resource_missing:"고유 자원이 부족합니다.",same_module:"현재와 다른 모듈을 선택하세요.",corpse_loot_first:"시체의 전리품을 먼저 수령하거나 버려주세요.",not_enough_satiety:"포만도가 부족합니다.",not_enough_hp:"HP가 부족합니다.",time_stopped:"시간정지 중입니다.",target_time_stopped:"시간정지 중인 대상은 공격할 수 없습니다.",invalid_words:"키워드를 1~2개 선택하세요.",object_missing:"설치물이 사라졌습니다.",match_starting:"참가자 소개가 끝나면 행동할 수 있습니다.",region_locked:"잠긴 지역으로 이동할 수 없습니다.",encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",pickup_choice_required:"발견한 소모품을 먼저 선택해 주세요.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
 function openLobbyPanel(id){
  if(!serverReady)return;
  document.querySelectorAll('.lobby-popup[open]').forEach(d=>d.close());
@@ -1412,6 +1414,6 @@ $('#cancelCreateRoom').onclick=()=>{$('#createRoomPanel').close();$('#roomBrowse
 function updateRoomSettingsHint(){const mode=$('#aiMode').value,n=Number($('#aiCountSetting').value);$('#fixedAIField').hidden=mode!=='fixed';$('#aiCountSetting').disabled=mode!=='fixed';$('#roomSettingsHint').textContent=mode==='fill'?'경기 시작 시 총 11명이 되도록 AI를 채웁니다. 플레이어는 최대 10명입니다.':mode==='none'?'AI 없이 접속한 플레이어만 참가합니다. 혼자 시작하면 연습할 수 있습니다.':'AI '+n+'명 고정 · 플레이어 최대 '+Math.min(10,11-(Number.isFinite(n)?n:0))+'명 (총 최대 11명)'}
 $('#aiMode').onchange=updateRoomSettingsHint;$('#aiCountSetting').oninput=updateRoomSettingsHint;updateRoomSettingsHint();
 $('#createRoomForm').onsubmit=async e=>{e.preventDefault();if(roomEntryBusy)return;const settings={name:$('#roomName').value,aiMode:$('#aiMode').value,aiCount:Number($('#aiCountSetting').value)};const fields=[$('#roomName'),$('#aiMode'),$('#aiCountSetting'),$('#createRoomSubmit'),$('#cancelCreateRoom')];fields.forEach(x=>x.disabled=true);try{if(await connectRoom(null,true,settings))$('#createRoomPanel').close()}finally{fields.forEach(x=>x.disabled=false);updateRoomSettingsHint()}};
-$('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=refreshInfo;$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>net.skill();$('#charAction').onclick=()=>net.charAction();$('#flee').onclick=()=>net.flee();
+$('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=refreshInfo;$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>reworkUI.openCombat();$('#charAction').onclick=()=>reworkUI.open();$('#flee').onclick=()=>net.flee();
 if(typeof ResizeObserver!=='undefined'){const encounterInfoObserver=new ResizeObserver(([entry])=>{$('#gameScreen').style.setProperty('--encounter-info-height',Math.ceil(entry.contentRect.height)+'px')});encounterInfoObserver.observe($('#game'))}
 </script></body></html>

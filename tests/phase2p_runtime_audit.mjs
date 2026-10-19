@@ -48,9 +48,9 @@ const makeMatch=(players,id="audit")=>{const m={matchId:id,phase:"playing",creat
 
 // Spell amplifier extends control duration by exactly 6% before target resistance.
 {
-  const p=createServerPlayer({sessionId:"s",playerName:"Spell",charId:"c26",startRegion:"city"},0);
+  const p=createServerPlayer({sessionId:"s",playerName:"Spell",charId:"c09",startRegion:"city"},0);
   const t=createServerPlayer({sessionId:"st",playerName:"Target",charId:"c01",startRegion:"city"},1);
-  const m=makeMatch([p,t],"spell");p.eq=["spell_amp"];p.encounter={kind:"player",targetId:t.playerId};
+  const m=makeMatch([p,t],"spell");p.rework.mode="attack";p.eq=["spell_amp"];p.encounter={kind:"player",targetId:t.playerId};
   const old=Math.random;Math.random=()=>0;
   const a=beginServerAction(m,p,"skill",{},t0);const done=a.action.completeAt+1;completeAction(m,p,done);Math.random=old;
   assert.ok(t.statuses.bind);
