@@ -1,3 +1,4 @@
+import {GAME_VERSION} from '../src/version.js';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const root=new URL('../',import.meta.url),config=JSON.parse(fs.readFileSync(new URL('wrangler.jsonc',root),'utf8'));
@@ -11,7 +12,7 @@ const calls=[];const env={ROOMS:{getByName(name){return {async fetch(input,optio
 const request=(path,options)=>worker.fetch(new Request('https://game.example'+path,options),env);
 for(const path of ['/','/index.html','/offline.html','/MasodoSurvival.html','/network_adapter.js','/assets/images/standing/row0.webp','/assets/images/original/c01/neutral.png']){const res=await request(path);assert.equal(res.status,404,path);assert(!((await res.text()).includes('<canvas')))}
 assert.equal(calls.length,0,'web/image requests must never access game rooms');
-for(const path of ['/api/health','/api/catalog']){const res=await request(path);assert.equal(res.status,200);assert.equal(res.headers.get('access-control-allow-origin'),'*');const data=await res.json();assert(data.ok);if(path.endsWith('catalog')){assert.equal(data.characters.length,52);assert(data.items)}}
+for(const path of ['/api/health','/api/catalog?clientVersion='+GAME_VERSION]){const res=await request(path);assert.equal(res.status,200);assert.equal(res.headers.get('access-control-allow-origin'),'*');const data=await res.json();assert(data.ok);if(path.startsWith('/api/catalog')){assert.equal(data.characters.length,52);assert(data.items)}}
 assert.equal((await request('/api/catalog',{method:'OPTIONS',headers:{origin:'null'}})).status,204);
 assert.equal((await request('/api/rooms')).status,200);assert(calls.at(-1).url.endsWith('/directory/list'));
 assert.equal((await request('/api/room/create',{method:'POST',headers:{'content-type':'application/json',origin:'null'},body:JSON.stringify({name:'API test',aiMode:'none'})})).status,201);

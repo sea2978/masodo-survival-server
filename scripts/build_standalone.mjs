@@ -9,6 +9,10 @@ const adapterPath = path.join(publicDir, "network_adapter.js");
 const outputPath = path.join(publicDir, "MasodoSurvival.html");
 
 let html = fs.readFileSync(indexPath, "utf8");
+const clientVersion=fs.readFileSync(path.join(root,'src/version.js'),'utf8').match(/GAME_VERSION="([^"]+)"/)[1];
+const clientVersionSource='export const CLIENT_VERSION='+JSON.stringify(clientVersion)+';\n';
+fs.writeFileSync(path.join(publicDir,'client_version.js'),clientVersionSource);
+html=html.replace('import{CLIENT_VERSION}from"./client_version.js";',clientVersionSource.replace('export const','const'));
 html=html.replace('import{notifyStatusFeedback}from"./status_feedback.js";',fs.readFileSync(path.join(publicDir,"status_feedback.js"),"utf8").replace("export function notifyStatusFeedback","function notifyStatusFeedback"));
 html=html.replace('import{ReworkUI}from"./rework_ui.js";',fs.readFileSync(path.join(publicDir,"rework_ui.js"),"utf8").replace("export class ReworkUI","class ReworkUI"));
 const offlineRuntime=buildOfflineRuntime(root).replace(/export const /g,"const ");

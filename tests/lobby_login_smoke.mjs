@@ -1,3 +1,4 @@
+import {GAME_VERSION} from '../src/version.js';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
@@ -29,5 +30,10 @@ console.log('PASS: login validation/success/failure, five lobby popups, codex se
 
 let workerSource=fs.readFileSync(new URL('../src/index.js',import.meta.url),'utf8').replace('export { GameRoom } from "./room.js";','');workerSource=workerSource.replace(/from "\.\/([^\"]+)"/g,(_,p)=>'from '+JSON.stringify(new URL('../src/'+p,import.meta.url).href));
 const worker=(await import('data:text/javascript;base64,'+Buffer.from(workerSource).toString('base64'))).default;
-const response=await worker.fetch(new Request('https://example.test/api/catalog'),{}),catalog=await response.json();assert.equal(response.status,200);assert.equal(catalog.characters.length,52);assert.equal(Object.keys(catalog.items).length,Object.keys(ITEMS).length);assert(catalog.items.final_22.r.special_37);
+const response=await worker.fetch(new Request('https://example.test/api/catalog?clientVersion='+GAME_VERSION),{}),catalog=await response.json();assert.equal(response.status,200);assert.equal(catalog.characters.length,52);assert.equal(Object.keys(catalog.items).length,Object.keys(ITEMS).length);assert(catalog.items.final_22.r.special_37);
 console.log('PASS: real catalog API supplies character skills and complete item recipes for lobby codices');
+
+for(const version of ['', '0.0.0-online','99.0.0-online']){const response=await worker.fetch(new Request('https://example.test/api/catalog?clientVersion='+version),{});assert.equal(response.status,426);const data=await response.json();assert.equal(data.error,'client_version_mismatch');assert.equal(data.version,GAME_VERSION);assert(!data.characters);}
+const versionFetch=globalThis.fetch;globalThis.fetch=(url,options)=>worker.fetch(new Request(url,options),{});
+try{const adapter=new MasodoNetworkAdapter('https://example.test');adapter.clientVersion='0.0.0-online';await assert.rejects(adapter.loadCatalog(),error=>error.code==='client_version_mismatch'&&error.serverVersion===GAME_VERSION);assert.equal(adapter.catalog,null);adapter.clientVersion=GAME_VERSION;await adapter.loadCatalog();assert.equal(adapter.build.version,GAME_VERSION);}finally{globalThis.fetch=versionFetch}
+console.log('PASS: real server rejects absent/older/newer versions; adapter receives typed update error and matching catalog succeeds');

@@ -9,6 +9,7 @@ export class MasodoNetworkAdapter {
     this.networkState=null;this.stateRevision=0;this.itemCatalog={};this.resyncPending=false;
     this.catalog = null;
     this.build = null;
+    this.clientVersion = null;
     this.connectOptions = null;
     this.manualClose = false;
     this.connectionEpoch = 0;
@@ -133,10 +134,17 @@ export class MasodoNetworkAdapter {
     return data;
   }
 
+  checkClientVersion(serverVersion){
+    if(!this.clientVersion||serverVersion===this.clientVersion)return;
+    const error=new Error('client_version_mismatch');error.code='client_version_mismatch';error.clientVersion=this.clientVersion;error.serverVersion=serverVersion||'확인 불가';throw error;
+  }
+
   async loadCatalog() {
-    const res = await fetch(`${this.baseUrl}/api/catalog`, { cache: "no-store" });
+    const res = await fetch(`${this.baseUrl}/api/catalog${this.clientVersion?"?clientVersion="+encodeURIComponent(this.clientVersion):""}`, { cache: "no-store" });
     const data = await res.json();
+    if(data.error==='client_version_mismatch'){const error=new Error(data.error);error.code=data.error;error.clientVersion=this.clientVersion;error.serverVersion=data.version;throw error;}
     if (!res.ok || !data.ok) throw new Error(data.error || "catalog_load_failed");
+    this.checkClientVersion(data.version);
     this.catalog = { characters: data.characters || [], regions: data.regions || [], items:data.items || {} };
     this.itemCatalog=data.items || {};
     this.build = { version:data.version, buildLabel:data.buildLabel, phase:data.phase, protocolVersion:data.protocolVersion };
@@ -208,6 +216,7 @@ export class MasodoNetworkAdapter {
       if (event.data === "pong") { this.emit("pong", {}); return; }
       try {
         let msg=JSON.parse(event.data);
+        if(msg.build){try{this.checkClientVersion(msg.build.version)}catch(error){this.close();this.emit('client_version_mismatch',{clientVersion:error.clientVersion,serverVersion:error.serverVersion});return;}}
         msg=this.acceptStateMessage(msg);if(!msg)return;
         if (msg.sessionId && msg.type === "hello_ok") {
           clearTimeout(handshakeTimer);handshakeTimer=null;

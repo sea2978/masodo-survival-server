@@ -40,6 +40,7 @@ export default {
     }
 
     if (url.pathname === "/api/catalog" && request.method === "GET") {
+      if(url.searchParams.get('clientVersion')!==GAME_VERSION)return withCors(json({ok:false,error:'client_version_mismatch',version:GAME_VERSION},426));
       return withCors(json({
         ok: true,
         version: GAME_VERSION,

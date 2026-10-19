@@ -23,5 +23,7 @@ try{
  let received=false;net.on('match_state',()=>received=true);live.message({type:'match_state',match:{matchId:'original'}});assert(received);assert.equal(net.lastMatch.matchId,'original');
  live.close();assert(net.reconnectTimer);net.close();assert.equal(net.reconnectTimer,null);assert(net.manualClose);
  let resolveToken;net.getReconnectToken=()=>new Promise(resolve=>resolveToken=resolve);const n=sockets.length;pending=net.connect('ROOM');net.close();resolveToken(null);await pending;assert.equal(sockets.length,n);
+ const guarded=new MasodoNetworkAdapter('https://example.test');guarded.clientVersion='current';guarded.getReconnectToken=async()=>null;let mismatch=null,connected=false;guarded.on('client_version_mismatch',x=>mismatch=x);guarded.on('connected',()=>connected=true);const handshake=guarded.connect('ROOM');await flush();const oldServer=sockets.at(-1);oldServer.open();await handshake;oldServer.message({type:'connected',build:{version:'changed'}});assert.equal(mismatch.serverVersion,'changed');assert(!connected);assert(guarded.manualClose);assert.equal(guarded.reconnectTimer,null);assert.equal(guarded.ws,null);
+ console.log('PASS: build changes between login and room/reconnect -> version mismatch event -> socket closes without retry loop');
  console.log('reconnect PASS: unexpected disconnect, repeated failed opens, timeout retries, session/token resume, state receipt, manual cancellation and in-flight cancellation');
 }finally{Object.assign(globalThis,original)}

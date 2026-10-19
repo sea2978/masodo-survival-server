@@ -3664,7 +3664,7 @@ function runAITick(match,now=Date.now()){
 return {STATUS_DEFS,applyStatus,updatePassiveTime,initWorld,eventChoiceAvailability,recommendedCrafts,publicPlayer,actionDuration,validateAction,beginServerAction,completeAction,beginEventChoice,resolveEventChoice,lootCorpse,runAIStep,runAITick};
 })();
 __modules["src/version.js"]=(()=>{
-const GAME_VERSION="0.9.4-online";
+const GAME_VERSION="0.9.5-online";
 const PHASE="3A";
 const PROTOCOL_VERSION=14;
 const BUILD_LABEL=`v${GAME_VERSION} · Phase ${PHASE}`;
