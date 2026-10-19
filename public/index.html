@@ -377,6 +377,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 #matchIntro[hidden]{display:none!important}.intro-heading{text-align:center;flex:none}.intro-heading h1{font-size:clamp(20px,3vw,34px);margin:0 0 5px}.intro-heading p{margin:0;color:#acc1d6}.intro-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;flex:1;min-height:0;overflow:auto;align-content:center;width:min(1440px,100%);margin:auto}.intro-card{min-width:0;display:flex;flex-direction:column;text-align:center;align-items:center;padding:12px;border:1px solid #536b84;border-radius:10px;background:#122030;gap:5px;overflow:hidden}.intro-self{border-color:#e3c779;box-shadow:inset 0 0 0 1px #e3c779}.intro-portrait{position:relative;width:100%;height:clamp(110px,24vh,250px);display:flex;justify-content:center;align-items:center;background:linear-gradient(#29425b88,#101a2800)}.intro-portrait canvas{width:100%;height:100%;object-fit:contain}.intro-fallback{align-items:center;justify-content:center;height:100%;color:#b5c9dc}.intro-card strong,.intro-card>span{width:100%;overflow-wrap:anywhere}.intro-card>span{font-size:16px;color:#e3c779}.intro-card strong{font-size:13px}.intro-card small{color:#96b0c9}.intro-footer{flex:none;text-align:center;font-size:15px;color:#b3c8dc}#introCountdown{font-size:22px;color:#e3c779;margin:0 6px}
 @media(max-height:500px){#matchIntro{padding:10px;gap:7px}.intro-heading h1{font-size:19px}.intro-heading p{font-size:11px}.intro-cards{grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;align-content:start}.intro-card{padding:6px;gap:2px}.intro-portrait{height:clamp(50px,20vh,90px)}.intro-card>span{font-size:12px}.intro-card strong,.intro-card small{font-size:10px}.intro-footer{font-size:12px}}
 #moves button.garden-region{background:#513174;border-color:#bd8be8;color:#fff}#moves button.garden-region:hover{background:#68408f}#selfDebuffs .buff-icon{box-shadow:0 0 0 1px #7cdeac,0 2px 8px #0008}
+#offlineMode{display:block;width:100%;margin-top:8px;background:#233b3a;border-color:#6faba2}#offlineMode:hover{background:#2d514e}
 </style></head><body><section id="matchIntro" role="region" aria-label="게임 참가자 소개" hidden><header class="intro-heading"><h1>생존자 집결</h1><p>이번 게임에 참가하는 플레이어와 캐릭터</p></header><div id="introCards" class="intro-cards"></div><footer class="intro-footer"><span id="introCountdown">5</span>초 후 게임이 시작됩니다</footer></section>
 
 <div class="wrap">
@@ -385,7 +386,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       <div class="eyebrow">MASODO SURVIVAL</div><h1>마법소녀들의 도시</h1><p class="muted">플레이어명과 서버 주소를 입력해 접속하세요.</p>
       <label for="name">플레이어명</label><input id="name" value="user" placeholder="플레이어명" maxlength="24" autocomplete="nickname" required>
       <label for="serverAddress">서버 주소</label><input id="serverAddress" value="https://masodo-survival-server.cheonbung.workers.dev" type="url" placeholder="https://서버주소.workers.dev" aria-label="서버 주소" required>
-      <button id="connectServer" type="button" disabled>준비 중…</button><p id="serverConnectMessage" class="muted" role="status">게임을 준비하고 있습니다…</p>
+      <button id="connectServer" type="button" disabled>준비 중…</button><button id="offlineMode" type="button" disabled>오프라인 모드</button><p id="serverConnectMessage" class="muted" role="status">게임을 준비하고 있습니다…</p>
     </form>
   </section>
   <section id="lobbyScreen" hidden>
@@ -523,11 +524,13 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 <div class="result-stats"><div class="result-stat">순위<b id="resultRank"></b></div><div class="result-stat">처치<b id="resultKills"></b></div><div class="result-stat">생존 시간<b id="resultTime"></b></div><div class="result-stat">마지막 지역<b id="resultRegion"></b></div></div>
 <p id="resultNote" class="muted"></p><div class="result-actions"><button id="resultWatch">화면 보기</button><button id="resultLobby">로비로 돌아가기</button></div></dialog>
 <script type="module">
+import{installOfflineMode}from"./offline_runtime.js";
 import{MasodoNetworkAdapter}from"./network_adapter.js";
 import{PortraitReactions,EnemyExitReaction}from"./portrait_reactions.js";
 import{MatchIntro}from"./match_intro.js";
 import{DebuffHud}from"./debuff_hud.js";
 import{PORTRAIT_EXPRESSIONS}from"./portrait_expressions.js";const net=new MasodoNetworkAdapter(location.origin),$=s=>document.querySelector(s);let M=null;
+installOfflineMode(net);
 const mobileScreenQuery=matchMedia('(pointer: coarse) and (max-width: 1400px)');
 let mobileHintTimer=null;
 function mobileScreenHint(text){const el=$('#mobileScreenHint');el.textContent=text;el.hidden=false;clearTimeout(mobileHintTimer);mobileHintTimer=setTimeout(()=>el.hidden=true,4500)}
@@ -1308,7 +1311,7 @@ $('#corpses').innerHTML=(m.corpses||[]).length?m.corpses.map(c=>{
 $('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,k,id,qty,rep]=b.dataset.loot.split('|');net.lootCorpse(c,k,id,Number(qty)||1,rep==='1')});
 }
 net.on("build",()=>renderBuild());
-net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent="연결됨";$('#status').className="good";$('#gameStatus').textContent="연결됨";$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={match_starting:"참가자 소개가 끝나면 행동할 수 있습니다.",region_locked:"잠긴 지역으로 이동할 수 없습니다.",encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",pickup_choice_required:"발견한 소모품을 먼저 선택해 주세요.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
+net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent=net.offline?'오프라인 모드':'연결됨';$('#status').className="good";$('#gameStatus').textContent=net.offline?'오프라인 모드':'연결됨';$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{const ko={match_starting:"참가자 소개가 끝나면 행동할 수 있습니다.",region_locked:"잠긴 지역으로 이동할 수 없습니다.",encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",pickup_choice_required:"발견한 소모품을 먼저 선택해 주세요.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
 function openLobbyPanel(id){
  if(!serverReady)return;
  document.querySelectorAll('.lobby-popup[open]').forEach(d=>d.close());
@@ -1385,9 +1388,21 @@ $('#connectServer').onclick=async event=>{
  if(!$('#name').value.trim()){message.textContent='플레이어명을 입력해 주세요.';return}
  $('#name').value=$('#name').value.trim();
  try{url=new URL($('#serverAddress').value.trim());if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw Error();}catch{message.textContent='http:// 또는 https:// 로 시작하는 서버 주소를 입력해 주세요.';return}
- button.disabled=true;setServerControls(false);net.close();net.catalog=null;net.build=null;net.baseUrl=url.origin;message.textContent='서버 연결 중…';
+ button.disabled=true;setServerControls(false);net.close();net.useOnline?.();net.catalog=null;net.build=null;net.baseUrl=url.origin;message.textContent='서버 연결 중…';
  try{await net.loadCatalog();renderBuild();fillCatalog();await refreshRooms();setServerControls(true);message.textContent='서버 연결됨';$('#status').textContent='서버 연결됨';$('#status').className='good';$('#lobbyPlayerName').textContent=$('#name').value;$('#settingsPlayerName').textContent=$('#name').value;showLobby();log('서버 연결됨')}catch(e){setServerControls(false);message.textContent='서버에 연결하지 못했습니다. 주소와 연결 상태를 확인해 주세요.';log(message.textContent)}finally{button.disabled=false}
 };
+async function enterOfflineMode(){
+ const button=$('#offlineMode'),message=$('#serverConnectMessage');button.disabled=true;
+ try{
+  net.useOffline();net.catalog=null;net.build=null;await net.loadCatalog();renderBuild();fillCatalog();setServerControls(true);
+  $('#lobbyPlayerName').textContent=$('#name').value||'user';$('#settingsPlayerName').textContent=$('#name').value||'user';
+  message.textContent='오프라인 모드 · AI 대전';$('#status').textContent='오프라인 모드';$('#gameStatus').textContent='오프라인 모드';showLobby();await refreshRooms();
+  const rooms=(await net.listRooms()).rooms||[],saved=rooms.find(r=>r.phase==='playing');
+  if(saved)await net.connect(saved.code,{playerName:$('#name').value||'user',charId:$('#char').value,startRegion:$('#startRegion').value});
+ }catch(e){setServerControls(false);showLogin();message.textContent='오프라인 모드를 시작하지 못했습니다: '+String(e.message||e)}finally{button.disabled=false}
+}
+$('#offlineMode').onclick=enterOfflineMode;
+$('#offlineMode').disabled=false;
 $('#loginForm').onsubmit=e=>{e.preventDefault();if(!$('#connectServer').disabled)$('#connectServer').click()};
 $('#connectServer').textContent='접속';$('#connectServer').disabled=false;$('#serverConnectMessage').textContent='서버 주소를 입력하고 연결해 주세요.';
 $('#returnLogin').onclick=()=>{net.close();setServerControls(false);M=null;$('#serverConnectMessage').textContent='플레이어명과 서버 주소를 확인하고 접속하세요.';$('#lobbyRoomSummary').textContent='참가 중인 방이 없습니다.';$('#roomState').replaceChildren();showLogin()};

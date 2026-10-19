@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import{buildOfflineRuntime}from"./build_offline_runtime.mjs";
 import path from "node:path";
 
 const root = process.cwd();
@@ -8,6 +9,8 @@ const adapterPath = path.join(publicDir, "network_adapter.js");
 const outputPath = path.join(publicDir, "MasodoSurvival.html");
 
 let html = fs.readFileSync(indexPath, "utf8");
+const offlineRuntime=buildOfflineRuntime(root).replace(/export const /g,"const ");
+html=html.replace('import{installOfflineMode}from"./offline_runtime.js";',offlineRuntime);
 const intro=fs.readFileSync(path.join(publicDir,"match_intro.js"),"utf8").replace("export class MatchIntro","class MatchIntro");
 html=html.replace('import{MatchIntro}from"./match_intro.js";',intro);
 const debuffs=fs.readFileSync(path.join(publicDir,"debuff_hud.js"),"utf8").replace("export class DebuffHud","class DebuffHud");
