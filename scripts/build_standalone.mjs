@@ -25,6 +25,8 @@ function dataUrl(rel) {
   return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
+for(const file of ['Neutral','Angry','Closed','Happy','Contempt','Sad','Embarrassed','Base','Profile']){const rel='/assets/images/user/'+file+'.png';html=html.split(rel).join(dataUrl(rel))}
+
 const bgNames = [
   "city","estate","church","factory",
   "mgmt_lobby","mgmt_admin","mgmt_director","mgmt_cafeteria","mgmt_lab","mgmt_training",
