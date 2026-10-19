@@ -374,6 +374,7 @@ function awardStatusKill(match,victim,sourceId,now,cause){
     if(kfx.killSp)recoverSp(killer,kfx.killSp,match,now);
   }
   createDeathCorpse(match,victim,now);
+  if(killer)reworks.killed(match,killer,victim,now);
   return {killed:true,killerId:killer?.playerId||null};
 }
 function cleanseExpired(p,now){
@@ -408,7 +409,7 @@ export function updatePassiveTime(match,now=Date.now()){
   refreshGardens(match,now);
   reworks.tick(match,now);
   processReworkStrikes(match,now);
-  for(const w of match.wilds||[])if(w.statuses)cleanseExpired(w,now);
+  for(const w of match.wilds||[])if(w.statuses){applyWildStatusTicks(match,w,now);cleanseExpired(w,now);}
   for(const p of match.players){
     if(!p.alive)continue;
     const activeNoises=(match.noises||[]).filter(x=>x.expiresAt>now);
@@ -576,7 +577,8 @@ function recordCombatNotice(match,source,target,damage,kind,now,hit=true){
   match.combatNotices=match.combatNotices.slice(-100);
 }
 function wildCounter(match,p,w,now){
-  if(!p.alive||!w.alive)return 0;
+  if(!p.alive||!w.alive||status(w,"sleep",now)||status(w,"timeStop",now))return 0;
+  const bleeding=status(w,"bleed",now);if(bleeding){w.hp-=2*bleeding.stacks;bleeding.stacks--;if(bleeding.stacks<=0)delete w.statuses.bleed;if(w.hp<=0){finishWildStatusDeath(match,w,bleeding.sourceId,now);return 0;}}
   const t=wildTemplate(w),d=reworks.takeDirect(match,p,w,wildDamage(p,w,match,now)*reworks.reduction(p,w,match,now),now);recordCombatNotice(match,w,p,d,'반격',now);if(d>0)wakeOnDamage(p,now);
   if(t.skill==="bite_bleed"&&Math.random()<.20)applyStatus(p,"bleed",1,10,w.id,now,null,match);
   else if(t.skill==="harass"&&Math.random()<.25)p.nextHitBonus=(p.nextHitBonus||0)-.06;
@@ -589,6 +591,15 @@ function wildCounter(match,p,w,now){
   else if(t.skill==="mana_bite"&&Math.random()<.20)p.sp=Math.max(0,p.sp-8);
   if(p.hp<=0)environmentDeath(match,p,now,false,w,"반격");
   return d;
+}
+function finishWildStatusDeath(m,w,sourceId,n){
+ if(!w.alive)return;w.alive=false;w.hp=0;const p=m.players.find(p=>p.playerId===sourceId&&p.alive);if(!p)return;
+ const wt=wildTemplate(w),id=pick(wt.drop);if(!addItem(p,id)){if(item(id)?.t==='e')offerEquipment(m,p,id);else if(item(id)?.t==='c')offerSearchConsumable(m,p,id);}reworks.killed(m,p,w,n);
+ const f=combinedFx(p,m,n);if(f.killHeal)healPlayer(p,f.killHeal,m,n);if(f.killSp)recoverSp(p,f.killSp,m,n);
+}
+function applyWildStatusTicks(m,w,n){
+ if(!w.alive)return;w.nextStatusTick??=m.startedAt;const poison=w.statuses?.poison;
+ while(w.alive&&w.nextStatusTick+2000<=n){w.nextStatusTick+=2000;if(poison?.until>w.nextStatusTick&&(poison.startedAt??m.startedAt)<=w.nextStatusTick){const wt=wildTemplate(w),count=Object.entries(poison.owners||{[poison.sourceId]:poison.stacks||1}).reduce((sum,[id,c])=>sum+c*(m.players.find(p=>p.playerId===id)?.charId==='c43'?1.25:1),0),d=Math.max(1,Math.round(wt.hp*.02*count));w.hp-=d;wakeOnDamage(w,w.nextStatusTick);recordCombatNotice(m,poison.sourceId,w,d,'독',w.nextStatusTick);if(w.hp<=0)finishWildStatusDeath(m,w,poison.sourceId,w.nextStatusTick);}}
 }
 function clearOneNegativeStatus(p,now=Date.now()){
   for(const id of Object.keys(p.statuses||{})){if(status(p,id,now)){delete p.statuses[id];return true}}
@@ -711,7 +722,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
   d=modifyAttackDamage(match,p,w,d,ctx,now);
   if(t.skill==="guard"&&w.guardReady){w.guardReady=false;d=Math.max(1,Math.round(d*.8))}
   if(skill&&sd.execute)d=w.hp;
-  w.hp-=d;recordCombatNotice(match,p,w,d,skill?'전투 스킬':'일반 공격',now);gainProf(p,1.5,match,now);
+  w.hp-=d;if(d>0)wakeOnDamage(w,now);recordCombatNotice(match,p,w,d,skill?'전투 스킬':'일반 공격',now);gainProf(p,1.5,match,now);
 
   let drop=null,extra=[],killed=false;
   if(w.hp<=0){

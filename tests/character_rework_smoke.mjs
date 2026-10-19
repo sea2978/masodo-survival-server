@@ -48,3 +48,13 @@ for(const id of ['c02','c20','c45','c48']){const {m,p,t}=fresh(id);const a=begin
 // Full map lock cannot strand the movement character's action.
 {const {m,p}=fresh('c18');p.encounter=null;const a=act(m,p,'char_action',{},T+781000);assert.equal(p.region,'city');assert(a.n-(T+781000)>=2000);}
 console.log('PASS: character reworks',cases,'choice/action and hit/miss cases; room payload/save/reload, shields/poison, resistance, own-poison accounting, stopped actions, remote scouts/removal, moved-target validation, persisted barrages, final-city action');
+
+// Reworked effects also run against wildlife, including DOT and sleep counters.
+for(const id of Object.keys(REWORK_CONFIG)){
+ const {m,p}=fresh(id);initWorld(m);const w=m.wilds.find(w=>w.region===p.region);w.hp=1000;p.encounter={kind:'wild',wildId:w.id};const out=act(m,p,'skill');updatePassiveTime(m,out.n+1000);assert(Number.isFinite(w.hp)&&Number.isFinite(p.hp),id);
+}
+{
+ const {m,p}=fresh('c43');initWorld(m);const w=m.wilds.find(w=>w.region==='city');w.hp=100;applyStatus(w,'poison',3,null,p.playerId,T,p,m);const hp=w.hp;updatePassiveTime(m,T+2100);assert(w.hp<hp,'wild poison ticks');
+ w.hp=1;updatePassiveTime(m,T+4100);assert(!w.alive,'wild DOT death is settled');
+}
+console.log('PASS: all 50 reworked combat skills against wildlife and actual poison DOT/death');
