@@ -226,11 +226,12 @@ function craftItem(match,p,id,payload={}){
   return {ok:true,itemId:id,itemName:it.n,...(discarded?{discarded:discarded.id}:{})};
 }
 function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.stacks>0&&(s.until===null||s.until>now)?s:null}
-export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null,guaranteed=false){
+export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null){
   p.statuses??={};const defn=STATUS_DEFS[id];if(!defn)return false;
   if((p.statusImmunity?.[id]||0)>now)return false;
   const targetFx=match?combinedFx(p,match,now):{};
-  if(!guaranteed&&id==="actionDelay"&&targetFx.delayResist&&Math.random()<targetFx.delayResist)return false;
+  const resist=clamp((targetFx.statusResist||0)+(id==="actionDelay"?(targetFx.delayResist||0):0),0,1);
+  if(resist>0&&Math.random()<resist)return false;
   let dur=id==="poison"?(duration??defn.duration):defn.duration;
   if(source&&match&&["slow","bind","sleep","fear","confusion","silence","actionDelay"].includes(id)){
     if((source.eq||[]).includes("spell_amp"))dur*=1.06;
@@ -768,10 +769,13 @@ function charAction(match,p,now){
     const targets=[...match.players,...(match.wilds||[])].filter(q=>q!==p&&q.alive&&q.region===p.region);
     const detected=[];
     for(const q of targets){
-      let affected=false;
-      for(const id of ["bind","actionDelay"])affected=applyStatus(q,id,1,null,p.playerId,now,p,match,true)||affected;
+      let affected=false,bound=false;
+      for(const id of ["bind","actionDelay"]){
+        const applied=Math.random()<clamp(d.gardenStatusChance??1,0,1)&&applyStatus(q,id,1,null,p.playerId,now,p,match);
+        affected=applied||affected;if(id==="bind")bound=applied;
+      }
       if(affected&&q.playerId){
-        detected.push({playerId:q.playerId,name:q.playerName});
+        if(bound)detected.push({playerId:q.playerId,name:q.playerName});
         onTargetDetected(p,q,match,now);
         rememberEnemy(p,{id:q.playerId,name:q.playerName,kind:"player",source:"encounter",hp:Math.max(0,q.hp),maxHp:maxHp(q,match,now),alive:q.alive},now);
       }

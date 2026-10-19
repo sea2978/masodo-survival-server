@@ -683,7 +683,7 @@ export const COMBAT_SKILL_DEFS={
   }
 };
 export const ACTION_SKILL_DEFS={
-  "c01": {"cd": 45, "time": 1, "garden": true},
+  "c01": {"cd": 45, "time": 1, "garden": true, "gardenStatusChance": 1},
   "c02": {
     "cd": 48,
     "time": 0.8,
