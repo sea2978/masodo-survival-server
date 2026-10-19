@@ -1,16 +1,16 @@
 // Small selection dialog; existing game controls and popup layout stay in place.
 export class ReworkUI{
  constructor({state,send,skill,remove,character,region}){this.state=state;this.send=send;this.skill=skill;this.remove=remove;this.character=character;this.region=region;this.dialog=document.createElement('dialog');this.dialog.className='game-popup';this.dialog.setAttribute('aria-label','추가행동 선택');document.body.appendChild(this.dialog);this.dialog.addEventListener('click',e=>{if(e.target===this.dialog)this.dialog.close()});}
- open(){const m=this.state(),p=m?.self,o=p?.reworkOptions;if(!o||(!o.choices.length&&!o.targeted&&!o.objects.length))return this.send({});this.dialog.replaceChildren();const title=document.createElement('h2');title.textContent=this.character(p.charId)?.action||'추가행동';this.dialog.appendChild(title);
+ open(){const m=this.state(),p=m?.self,o=p?.reworkOptions;if(p?.charId==='c51'||!o||(!o.choices.length&&!o.targeted&&!o.objects.length))return this.send({});this.dialog.replaceChildren();const title=document.createElement('h2');title.textContent=this.character(p.charId)?.action||'추가행동';this.dialog.appendChild(title);
  const description=document.createElement('p');description.textContent=this.character(p.charId)?.actionEffectText||'';this.dialog.appendChild(description);
  const select=(label,rows)=>{const box=document.createElement('label');box.style.cssText='display:block;margin:12px 0';box.appendChild(document.createTextNode(label+' '));const el=document.createElement('select');for(const row of rows){const opt=document.createElement('option');opt.value=row.id;opt.textContent=row.name;el.appendChild(opt);}box.appendChild(el);this.dialog.appendChild(box);return el;};
  const target=o.targeted?select('대상',o.targets):null;
  const choice=o.choices.length&&p.charId!=='c51'?select('선택',p.charId==='c04'?o.choices.filter(x=>x.id!==p.rework?.mode):o.choices):null;
  const region=['c07','c18'].includes(p.charId)?select('지역',o.regions.filter(id=>p.charId!=='c18'||id!==p.region).map(id=>({id,name:this.region(id)}))):null;
- const checks=[];if(p.charId==='c51'){for(const row of o.choices){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=row.id;label.style.marginRight='14px';label.appendChild(input);label.appendChild(document.createTextNode(row.name));this.dialog.appendChild(label);checks.push(input);}}
+
  const dispel=p.charId==='c35'&&p.rework?.records?.length?select('제거할 버프',p.rework.records):null;
  const feedback=document.createElement('p');feedback.setAttribute('role','status');this.dialog.appendChild(feedback);
- const go=document.createElement('button');go.textContent='사용';go.disabled=!!(target&&!o.targets.length);go.onclick=()=>{const words=checks.filter(x=>x.checked).map(x=>x.value);if(checks.length&&(words.length<1||words.length>2)){feedback.textContent='키워드를 1~2개 선택하세요.';return;}const x={...(target?{targetId:target.value}:{}),...(choice?{choice:choice.value}:{}),...(region?.value?{region:region.value}:{}),...(words.length?{words}:{}),...(dispel?{dispelKey:dispel.value}:{})};if(this.send(x)!==false)this.dialog.close();};this.dialog.appendChild(go);
+ const go=document.createElement('button');go.textContent='사용';go.disabled=!!(target&&!o.targets.length);go.onclick=()=>{const x={...(target?{targetId:target.value}:{}),...(choice?{choice:choice.value}:{}),...(region?.value?{region:region.value}:{}),...(dispel?{dispelKey:dispel.value}:{})};if(this.send(x)!==false)this.dialog.close();};this.dialog.appendChild(go);
  for(const obj of o.objects||[]){const b=document.createElement('button');b.textContent=obj.name+' · '+obj.seconds+'초';b.style.margin='8px';b.onclick=()=>{if(this.remove(obj.id)!==false)this.dialog.close();};this.dialog.appendChild(b);}
  const close=document.createElement('button');close.textContent='닫기';close.onclick=()=>this.dialog.close();close.style.marginLeft='10px';this.dialog.appendChild(close);this.dialog.showModal();
  }
@@ -20,7 +20,8 @@ export class ReworkUI{
  const objects=document.querySelector('#regionalObjects');if(objects){objects.replaceChildren();for(const row of p?.reworkOptions?.objects||[]){const b=document.createElement('button');b.textContent=row.name+' · '+row.seconds+'초';b.disabled=!!p.pendingAction;b.onclick=()=>this.remove(row.id);objects.appendChild(b);}}
  const r=p?.rework;if(!r){el.textContent='';return;}const names={charge:'흑뢰',spark:'섬뢰',attention:'주목',paint:'물감',soul:'혼령',light:'빛',momentum:'기세',gear:'기어',star:'별',will:'의지',luck:'운',shard:'파편',calamity:'재액',amp:'증폭',feast:'포식',flow:'수류'};
  const modes={blade:'블레이드',rail:'레일건',boost:'부스터',earth:'대지',wind:'바람',life:'생명',attack:'공격형',defense:'방어형',arms:'팔 증강',legs:'다리 증강',card:'카드 계약',wall:'방벽 계약',sword:'대검',barrage:'마력 난사'};
- el.textContent=[(m.reworkRegions||[]).some(o=>o.region===p.region)?'환영 안개: 탐색 시 혼란 주의':'',modes[r.mode],...Object.entries(r.resources||{}).filter(([,v])=>v>0).map(([k,v])=>(names[k]||k)+' '+Math.round(v*10)/10),r.shield>0?'보호막 '+Math.ceil(r.shield):'',r.remoteScout?'원격 정찰: '+this.region(r.remoteScout.region)+' · '+r.remoteScout.names.join(', '):''].filter(Boolean).join(' · ');
+ el.textContent=[(m.reworkRegions||[]).some(o=>o.region===p.region)?'환영 안개: 탐색 시 혼란 주의':'',modes[r.mode],r.keywordTotal!==undefined?'키워드 '+r.keywordTotal+'/'+r.keywordLimit+' · '+(r.keywords||[]).map(x=>x.name+' ×'+x.count).join(' / '):'',...Object.entries(r.resources||{}).filter(([,v])=>v>0).map(([k,v])=>(names[k]||k)+' '+Math.round(v*10)/10),r.shield>0?'보호막 '+Math.ceil(r.shield):'',r.remoteScout?'원격 정찰: '+this.region(r.remoteScout.region)+' · '+r.remoteScout.names.join(', '):''].filter(Boolean).join(' · ');
+ el.title=(r.keywords||[]).map(x=>x.name+' ×'+x.count+': '+x.description).join('\n');
  if(this.dialog.open&&(!p.alive||p.pendingAction||m.phase!=='playing'))this.dialog.close();
  }
 }

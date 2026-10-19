@@ -1,3 +1,4 @@
+import {applyStatus} from "../src/match_engine.js";
 import {CHARACTERS} from '../src/game_data.js';
 import {loadRoom,createHarness} from './room_test_harness.mjs';
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
@@ -130,3 +131,15 @@ console.log('PASS: full HTML offline button -> local catalog/lobby -> character/
  try{await h.room.webSocketMessage(h.sockets[0],JSON.stringify(sent.at(-1)));let saved=await h.room.getMatch();assert.equal(saved.players[0].pendingAction.payload.choice,'rail');Date.now=()=>t+1000;await h.room.completeDueActions(saved,t+1000);assert.equal(saved.players[0].rework.mode,'rail');h.room.sendMatchState(h.sockets[0],saved,{force:true,now:t+1000});for(const msg of h.sockets[0].messages){const incoming=net.acceptStateMessage(msg);if(incoming)net.emit(incoming.type,incoming);}assert(document.querySelector('#reworkState').textContent.includes('레일건'));}finally{Date.now=clock;}
 }
 console.log('PASS: full client additional-action dialog -> module selection -> adapter payload -> room completion -> resource/mode HUD (DOM mocks)');
+
+// Full client: random action is one click, then keyword feedback and incoming cause toast.
+{
+ const h=createHarness(Room,{humans:2,ai:0,now:t}),m=h.match,p=m.players[0],q=m.players[1];p.charId='c51';p.pendingAction=null;q.playerName='알림 시전자';await h.room.saveMatch(m);net.ws={readyState:1,send:s=>sent.push(JSON.parse(s))};net.offline=false;vm.runInContext('clearLocalAction();noticeSnapshot=null',ctx);net.emit('match_state',{match:h.room.snapshot(m,'s0',t)});
+ await document.querySelector('#charAction').onclick();assert.equal(sent.at(-1).type,'command_char_action');assert.equal(sent.at(-1).choice,undefined);assert.equal(sent.at(-1).words,undefined);assert(!vm.runInContext('reworkUI.dialog.open',ctx));
+ const clock=Date.now,oldRandom=Math.random;Date.now=()=>t;
+ const deliver=()=>{for(const msg of h.sockets[0].messages.splice(0)){const incoming=net.acceptStateMessage(msg);if(incoming)net.emit(incoming.type,incoming)}};
+ try{await h.room.webSocketMessage(h.sockets[0],JSON.stringify(sent.at(-1)));deliver();let saved=await h.room.getMatch();const due=saved.players[0].pendingAction.completeAt;Date.now=()=>due;Math.random=()=>.01;await h.room.completeDueActions(saved,due);deliver();assert(document.querySelector('#reworkState').textContent.includes('키워드 1/10'));assert(document.querySelector('#toastStack').children.some(x=>x.children.some(y=>String(y.textContent).includes('추적 획득'))));
+  applyStatus(saved.players[0],'bind',1,null,q.playerId,due,q,saved,'정원 설치');applyStatus(saved.players[0],'actionDelay',1,null,q.playerId,due,q,saved,'정원 설치');h.room.sendMatchState(h.sockets[0],saved,{force:true,now:due});deliver();const alerts=document.querySelector('#toastStack').children;assert(alerts.some(x=>x.children.some(y=>String(y.textContent).includes('알림 시전자')&&String(y.textContent).includes('속박'))&&x.children.some(y=>String(y.textContent).includes('정원 설치'))));const previous=alerts.map(x=>x.children.map(y=>y.textContent).join('|'));h.room.sendMatchState(h.sockets[0],saved,{force:true,now:due});deliver();assert.deepEqual(document.querySelector('#toastStack').children.map(x=>x.children.map(y=>y.textContent).join('|')),previous,'resync does not duplicate toasts');
+ }finally{Date.now=clock;Math.random=oldRandom}
+}
+console.log('PASS: full client random keyword click -> room -> acquisition toast/HUD; incoming status source/cause -> grouped toast; repeated full state deduplicated (DOM mocks)');

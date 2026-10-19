@@ -1,18 +1,20 @@
+import {KEYWORDS,KEYWORD_BY_ID,KEYWORD_LIMIT,keywordCounts,keywordView} from "./keyword_defs.js";
 // Approved character plan, revision 1. All state is JSON data stored with the match.
 export const REWORK_CONFIG={};
 const cds=[35,40,20,35,35,25,20,18,40,35,40,40,50,35,30,25,45,35,30,20,30,40,18,35,30,35,40,30,30,30,35,35,40,30,40,40,30,30,40,35,40,35,35,45,35,35,35,40,30,25];
 const combatCds=[45,50,45,55,40,45,45,45,45,45,45,45,55,45,45,45,50,50,60,40,45,50,40,50,50,45,50,45,45,45,45,50,45,50,50,55,45,50,50,45,55,50,55,50,45,45,55,50,40,45];
-const choices={c02:['fear','confusion'],c03:['poison','bleed'],c04:['blade','rail','boost'],c07:['avatar'],c08:['earth','wind','life'],c16:['shield','bird'],c17:['bleed','slow','silence'],c18:['leap'],c25:['aim','guard'],c26:['thorn','flower'],c29:['card','wall'],c32:['spore','steel','bloom'],c37:['sword','barrage'],c39:['amplify','reverse'],c41:['shell','regen'],c50:['cycle','cleanse'],c51:['tracking','flame','repeat']};
+const choices={c02:['fear','confusion'],c03:['poison','bleed'],c04:['blade','rail','boost'],c07:['avatar'],c08:['earth','wind','life'],c16:['shield','bird'],c17:['bleed','slow','silence'],c18:['leap'],c25:['aim','guard'],c26:['thorn','flower'],c29:['card','wall'],c32:['spore','steel','bloom'],c37:['sword','barrage'],c39:['amplify','reverse'],c41:['shell','regen'],c50:['cycle','cleanse']};
 export const REWORK_LABELS={fear:'공포 선언',confusion:'혼란 선언',poison:'독',bleed:'출혈 / 혈독',slow:'연근독',silence:'신경독',blade:'블레이드',rail:'레일건',boost:'부스터',avatar:'아바타 배치',earth:'대지',wind:'바람',life:'생명',shield:'방패',bird:'새',leap:'초월기동',aim:'명중 길조',guard:'방어 길조',thorn:'가시덩굴',flower:'방패꽃',card:'카드 계약',wall:'방벽 계약',spore:'포자',steel:'강철나무',bloom:'홍련화',sword:'대검',barrage:'마력 난사',amplify:'자기 증폭',reverse:'역증폭',shell:'갑각',regen:'재생',cycle:'순환',cleanse:'세척',tracking:'추적',flame:'화염',repeat:'연타'};
 const targeted=new Set(['c02','c06','c14','c20','c30','c35','c38','c42','c45','c46','c48']);
 for(let n=2;n<=51;n++){const id='c'+String(n).padStart(2,'0');REWORK_CONFIG[id]={cd:cds[n-2],combatCd:combatCds[n-2],choices:choices[id]||[],targeted:targeted.has(id),time:id==='c13'?3:id==='c51'?2:['c20','c42'].includes(id)?(id==='c20'?2:1.5):1,sp:id==='c18'?12:id==='c51'?10:8};}
 REWORK_CONFIG.c18.time=1;
+REWORK_CONFIG.c51.cd=10;REWORK_CONFIG.c51.sp=5;
 const sid=x=>x?.playerId||x?.id;
 const active=(r,k,n)=>r[k]?.until>n?r[k]:null;
 const has=(p,k,n)=>{const s=p.statuses?.[k];return s?.stacks>0&&(s.until===null||s.until>n)?s:null};
 const cap=(x,a,b)=>Math.max(a,Math.min(b,x));
 const defaults={c04:'blade',c08:'life',c09:'defense',c24:'arms',c29:'card',c37:'barrage'};
-export function reworkState(p){return p.rework??=( {mode:defaults[p.charId]||'',resources:{},timed:{},records:{},seenCorpses:[],version:1,attentionDecayAt:0} );}
+export function reworkState(p){return p.rework??=( {mode:defaults[p.charId]||'',resources:{},timed:{},records:{},seenCorpses:[],version:1,attentionDecayAt:0,keywordVersion:2,keywords:[]} );}
 export function createReworkSystem(api){
  const {status,fx,maxHp,heal,sp,apply,notice,known,locked,adjacency,kill,wildDeath,prof,bleed,noise,cleanse,damage}=api;
  function resource(p,k,delta=0,max=3){const r=reworkState(p);r.resources[k]=cap((r.resources[k]||0)+delta,0,max);return r.resources[k]}
@@ -22,7 +24,7 @@ export function createReworkSystem(api){
  function shield(m,p,ratio,seconds,n){const r=reworkState(p),s=live(p,'shield',n),mult=1+(fx(p,m,n).shieldPower||0);timed(p,'shield',seconds,n,{amount:Math.max(s?.amount||0,maxHp(p,m,n)*ratio*mult),name:'보호막'});}
  function getTarget(m,p,x={},n){const id=x.targetId||p.encounter?.targetId||p.encounter?.wildId;const all=[...m.players,...(m.wilds||[])];let t=all.find(t=>sid(t)===id&&t!==p&&t.alive&&t.region===p.region);if(!t&&!id){const contacts=(p.enemyContacts?.[p.region]||[]).map(x=>x.id);t=all.find(t=>t!==p&&t.alive&&t.region===p.region&&(p.isAI||contacts.includes(sid(t))));}return t;}
  function targets(m,p){return [...m.players,...(m.wilds||[])].filter(t=>t!==p&&t.alive&&t.region===p.region)}
- function roll(m,p,t,id,chance,n,stacks=1,duration=null){if(!t||Math.random()>=cap(chance+(fx(p,m,n).statusChance||0),0,1))return false;return apply(t,id,stacks,duration,p.playerId,n,p,m);}
+ function roll(m,p,t,id,chance,n,stacks=1,duration=null,cause=null){if(!t||Math.random()>=cap(chance+(fx(p,m,n).statusChance||0),0,1))return false;return apply(t,id,stacks,duration,p.playerId,n,p,m,cause||api.skillName(p,id==='awe'||id==='fragrance'?'passive':id==='starTarget'?'combat':'action'));}
  function mark(m,p,t,id,seconds,n,data={}){return roll(m,p,t,id,1,n,1,seconds)?Object.assign(t.statuses[id],data):null;}
  function own(p,t,k,n){const s=has(t,k,n);return s?.sourceId===p.playerId?s:null;}
  function consume(p,k,n){const v=live(p,k,n);delete reworkState(p).timed[k];return v;}
@@ -128,13 +130,13 @@ export function createReworkSystem(api){
   if(!hit){if(['c25','c33'].includes(id)&&(!r.lastBadAt||n-r.lastBadAt>=(id==='c25'?4000:5000))){resource(p,id==='c25'?'luck':'calamity',1);r.lastBadAt=n;}return;}
   if(id==='c30')observe(p,t,n);
   if(id==='c10'&&t.playerId)attention(p,n);
-  if(id==='c47')roll(m,p,t,'fragrance',.8,n);
+  if(id==='c47')roll(m,p,t,'fragrance',.8,n,1,null,api.skillName(p,'passive')+' · 공격 적중');
   if(!skill){
    if(id==='c05'){resource(p,'charge',1);r.lastFight=n;}
    if(id==='c06'&&live(p,'moved',n)){resource(p,'spark',1,2);consume(p,'moved',n);timed(p,'sparkExpiry',10,n);}
    if(id==='c38'){let v=live(p,'insight',n);timed(p,'insight',12,n,{targetId:sid(t),count:Math.min(2,v?.targetId===sid(t)?(v.count||0)+1:1)});}
-   if(id==='c39'){resource(p,'amp',1);timed(p,'ampExpiry',10,n);if(consume(p,'reverseAmpReady',n))roll(m,p,t,'reverseAmp',1,n);}
-   if(id==='c43'&&consume(p,'toxin',n))roll(m,p,t,'poison',1,n,2);
+   if(id==='c39'){resource(p,'amp',1);timed(p,'ampExpiry',10,n);if(consume(p,'reverseAmpReady',n))roll(m,p,t,'reverseAmp',1,n,1,null,'역증폭 · 일반 공격 적중');}
+   if(id==='c43'&&consume(p,'toxin',n))roll(m,p,t,'poison',1,n,2,null,api.skillName(p,'action')+' · 일반 공격 적중');
   }
   if(id==='c28')timed(p,'close',8,n,{targetId:sid(t)});
   if(t.charId==='c28'&&live(t,'domain',n))timed(t,'close',8,n,{targetId:sid(p)});
@@ -191,7 +193,7 @@ export function createReworkSystem(api){
    case 'c48':s.rows=[['silence',.8]];if(own(p,t,'chainMark',n)){s.rows.push(['bind',1]);s.removeAfter='chainMark';}break;
    case 'c49':s.mult=1.6+spend('feast')*.2;s.lifesteal=.25;break;
    case 'c50':s.mult=resource(p,'flow')>0?1.9:1.5;if(res('flow'))resource(p,'flow',-1,2);s.rows=[['slow',.8]];break;
-   case 'c51':{const keys=live(p,'words',n)?.keys||[];s.mult=1.6+(keys.includes('flame')?.3:0);if(keys.includes('tracking'))s.hit=.2;if(keys.includes('repeat'))s.hits=2;if(use('wordCombo'))s.damageBonus=.2;s.words=keys;break;}
+   case 'c51':{const keys=[...(r.keywords||[])],c=keywordCounts(keys);s.mult=1.2;s.hit=((c.tracking||0)-(c.scatter||0))*.2;s.damageBonus=Math.max(-.8,((c.amplify||0)-(c.weakness||0))*.2);s.defIgnore=Math.min(1,(c.piercing||0)*.2);s.heal=(c.healing||0)*5;s.restoreSp=(c.vigor||0)*3;s.selfDamage=(c.recoil||0)*5;s.words=keys;r.keywords=[];break;}
   }
   if(id==='c04'&&r.mode==='rail')s.defIgnore=.25;
   return s;
@@ -206,10 +208,10 @@ export function createReworkSystem(api){
   if(s.selfDamage){damage(p,s.selfDamage);if(p.hp<=0)api.environmentDeath(m,p,n,false,null,'스킬 반동');}
   if(s.lifesteal)heal(p,total*s.lifesteal,m,n);
   if(!hit&&s.luckSpent)resource(p,'luck',1);
-  if(hit){for(const[k,ch,stacks=1]of s.rows)roll(m,p,t,k,ch,n,stacks);if(s.removeAfter)delete t.statuses[s.removeAfter];
+  if(hit){for(const[k,ch,stacks=1]of s.rows)roll(m,p,t,k,ch,n,stacks,null,api.skillName(p,'combat'));if(s.removeAfter)delete t.statuses[s.removeAfter];
    if(s.starMark){for(const q of [...m.players,...(m.wilds||[])])if(q.statuses?.starTarget?.sourceId===p.playerId)delete q.statuses.starTarget;mark(m,p,t,'starTarget',30,n);}}
   if(p.charId==='c50')resource(p,'flow',1,2);
-  if(p.charId==='c51'){const keys=s.words||[],keep=keys[0];if(keep)timed(p,'words',30,n,{keys:[keep]});else consume(p,'words',n);reworkState(p).keptWord=keep||null;}
+
  }
  function killed(m,p,t,n){if(p.charId==='c19')resource(p,'soul',1);if(p.charId==='c40'&&(has(t,'fear',n)||has(t,'confusion',n)))heal(p,15,m,n);}
  function options(m,p,n){const cfg=REWORK_CONFIG[p.charId]||{choices:[],targeted:false};const knownIds=(p.enemyContacts?.[p.region]||[]).map(x=>x.id);const ts=targets(m,p).filter(t=>p.isAI||sid(t)===p.encounter?.targetId||sid(t)===p.encounter?.wildId||knownIds.includes(sid(t))).map(t=>({id:sid(t),name:t.playerName||api.wildName(t)}));return {choices:cfg.choices.map(id=>({id,name:REWORK_LABELS[id]})),targeted:cfg.targeted,targets:ts,regions:[p.region,...(adjacency[p.region]||[])].filter(x=>!locked(m,x)),objects:(m.reworkObjects||[]).filter(o=>o.region===p.region&&o.ownerId!==p.playerId&&o.until>n).map(o=>({id:o.id,kind:o.kind,name:o.kind==='avatar'?'아바타 제거':o.kind==='trap'?'부적 해제':'식물 제거',seconds:o.kind==='avatar'||o.kind==='trap'?2:3}))};}
@@ -227,7 +229,7 @@ export function createReworkSystem(api){
   if(p.charId==='c18'&&!m.regionRestrictions?.final){const to=x.region||(adjacency[p.region]||[]).find(t=>!locked(m,t));if(!to||!(adjacency[p.region]||[]).includes(to)||locked(m,to))return {ok:false,error:'invalid_move'};}
   if(p.charId==='c07'&&x.region&&(![p.region,...(adjacency[p.region]||[])].includes(x.region)||locked(m,x.region)))return {ok:false,error:'invalid_move'};
   if(p.charId==='c49'){const c=api.firstCorpse(m,p,n);if(c&&(c.eq?.length||Object.values(c.mat||{}).some(x=>x>0)||Object.values(c.con||{}).some(x=>x>0)))return {ok:false,error:'corpse_loot_first'};if(!c&&(p.satiety||0)<15)return {ok:false,error:'not_enough_satiety'};}
-  if(p.charId==='c51'&&x.words&&(!Array.isArray(x.words)||x.words.length<1||x.words.length>2||new Set(x.words).size!==x.words.length||x.words.some(k=>!cfg.choices.includes(k))))return {ok:false,error:'invalid_words'};
+  if(p.charId==='c51'&&(r.keywords||[]).length>=KEYWORD_LIMIT)return {ok:false,error:'keywords_full'};
   return {ok:true};
  }
  function install(m,p,kind,seconds,n,extra={},max=1){m.reworkObjectSeq=(m.reworkObjectSeq||0)+1;const list=m.reworkObjects??=[];let own=list.filter(x=>x.ownerId===p.playerId&&x.until>n);while(own.length>=max){const old=own.shift();old.until=n;}const o={id:'rw_'+m.reworkObjectSeq,ownerId:p.playerId,region:p.region,kind,startedAt:n,until:n+seconds*1000,...extra};list.push(o);return o;}
@@ -285,7 +287,7 @@ export function createReworkSystem(api){
    case 'c48':mark(m,p,t,'chainMark',15,n);break;
    case 'c49':{const c=api.firstCorpse(m,p,n);if(c){m.corpses.splice(m.corpses.indexOf(c),1);heal(p,20,m,n);}else{p.satiety-=15;heal(p,10,m,n);}res('feast');break;}
    case 'c50':if(res('flow',0,2)){res('flow',-1,2);if(choice==='cycle'){heal(p,12,m,n);sp(p,12,m,n);}else cleanse(p,1,n);}else{sp(p,12,m,n);res('flow',1,2);}break;
-   case 'c51':{const keys=x.words||[choice||'tracking'],old=r.keptWord;if(old&&keys.some(k=>k!==old))timed(p,'wordCombo',30,n);timed(p,'words',30,n,{keys});break;}
+   case 'c51':{const word=KEYWORDS[Math.min(KEYWORDS.length-1,Math.floor(Math.random()*KEYWORDS.length))];(r.keywords??=[]).push(word.id);r.keywordSeq=(r.keywordSeq||0)+1;(r.keywordNotices??=[]).push({...word,id:r.keywordSeq,keywordId:word.id,at:n,total:r.keywords.length});r.keywordNotices=r.keywordNotices.slice(-32);break;}
   }
   return {ok:true,rework:true,choice,resource:{...r.resources},targetId:sid(t)};
  }
@@ -307,6 +309,7 @@ export function createReworkSystem(api){
   m.reworkObjects=(m.reworkObjects||[]).filter(o=>o.until>n&&!locked(m,o.region)&&m.players.some(p=>p.playerId===o.ownerId&&p.alive));
   for(const o of m.reworkObjects)if(o.kind==='flower'&&o.matureAt<=n&&!o.bloomed){const p=m.players.find(p=>p.playerId===o.ownerId);if(p?.region===o.region){shield(m,p,.2,12,n);o.bloomed=true;}}
   for(const p of m.players){if(!p.alive)continue;const r=reworkState(p);
+   if(p.charId==='c51'&&r.keywordVersion!==2){const legacy=r.timed.words?.until>n?r.timed.words.keys||[]:[];r.keywords=legacy.map(k=>({flame:'amplify',repeat:'tracking'}[k]||k)).filter(k=>KEYWORD_BY_ID[k]).slice(0,KEYWORD_LIMIT);delete r.timed.words;delete r.timed.wordCombo;delete r.keptWord;r.keywordVersion=2;}
    if(p.reworkPause){const s=has(p,'timeStop',n);if(!s&&p.reworkPause.until>n&&p.pendingAction)p.pendingAction.completeAt-=p.reworkPause.until-n;if(!s)delete p.reworkPause;}
    if(p.charId==='c05'&&r.resources.charge&&n-(r.lastFight||0)>15000)r.resources.charge=0;
    if(p.charId==='c06'&&r.resources.spark&&!live(p,'sparkExpiry',n))r.resources.spark=0;
@@ -322,6 +325,6 @@ export function createReworkSystem(api){
  }
  function heard(m,p,source,n){if(p.charId==='c15')timed(p,'heard',10,n,{targetId:sid(source)});}
  const display={shield:['보호막','남은 보호막이 직접 전투 피해를 흡수합니다. 독·출혈 피해는 막지 않습니다.'],purified:['정화의 축복','공격력 +25%'],overload:['출력 개방','받는 직접 피해 +20%'],moved:['이동 직후','첫 일반 공격 적중 시 섬뢰를 얻습니다.'],sparkExpiry:['섬뢰 유지','남은 시간 동안 섬뢰를 사용할 수 있습니다.'],broadcast:['라이브 진행','전투 스킬 적중 시 SP 8을 회복합니다.'],moveBoost:['기동 강화','다음 이동 소요시간을 줄입니다. 1회 사용 시 소모합니다.'],wave:['물결','다음 전투 스킬이 강화됩니다.'],art:['묘화 작품','그려둔 작품의 효과를 사용할 수 있습니다.'],poisonLoad:['독 장전','다음 전투 스킬에 선택한 독을 부여합니다.'],momentumExpiry:['기세 유지','기세가 다음 돌격의 위력을 높입니다.'],soulGuard:['영혼불','받는 직접 피해 −20%'],observed:['정밀 관측','관측한 대상에게 저격 위력과 명중률이 증가합니다.'],gearExpiry:['가속 기어','기어가 높을수록 빠르지만 SP 소모가 증가합니다.'],detectOnce:['탐지 준비','다음 탐색의 플레이어 탐지 확률 +25%p'],freeMove:['이동 준비','다음 이동의 SP 소모가 0이 됩니다.'],combo:['연계 준비','다음 전투 스킬의 피해 계수 +30%p'],armHit:['팔 증강 준비','다음 일반 공격 피해 +25%'],aimOnce:['명중 길조','다음 일반 공격 명중률 +20%p'],nextGuard:['방어 길조','다음 직접 피격 피해 −30%'],miracle:['다음 기적','다음 전투 스킬 위력 +25%'],freeSpell:['주문 준비','다음 전투 스킬의 SP 소모가 0이 됩니다.'],domain:['일미터의 법칙','받는 직접 피해 −30%'],cardPierce:['카드 계약','다음 전투 스킬이 방어력 20%를 무시합니다.'],analyzedGuard:['기록 대조','대조한 상대에게 받는 직접 피해 −25%'],potion:['실험약','선택한 실험약이 다음 전투 스킬에 적용됩니다.'],searchOnce:['위험 탐색 준비','다음 탐색의 아이템 발견률 +25%p'],reverse:['벡터 반전','다음 직접 피격 피해를 30% 줄이고 운동량을 저장합니다.'],momentum:['저장 운동량','다음 전투 스킬에 추가 피해로 사용합니다.'],analysis:['술식 해석','해석한 상대의 해제 가능한 강화 효과를 파훼할 수 있습니다.'],invisible:['광학 소거','피탐지 확률 −20%p·이동 소음 억제. 공격 시 해제됩니다.'],memoryChoice:['전생 회상','선택한 전투 형식을 유지합니다.'],insight:['간파','같은 대상에게 명중률과 전투 스킬 위력이 증가합니다.'],revGuard:['검집의 정적','다음 직접 피격 피해 −25%'],reverseAmpReady:['역증폭 준비','다음 일반 공격에 공격력 약화를 시도합니다.'],ampExpiry:['증폭 유지','증폭이 다음 타격의 위력을 높입니다.'],mistConceal:['환영 안개','피탐지 확률 −25%p'],mutation:['키메라 적응','갑각: 방어력 +25% / 재생: 3초마다 HP 4'],mutationStudy:['변이 관찰','관찰한 대상에게 피해 +25%'],toxin:['맹독 농축','다음 일반 공격 적중 시 독 2중첩 부여를 시도합니다.'],heavyMove:['중량 자세','이동·도주 소요시간 +25%'],heavyPrep:['강타 준비','준비 중 받는 직접 피해 −20%'],words:['영창 키워드','선택한 마법어를 다음 영창에 적용합니다.'],wordCombo:['문장 연계','다음 전투 스킬 위력 +20%'],heard:['기척 확인','기척을 확인한 상대에게 첫 일반 공격 명중률 +20%p'],analyzed:['초침 분석','다음 전투 스킬이 강화됩니다.'],hairReady:['모발 포박 준비','다음 전투 스킬의 속박 부여 기본 확률 +20%p'],learned:['방향 학습','직전 피격 상대에게 받는 직접 피해 −25%']};
- function view(m,p,n){const r=reworkState(p),buffs={};for(const[k,b]of Object.entries(r.timed))if(b.until>n)buffs['rw_'+k]={...b,stacks:1,name:b.name||display[k]?.[0]||'고유 효과',description:display[k]?.[1]||'캐릭터 고유 효과가 활성화되어 있습니다.'};return {rework:{mode:r.mode,resources:r.resources,shield:live(p,'shield',n)?.amount||0,records:p.charId==='c35'?live(p,'analysis',n)?.names:undefined,remoteScout:p.intel?.remoteScout},reworkOptions:options(m,p,n),reworkBuffs:buffs};}
+ function view(m,p,n){const r=reworkState(p),buffs={};for(const[k,b]of Object.entries(r.timed))if(b.until>n)buffs['rw_'+k]={...b,stacks:1,name:b.name||display[k]?.[0]||'고유 효과',description:display[k]?.[1]||'캐릭터 고유 효과가 활성화되어 있습니다.'};return {rework:{mode:r.mode,resources:r.resources,...(p.charId==='c51'?{keywords:keywordView(r.keywords),keywordTotal:(r.keywords||[]).length,keywordLimit:KEYWORD_LIMIT,keywordSeq:r.keywordSeq||0,keywordNotices:r.keywordNotices||[]}:{}),shield:live(p,'shield',n)?.amount||0,records:p.charId==='c35'?live(p,'analysis',n)?.names:undefined,remoteScout:p.intel?.remoteScout},reworkOptions:options(m,p,n),reworkBuffs:buffs};}
  return {effects,healObserved,takeDirect,reduction,damageMult,hitBonus,afterDirect,skillSpec,afterSkill,killed,action,validate,tick,moved,afterComplete,afterApplied,heard,view,resource,live,consume,target:getTarget,roll,shield};
 }

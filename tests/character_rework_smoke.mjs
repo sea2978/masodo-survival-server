@@ -9,7 +9,7 @@ function random(v,f){const old=Math.random;Math.random=()=>v;try{return f()}fina
 function act(m,p,type,x={},n=T){const a=random(.5,()=>beginServerAction(m,p,type,x,n));assert(a.ok,JSON.stringify({id:p.charId,type,x,a}));const r=random(.1,()=>completeAction(m,p,a.action.completeAt));assert(r?.ok,JSON.stringify({id:p.charId,type,x,r}));return {r,n:a.action.completeAt};}
 let cases=0;
 for(const [id,cfg] of Object.entries(REWORK_CONFIG))for(const choice of cfg.choices.length?cfg.choices:[null]){
- const {m,p,t}=fresh(id);const x={targetId:t.playerId,...(choice?{choice}:{}),...(id==='c51'?{words:['tracking','flame']}:{})};
+ const {m,p,t}=fresh(id);const x={targetId:t.playerId,...(choice?{choice}:{}),};
  if(id==='c04'&&choice==='blade')reworkState(p).mode='rail';if(id==='c18')x.region='estate';if(id==='c07')x.region='city';
  const a=act(m,p,'char_action',x);assert.equal(p.cdAUntil,a.n+cfg.cd*1000);assert(p.sp>=0);assert(!Number.isNaN(p.hp));
  const saved=structuredClone(m);assert.deepEqual(saved.players[0].rework,p.rework);cases++;

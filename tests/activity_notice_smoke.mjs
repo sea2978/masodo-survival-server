@@ -1,9 +1,10 @@
+import {notifyStatusFeedback} from "../public/status_feedback.js";
 import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
 import {loadRoom,createHarness} from './room_test_harness.mjs';
 import {beginServerAction,completeAction,resolveEventChoice,updatePassiveTime} from '../src/match_engine.js';
 import {MasodoNetworkAdapter} from '../public/network_adapter.js';
 const Room=await loadRoom(),t=1700000000000,h=createHarness(Room,{humans:3,ai:0,now:t}),m=h.match,[p,q,r]=m.players;r.region='factory';
-const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),calls=[],ctx={toast:(...x)=>calls.push(x),I:()=>({}),rname:r=>r};vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('let activityNoticeKey='),source.indexOf('let craftShopCategory=')),ctx);
+const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),calls=[],ctx={notifyStatusFeedback,toast:(...x)=>calls.push(x),I:()=>({}),rname:r=>r};vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('let activityNoticeKey='),source.indexOf('let craftShopCategory=')),ctx);
 ctx.notifyMatchChanges(h.room.snapshot(m,'s0',t));const start=beginServerAction(m,p,'char_action',{},t);assert(start.ok);completeAction(m,p,start.action.completeAt);assert.equal(p.gardenDetectionSeq,1);assert.deepEqual(p.gardenDetectionNotices[0].targets,[{playerId:q.playerId,name:q.playerName}]);await h.room.saveMatch(m);
 const resumed=new Room(h.ctx,h.env),net=new MasodoNetworkAdapter('https://test');resumed.sendMatchState(h.sockets[0],await resumed.getMatch(),{force:true,now:t+1000});const incoming=net.acceptStateMessage(h.sockets[0].messages.at(-1));ctx.notifyMatchChanges(incoming.match);assert.equal(calls.length,1);assert.equal(calls[0][0],'정원 · 속박');assert(calls[0][1].includes('QA1을 속박했습니다.'));ctx.notifyMatchChanges(incoming.match);assert.equal(calls.length,1);
 // Real information event produces a trace alert; it survives stored state and ordered deltas.

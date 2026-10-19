@@ -1,3 +1,4 @@
+import {notifyStatusFeedback} from "../public/status_feedback.js";
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -18,7 +19,7 @@ try{
  a=beginServerAction(m,p,'search',{},t+10000);assert(a.ok);completeAction(m,p,a.action.completeAt+1);assert.equal(p.enemyTraceSeq,1,'same disappearance must not repeat');
 }finally{Math.random=random}
 await h.room.saveMatch(m);const resumed=new Room(h.ctx,h.env),net=new MasodoNetworkAdapter('https://example.test');resumed.sendMatchState(h.sockets[0],await resumed.getMatch(),{force:true,now:t+13000});net.acceptStateMessage(h.sockets[0].messages.at(-1));assert.equal(net.lastMatch.self.enemyTraceSeq,1);assert.equal(net.lastMatch.self.enemyTraceNotices[0].targetId,q.playerId);assert(!net.lastMatch.self.enemyContacts.some(x=>x.id===q.playerId));
-const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),toasts=[],root={hidden:false,innerHTML:''},ctx={I:id=>ITEMS[id],toast:(...x)=>toasts.push(x),$:()=>root,escapeRoomText:x=>x};vm.createContext(ctx);
+const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),toasts=[],root={hidden:false,innerHTML:''},ctx={notifyStatusFeedback,I:id=>ITEMS[id],toast:(...x)=>toasts.push(x),$:()=>root,escapeRoomText:x=>x};vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf("let activityNoticeKey="),source.indexOf("let craftShopCategory=")),ctx);
 ctx.notifyMatchChanges({matchId:m.matchId,self:before});ctx.notifyMatchChanges(net.lastMatch);assert.equal(toasts.length,1);assert(toasts[0][1].includes(q.playerName+'의 흔적이 사라졌습니다.'));ctx.notifyMatchChanges(net.lastMatch);assert.equal(toasts.length,1,'full state replay must not repeat toast');
 vm.runInContext(source.slice(source.indexOf('function renderEnemyContacts('),source.indexOf('function renderOtherSurvivors(')),ctx);ctx.renderEnemyContacts(net.lastMatch);assert(!root.innerHTML.includes(q.playerName));assert(root.innerHTML.includes(r.playerName));assert(!root.innerHTML.includes('enemy-contact-bar'));assert(!root.innerHTML.includes('width:'));

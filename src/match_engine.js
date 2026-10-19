@@ -1,3 +1,4 @@
+import {appendStatusNotice} from "./status_notices.js";
 import {createReworkSystem,REWORK_CONFIG,reworkState} from "./character_reworks.js";
 import {rememberEnemy,rememberIncoming,pruneEnemyTraces} from "./enemy_contacts.js";
 import {updateRegionRestrictions,isRegionLocked} from "./region_restrictions.js";
@@ -21,7 +22,7 @@ const REWORK_STATUS_DEFS={timeStop:{duration:2,max:1},awe:{duration:10,max:1},re
 };
 const char=p=>CHARACTER_BY_ID.get(p.charId)||CHARACTER_BY_ID.get("c01");
 const reworks=createReworkSystem({
- status,fx:combinedFx,maxHp,heal:healPlayer,sp:recoverSp,apply:applyStatus,notice:recordCombatNotice,
+ status,skillName:(p,key)=>char(p)[key],fx:combinedFx,maxHp,heal:healPlayer,sp:recoverSp,apply:applyStatus,notice:recordCombatNotice,
  known:(m,p,t,n,exact)=>{if(!t?.playerId)return;if(exact)rememberEnemy(p,{id:t.playerId,name:t.playerName,kind:'player',source:'encounter',hp:Math.max(0,t.hp),maxHp:maxHp(t,m,n),alive:t.alive},n);else rememberIncoming(p,t,t.playerName,n,'trace');},
  locked:isRegionLocked,adjacency:ADJACENCY,kill:killPlayer,wildDeath:()=>{},prof:gainProf,bleed:triggerBleedAction,
  noise:recordNoise,cleanse:removeAnyStatus,damage:damagePlayer,invincible,environmentDeath,removeStacks:removeStatusStacks,
@@ -33,7 +34,7 @@ function healPlayer(p,amount,m,n=Date.now(),allowLight=true){
 }
 function reworkSkillPrep(p,n){const r=reworkState(p);if(p.charId==='c04'&&r.mode==='rail')return 1.5;if(['c05','c20','c44'].includes(p.charId))return p.charId==='c05'?1.2:1.5;if(p.charId==='c37'&&r.mode==='sword')return 1.2;return .65;}
 function reworkSkillCost(p,base,fx,n){return REWORK_CONFIG[p.charId]?(reworks.live(p,'freeSpell',n)?0:base*(1+(fx.allSp||0))):base;}
-function reworkAIChoice(m,p,n){const cfg=REWORK_CONFIG[p.charId];if(!cfg)return {};let choice=cfg.choices[0];if(p.charId==='c04')choice=reworkState(p).mode==='blade'?'rail':'blade';if(p.charId==='c08')choice=p.hp<p.maxHp*.5?'life':'earth';if(p.charId==='c41')choice=p.hp<p.maxHp*.5?'regen':'shell';if(p.charId==='c50')choice=Object.keys(p.statuses||{}).length?'cleanse':'cycle';return {choice,...(p.charId==='c51'?{words:['tracking','flame']}:{})};}
+function reworkAIChoice(m,p,n){const cfg=REWORK_CONFIG[p.charId];if(!cfg)return {};let choice=cfg.choices[0];if(p.charId==='c04')choice=reworkState(p).mode==='blade'?'rail':'blade';if(p.charId==='c08')choice=p.hp<p.maxHp*.5?'life':'earth';if(p.charId==='c41')choice=p.hp<p.maxHp*.5?'regen':'shell';if(p.charId==='c50')choice=Object.keys(p.statuses||{}).length?'cleanse':'cycle';return {choice,};}
 function reworkCombat(m,p,t,skill,n){
  if(!t?.alive||t.region!==p.region)return {ok:false,error:'target_lost'};
  if(status(t,'timeStop',n))return {ok:false,error:'target_time_stopped'};
@@ -65,7 +66,7 @@ function reworkStrike(m,v,n){
   d=reworks.takeDirect(m,t,p,Math.max(1,Math.round(d)),n);if(d>0)wakeOnDamage(t,n);
   v.total+=Math.min(Math.max(0,(t.hp||0)+d),d);v.hit=true;gainProf(p,1.5,m,n);
   reworks.afterDirect(m,p,t,v.skill,true,d,n);
-  if((p.eq||[]).includes("toxin_kit")&&Math.random()<clamp(.06+(f.statusChance||0),0,.95))applyStatus(t,"poison",1,8,p.playerId,n,p,m);
+  if((p.eq||[]).includes("toxin_kit")&&Math.random()<clamp(.06+(f.statusChance||0),0,.95))applyStatus(t,"poison",1,8,p.playerId,n,p,m,"독성 키트 · 공격 적중");
   applyOnHitStatuses(m,p,t,n);
   if(t.playerId){recordBattle(m,p,t,n);if(t.hp<=0){death=killPlayer(m,p,t,n);killed=!!death?.killed;}}
   else if(t.hp<=0){t.alive=false;t.hp=0;killed=true;const wt=wildTemplate(t);drop=pick(wt.drop);if(!addItem(p,drop)){if(item(drop)?.t==='e')offerEquipment(m,p,drop);else if(item(drop)?.t==='c')offerSearchConsumable(m,p,drop);}if(wt.skill==='supply_cache')for(let i=0;i<2;i++){const x=pick(wt.drop);if(!addItem(p,x)){if(item(x)?.t==='e')offerEquipment(m,p,x);else if(item(x)?.t==='c')offerSearchConsumable(m,p,x);}}}
@@ -310,7 +311,7 @@ function craftItem(match,p,id,payload={}){
   return {ok:true,itemId:id,itemName:it.n,...(discarded?{discarded:discarded.id}:{})};
 }
 function status(p,id,now=Date.now()){const s=p.statuses?.[id];return s&&s.stacks>0&&(s.until===null||s.until>now)?s:null}
-export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null){
+export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.now(),source=null,match=null,cause=null){
   p.statuses??={};const defn=STATUS_DEFS[id]||REWORK_STATUS_DEFS[id];if(!defn)return false;
   if((p.statusImmunity?.[id]||0)>now)return false;
   const targetFx=match?combinedFx(p,match,now):{};
@@ -331,6 +332,7 @@ export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.n
     old.until=Math.min(now+dur*1000,old.until+1000);
     old.startedAt=now;old.durationMs=old.until-now;
     if(sourceId!=null)old.sourceId=sourceId;
+    recordStatusApplication(match,p,id,sourceId,source,now,cause);
     return true;
   }
   p.statuses[id]={stacks:clamp((old&&old.stacks>0&&(old.until===null||old.until>now)?old.stacks:0)+stacks,1,defn.max),until:id==="bleed"?null:now+dur*1000,startedAt:now,durationMs:id==="bleed"?null:dur*1000,sourceId};
@@ -342,8 +344,20 @@ export function applyStatus(p,id,stacks=1,duration=null,sourceId=null,now=Date.n
   }
   if(id==="bind"&&source?.charId==="c48"){p.edenBindImmune??={};p.edenBindImmune[sourceId]=p.statuses[id].until+10000;}
   if(id==="timeStop")p.statuses[id].name="시간정지";
+  recordStatusApplication(match,p,id,sourceId,source,now,cause);
   if(source&&match&&!(id==="sleep"&&wasActive))reworks.afterApplied(match,source,p,id,now);
   return true;
+}
+function recordStatusApplication(m,p,id,sourceId,source,n,cause){
+ if(!p?.playerId)return;
+ const from=source||(sourceId===p.playerId?p:m?.players?.find(q=>q.playerId===sourceId)||m?.wilds?.find(q=>q.id===sourceId));
+ const sourceName=from?.playerName||(from?.templateId?wildTemplate(from)?.n:null)||(sourceId?'알 수 없는 대상':'환경');
+ const reason=cause||(from?.templateId?('반격 · '+(wildTemplate(from)?.skillText||sourceName)):from?.playerId&&from.playerId===p.playerId?char(from).action:from?.playerId?'공격 적중 효과':'환경·이벤트 효과');
+ appendStatusNotice(p,{statusId:id,sourceId:sourceId||from?.playerId||from?.id||null,sourceName,cause:reason,at:n,stacks:p.statuses?.[id]?.stacks||1});
+}
+function notifyGardenDoll(m,p,n){
+ const garden=enemyGarden(m,p,n);if(garden&&p.dollNoticeRegion!==p.region)recordStatusApplication(m,p,'doll',garden.ownerId,null,n,'정원 설치 · 적 정원 지역 진입');
+ if(garden)p.dollNoticeRegion=p.region;else if(p.dollNoticeRegion)delete p.dollNoticeRegion;
 }
 function wakeOnDamage(p,now=Date.now()){
   if(status(p,"sleep",now)){
@@ -419,6 +433,7 @@ export function updatePassiveTime(match,now=Date.now()){
       rememberIncoming(p,{playerId:x.playerId},x.playerName,x.createdAt,"noise");reworks.heard(match,p,{playerId:x.playerId},x.createdAt);p.heardNoiseIds.push(x.id);
     }
     }
+    notifyGardenDoll(match,p,now);
     processDelayedEffects(p,now);cleanseExpired(p,now);updateSatiety(match,p,now);applyStatusTicks(match,p,now);
     p.hp=Math.min(p.hp,maxHp(p,match,now));
   }
@@ -520,7 +535,7 @@ function applyOnHitStatuses(match,p,target,now){
   const fx=combinedFx(p,match,now),one=p.nextStatusBonus||{};
   const chance=(key,base)=>clamp(base+(one[key]||0)+(fx.statusChance||0),0,.95);
   for(const[key,id]of [["poison","poison"],["fear","fear"],["slow","slow"],["confusion","confusion"],["bleed","bleed"],["sleep","sleep"],["bind","bind"]]){
-    const base=fx[key+"Chance"]||0;if(base&&Math.random()<chance(key,base))applyStatus(target,id,1,id==="poison"?8:id==="bleed"?10:id==="slow"?6:id==="bind"?2.5:id==="sleep"?3:5,p.playerId,now,p,match);
+    const base=fx[key+"Chance"]||0;if(base&&Math.random()<chance(key,base))applyStatus(target,id,1,id==="poison"?8:id==="bleed"?10:id==="slow"?6:id==="bind"?2.5:id==="sleep"?3:5,p.playerId,now,p,match,((p.eq||[]).filter(e=>NAMED_GEAR_FX[e]?.[key+"Chance"]).map(e=>item(e)?.n||e).join(" · ")||char(p).passive)+" · 공격 적중 효과");
   }
   p.nextStatusBonus={};
 }
@@ -664,17 +679,17 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   if(skill){
     for(const row of sd.statuses||[]){
       const[id,chance,dur,stacks=1]=row,finalChance=clamp(chance+(fx.statusChance||0),0,.95);
-      if(Math.random()<finalChance)applyStatus(t,id,stacks,dur||null,p.playerId,now,p,match);
+      if(Math.random()<finalChance)applyStatus(t,id,stacks,dur||null,p.playerId,now,p,match,char(p).combat);
     }
-    if(sd.forcePoison)applyStatus(t,"poison",sd.forcePoison,8,p.playerId,now,p,match);
-    if(sd.randomStatus&&Math.random()<clamp(.35+(fx.statusChance||0),0,.95))applyStatus(t,pick(["poison","bleed","slow"]),1,null,p.playerId,now,p,match);
-    if(sd.doubleRandomStatus)for(const id of pick([["poison","bleed"],["poison","slow"],["bleed","slow"]]))if(Math.random()<clamp(.50+(fx.statusChance||0),0,.95))applyStatus(t,id,1,null,p.playerId,now,p,match);
-    if(sd.randomControl&&Math.random()<clamp(sd.randomControl+(fx.statusChance||0),0,.95))applyStatus(t,pick(["slow","bind","fear","confusion","silence"]),1,null,p.playerId,now,p,match);
+    if(sd.forcePoison)applyStatus(t,"poison",sd.forcePoison,8,p.playerId,now,p,match,char(p).combat);
+    if(sd.randomStatus&&Math.random()<clamp(.35+(fx.statusChance||0),0,.95))applyStatus(t,pick(["poison","bleed","slow"]),1,null,p.playerId,now,p,match,char(p).combat);
+    if(sd.doubleRandomStatus)for(const id of pick([["poison","bleed"],["poison","slow"],["bleed","slow"]]))if(Math.random()<clamp(.50+(fx.statusChance||0),0,.95))applyStatus(t,id,1,null,p.playerId,now,p,match,char(p).combat);
+    if(sd.randomControl&&Math.random()<clamp(sd.randomControl+(fx.statusChance||0),0,.95))applyStatus(t,pick(["slow","bind","fear","confusion","silence"]),1,null,p.playerId,now,p,match,char(p).combat);
     if(sd.drainSp)t.sp=Math.max(0,t.sp-sd.drainSp);
     if(sd.mark){p.trackingMarks??={};p.trackingMarks[t.playerId]=now+sd.mark*1000}
   }
 
-  if((p.eq||[]).includes("toxin_kit")&&Math.random()<clamp(.06+(combinedFx(p,match,now).statusChance||0),0,.95))applyStatus(t,"poison",1,8,p.playerId,now,p,match);
+  if((p.eq||[]).includes("toxin_kit")&&Math.random()<clamp(.06+(combinedFx(p,match,now).statusChance||0),0,.95))applyStatus(t,"poison",1,8,p.playerId,now,p,match,"독성 키트 · 공격 적중");
   applyOnHitStatuses(match,p,t,now);
   const death=t.hp<=0?killPlayer(match,p,t,now,!!(skill&&sd.execute)):null,killed=!!death?.killed;
   if(skill)applySkillSelfEffects(match,p,sd,d,killed,now);
@@ -887,7 +902,7 @@ function charAction(match,p,now,payload={}){
     for(const q of targets){
       let affected=false,bound=false;
       for(const id of ["bind","actionDelay"]){
-        const applied=Math.random()<clamp(d.gardenStatusChance??1,0,1)&&applyStatus(q,id,1,null,p.playerId,now,p,match);
+        const applied=Math.random()<clamp(d.gardenStatusChance??1,0,1)&&applyStatus(q,id,1,null,p.playerId,now,p,match,char(p).action);
         affected=applied||affected;if(id==="bind")bound=applied;
       }
       if(affected&&q.playerId){
@@ -905,7 +920,7 @@ function charAction(match,p,now,payload={}){
   }
   if(d.selfDebuffs){
     p.statusImmunity??={};
-    for(const id of ["poison","bleed","slow","bind","sleep","fear","confusion","silence","actionDelay"]){delete p.statusImmunity[id];applyStatus(p,id,1,null,p.playerId,now,null,match)}
+    for(const id of ["poison","bleed","slow","bind","sleep","fear","confusion","silence","actionDelay"]){delete p.statusImmunity[id];applyStatus(p,id,1,null,p.playerId,now,null,match,char(p).action)}
   }
   if(d.heal)healPlayer(p,d.heal,match,now);
   if(d.sp)recoverSp(p,d.sp,match,now);
@@ -1425,13 +1440,13 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
 
   if(/독성 상태|중독/.test(text)){
     const pm=text.match(/(\d+)%[^/]*(?:독성 상태|중독)/);
-    if(!pm||Math.random()<+pm[1]/100)applyStatus(p,"poison",1,8,null,now,null,match);
+    if(!pm||Math.random()<+pm[1]/100)applyStatus(p,"poison",1,8,null,now,null,match,"특수 이벤트: "+e.name+" / "+choice.label);
   }
   for(const[ko,id]of[["혼란","confusion"],["공포","fear"],["수면","sleep"]]){
     const m=text.match(new RegExp(ko+"\\s*(\\d+)초"));
     if(m){
       const prefix=text.slice(Math.max(0,(m.index||0)-18),m.index||0),pm=prefix.match(/(\d+)%[^%]*$/);
-      if(!pm||Math.random()<+pm[1]/100)applyStatus(p,id,1,+m[1],null,now,null,match);
+      if(!pm||Math.random()<+pm[1]/100)applyStatus(p,id,1,+m[1],null,now,null,match,"특수 이벤트: "+e.name+" / "+choice.label);
     }
   }
 
@@ -1496,8 +1511,8 @@ export function resolveEventChoice(match,p,index,now=Date.now()){
   if((mmod=text.match(/이후 SP회복 -(\d+)% (\d+)초/)))addTemp(p,{spRecovery:-(+mmod[1]/100)},+mmod[2],now);
   if((mmod=text.match(/포만도 \+(\d+)/)))p.satiety=clamp((p.satiety??100)+(+mmod[1]),0,100);
   if(/출혈 (?:지속시간|중첩) 50% 감소/.test(text)){const s=status(p,'bleed',now);if(s)removeStatusStacks(p,'bleed',Math.ceil(s.stacks*.5))}
-  if((mmod=text.match(/(\d+)% 상태이상/))&&Math.random()<+mmod[1]/100)applyStatus(p,pick(["poison","bleed","slow","fear","confusion"]),1,null,null,now,null,match);
-  if((mmod=text.match(/(\d+)% 혼란(?!\s*\d)/))&&Math.random()<+mmod[1]/100)applyStatus(p,"confusion",1,5,null,now,null,match);
+  if((mmod=text.match(/(\d+)% 상태이상/))&&Math.random()<+mmod[1]/100)applyStatus(p,pick(["poison","bleed","slow","fear","confusion"]),1,null,null,now,null,match,"특수 이벤트: "+e.name+" / "+choice.label);
+  if((mmod=text.match(/(\d+)% 혼란(?!\s*\d)/))&&Math.random()<+mmod[1]/100)applyStatus(p,"confusion",1,5,null,now,null,match,"특수 이벤트: "+e.name+" / "+choice.label);
   recordAdvancedEventIntel(match,p,text,now);
 
   if(/다른 플레이어.*흔적|최근.*플레이어 흔적|출입 흔적|최근.*방문 플레이어/.test(text)){

@@ -1152,4 +1152,4 @@ export const NAMED_GEAR_FX={
 };
 
 // Replace, never add to the retired character effects.
-for(const [id,c] of Object.entries(REWORK_CONFIG)){PASSIVE_FX[id]=id==="c37"?{revive:true}:{};COMBAT_SKILL_DEFS[id]={mult:1.5,sp:12,cd:c.combatCd,rework:true};ACTION_SKILL_DEFS[id]={cd:c.cd,time:c.time,rework:true};}
+for(const [id,c] of Object.entries(REWORK_CONFIG)){PASSIVE_FX[id]=id==="c37"?{revive:true}:{};COMBAT_SKILL_DEFS[id]={mult:id==="c51"?1.2:1.5,sp:12,cd:c.combatCd,rework:true};ACTION_SKILL_DEFS[id]={cd:c.cd,time:c.time,rework:true};}
