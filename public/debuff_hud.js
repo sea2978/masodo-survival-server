@@ -12,6 +12,8 @@ const DEBUFF_ICONS={
  actionDelay:{name:'행동지연',color:'#df9674',seconds:10,max:1,icon:'<path d="M5 3h14M5 21h14M7 3v5l10 8v5M17 3v5L7 16v5M9 18h6"/>',describe:()=> '탐색·이동·공격·스킬·휴식·제작 등 일반 행동의 소요시간이 25% 증가합니다.'}
 };
 
+const FIXED_STATUS_IDS=new Set(Object.keys(DEBUFF_ICONS));
+const KEYWORD_SYMBOLS={tracking:'<circle cx="12" cy="12" r="6"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/>',amplify:'<path d="m3 16 5-5 4 4 8-11m-6 0h6v6"/>',piercing:'<path d="M3 21 21 3m-8 0h8v8M5 5v10h10"/>',healing:'<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6Z"/>',vigor:'<path d="m13 2-8 12h6l-1 8 9-13h-6Z"/>',scatter:'<path d="M12 12 3 3m9 9 9-9m-9 9-9 9m9-9 9 9M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"/>',weakness:'<path d="m3 8 5 5 4-4 8 11m-6 0h6v-6"/>',recoil:'<path d="m13 2 2 7 7 3-7 3-2 7-4-7-7-3 7-3Z"/>'};
 export class DebuffHud{
  constructor(root,bubble){
   this.root=root;this.bubble=bubble;this.buttons=new Map();this.rows={};this.frame=null;this.active=null;this.pinned=false;this.anchor=null;this.key=null;
@@ -30,7 +32,7 @@ export class DebuffHud{
   if(!this.anchor||sample>this.anchor.serverNow)this.anchor={serverNow:sample,at:performance.now()};
   this.rows={...(m.self.statuses||{}),...(m.self.buffs||{})};
   const labels={timeStop:['시간정지','신규 행동과 진행 중 행동의 준비가 잠시 멈춥니다.'],awe:['용의 위압','공격력 −20%'],reverseAmp:['역증폭','공격력 −25%'],fragrance:['이상향의 향기','공격력 −20%'],talisman:['부적 표식','유여울의 공격에 취약해집니다.'],starTarget:['집착 대상','임루나의 추적과 명중 보정 대상입니다.'],domination:['지배','다음 전투 스킬 준비시간 +25%. 사용하면 소모됩니다.'],suggestion:['암시','량아 레하의 다음 전투 스킬이 강화됩니다.'],chainMark:['사슬 표식','에덴의 다음 전투 스킬에 속박 시도가 추가됩니다.']};
-  for(const [id,row]of Object.entries(this.rows))if(!DEBUFF_ICONS[id]){const info=labels[id]||[row.name||'고유 효과',row.description||'캐릭터 고유 효과'];DEBUFF_ICONS[id]={name:info[0],color:id.startsWith('rw_')?'#7cdeac':'#c797db',seconds:10,max:1,icon:'<circle cx="12" cy="12" r="8"/><path d="M12 7v6m0 3v1"/>',describe:()=>info[1]};}
+  for(const [id,row]of Object.entries(this.rows))if(!FIXED_STATUS_IDS.has(id)){const info=labels[id]||[row.name||'고유 효과',row.description||'캐릭터 고유 효과'];DEBUFF_ICONS[id]={name:info[0],color:row.good===false?'#f16c7d':row.category==='mode'?'#75b9e7':row.category==='resource'?'#ebbf6b':id.startsWith('rw_')?'#7cdeac':'#c797db',seconds:10,max:row.maxStacks||1,icon:KEYWORD_SYMBOLS[row.keywordId]||(row.category==='mode'?'<path d="m12 2 9 10-9 10-9-10Z"/><circle cx="12" cy="12" r="3"/>':'<circle cx="12" cy="12" r="8"/><path d="M12 7v6m0 3v1"/>'),describe:()=>info[1]};}
   if(this.frame!==null)cancelAnimationFrame(this.frame);this.frame=null;this.paint();
  }
  show(id,pin=false){
@@ -42,8 +44,8 @@ export class DebuffHud{
  }
  describe(){
   if(!this.active)return;const info=DEBUFF_ICONS[this.active],s=this.rows[this.active];if(!s){this.hide();return}
-  const left=this.active==='bleed'?null:Math.max(0,(s.until-this.now())/1000);
-  const title=s.name||info.name,detail=s.description||info.describe(s.stacks),foot=left===null?`${s.stacks} / ${info.max}중첩 · 원형 게이지는 남은 중첩`:`남은 시간 ${left.toFixed(1)}초${info.max>1?' · '+s.stacks+'중첩':''}`;
+  const left=this.active==='bleed'||s.until===null?null:Math.max(0,(s.until-this.now())/1000);
+  const title=s.name||info.name,detail=s.description||info.describe(s.stacks),foot=left===null?(this.active==='bleed'?`${s.stacks} / ${info.max}중첩 · 원형 게이지는 남은 중첩`:s.category==='mode'?'장착 중 · '+(s.retention||'전환할 때까지 유지'):`${s.stacks} / ${s.maxStacks||info.max}중첩 · ${s.retention||'고유 조건에 따라 소모·감소'}`):`남은 시간 ${left.toFixed(1)}초${info.max>1?' · '+s.stacks+'중첩':''}`;
   const key=title+detail+foot;if(this.bubbleKey===key)return;this.bubbleKey=key;
   this.bubble.replaceChildren();for(const [tag,content]of [['strong',title],['span',detail],['small',foot]]){const el=document.createElement(tag);el.textContent=content;this.bubble.appendChild(el)}
  }
@@ -57,11 +59,11 @@ export class DebuffHud{
  paint(){
   this.frame=null;if(!this.anchor)return;const now=this.now();let ticking=false;
   for(const [id,info]of Object.entries(DEBUFF_ICONS)){
-   const s=this.rows[id],active=s?.stacks>0&&(id==='bleed'||s.until>now);
+   const s=this.rows[id],active=s?.stacks>0&&(id==='bleed'||s.until===null||s.until>now);
    let b=this.buttons.get(id);
    if(!active){if(b){if(this.active===id)this.hide();b.remove();this.buttons.delete(id)}continue}
    if(!b){
-    b=document.createElement('button');b.type='button';b.className='debuff-icon'+(id==='gardenPassive'||id.startsWith('rw_')?' buff-icon':'');b.dataset.debuff=id;
+    b=document.createElement('button');b.type='button';b.className='debuff-icon'+(s.good!==false&&(id==='gardenPassive'||id.startsWith('rw_'))?' buff-icon':'');b.dataset.debuff=id;
     b.style.setProperty('--debuff-color',info.color);b.setAttribute('aria-label',s.name||info.name);
     b.innerHTML='<svg class="debuff-timer" viewBox="0 0 40 40" aria-hidden="true"><circle class="debuff-track" cx="20" cy="20" r="18"/><circle class="debuff-ring" cx="20" cy="20" r="18" pathLength="100"/></svg><svg class="debuff-symbol" viewBox="0 0 24 24" aria-hidden="true">'+info.icon+'</svg>';
     b.addEventListener('mouseenter',()=>{if(!this.pinned)this.show(id)});b.addEventListener('mouseleave',()=>{if(!this.pinned)this.hide()});
@@ -70,11 +72,12 @@ export class DebuffHud{
     this.buttons.set(id,b);
    }
    const duration=s.durationMs>0?s.durationMs:Math.max(info.seconds*1000||1,s.until-(s.startedAt??now));
-   const ratio=id==='bleed'?s.stacks/info.max:(s.until-now)/duration;
+   const ratio=id==='bleed'||s.until===null?s.stacks/(s.maxStacks||info.max):(s.until-now)/duration;
+   if(s.category){if(!b.stackBadge){b.stackBadge=document.createElement('span');b.stackBadge.className='gimmick-count';b.stackBadge.setAttribute('aria-hidden','true');b.appendChild(b.stackBadge);}b.stackBadge.textContent=s.category==='mode'?'장':String(Math.round(s.stacks*10)/10);b.setAttribute('aria-label',(s.name||info.name)+(s.category==='mode'?' · 장착 중':' · '+s.stacks+'중첩'));}
    b.style.setProperty('--debuff-offset',String(100*(1-Math.max(0,Math.min(1,ratio)))));
    // Append only on snapshot changes/new icons so pointer focus remains stable while timers tick.
    if(!b.parentNode)this.root.appendChild(b);
-   if(id!=='bleed')ticking=true;
+   if(id!=='bleed'&&s.until!==null)ticking=true;
   }
   this.root.hidden=this.buttons.size===0;
   if(this.active){this.describe();this.position()}
