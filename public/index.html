@@ -220,6 +220,8 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 .scene-action-dock .scene-primary-row{right:var(--action-edge);bottom:var(--action-edge);gap:var(--action-gap)}
 .scene-action-dock .scene-secondary-row{right:var(--action-edge);bottom:calc(var(--action-edge) + var(--action-diameter) + var(--action-gap))}
 .scene-action-dock .scene-secondary-row.flee-row{right:calc(var(--action-edge) + var(--action-diameter) + var(--action-gap))}
+.scene-action-dock .scene-secondary-row.action-choice-row{bottom:calc(var(--action-edge) + 2 * (var(--action-diameter) + var(--action-gap)))}
+#actionChoiceRow[hidden]{display:none!important}
 .scene-action-dock button.btn,.scene-action-dock button.scene-main-btn.primary-float,.scene-action-dock button.scene-main-btn.skill-float{width:var(--action-diameter);height:var(--action-diameter);min-width:var(--action-diameter);min-height:var(--action-diameter);max-width:var(--action-diameter);max-height:var(--action-diameter);flex:0 0 var(--action-diameter);border-radius:50%;box-sizing:border-box;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:13px;line-height:1.2;white-space:normal;overflow-wrap:anywhere}
 .scene-action-dock .scene-main-btn b{font-size:11px;line-height:1.25}.scene-action-dock .btn-kicker{font-size:9px}
 @media(max-width:820px){.scene-action-dock{--action-diameter:76px;--action-gap:8px;--action-edge:10px}}
@@ -499,6 +501,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
     <dialog id="infoPanel" class="game-popup"><div class="popup-head"><h2>플레이어 목록</h2><button data-close-panel>닫기</button></div><button id="refresh">상태 갱신</button><div id="others" class="scroll compact-list"></div></dialog>
     <footer class="scene-action-dock">
+      <div id="actionChoiceRow" class="scene-secondary-row action-choice-row" hidden><button id="actionChoiceCycle" type="button" class="btn" aria-label="종류 변경">종류 변경</button></div>
       <div class="scene-secondary-row rest-row"><button id="rest" class="btn">휴식</button></div>
       <div id="exploreControls" class="scene-controls-group">
         <div id="exploreActionRow" class="scene-primary-row"><button id="search" class="btn primary scene-main-btn primary-float">탐색</button><button id="charAction" class="btn scene-main-btn skill-float"><span class="btn-kicker">추가 행동</span><b id="actionSkillName">추가 행동</b></button></div>

@@ -33,6 +33,8 @@ jobs:
         run: npm run test:garden && npm run test:garden-resistance && npm run test:garden-aura
       - name: Debuff provenance and random keywords
         run: npm run test:keywords-notices
+      - name: Action type rotation and selected skill execution
+        run: npm run test:action-choice-cycle
       - name: Approved roster reworks and interaction tests
         run: npm run test:reworks
       - name: Active skill bonus tuning
