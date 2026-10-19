@@ -9,7 +9,7 @@ export const REWORK_LABELS={fear:'공포 선언',confusion:'혼란 선언',poiso
 const targeted=new Set(['c02','c06','c14','c20','c30','c35','c38','c42','c45','c46','c48']);
 for(let n=2;n<=51;n++){const id='c'+String(n).padStart(2,'0');REWORK_CONFIG[id]={cd:cds[n-2],combatCd:combatCds[n-2],choices:choices[id]||[],targeted:targeted.has(id),time:id==='c13'?3:id==='c51'?2:['c20','c42'].includes(id)?(id==='c20'?2:1.5):1,sp:id==='c18'?12:id==='c51'?10:8};}
 REWORK_CONFIG.c18.time=1;
-REWORK_CONFIG.c51.cd=10;REWORK_CONFIG.c51.sp=5;
+REWORK_CONFIG.c51.cd=3;REWORK_CONFIG.c51.sp=5;
 const sid=x=>x?.playerId||x?.id;
 const active=(r,k,n)=>r[k]?.until>n?r[k]:null;
 const has=(p,k,n)=>{const s=p.statuses?.[k];return s?.stacks>0&&(s.until===null||s.until>n)?s:null};

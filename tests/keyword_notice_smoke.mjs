@@ -8,10 +8,10 @@ function fresh(id='c51'){const h=createHarness(Room,{humans:3,ai:0,now:T}),m=h.m
 function fixed(v,fn){const old=Math.random;Math.random=()=>v;try{return fn()}finally{Math.random=old}}
 function act(m,p,type,x={},n=T,draw=.1){const a=beginServerAction(m,p,type,x,n);assert(a.ok,JSON.stringify(a));const result=fixed(draw,()=>completeAction(m,p,a.action.completeAt));assert(result?.ok,JSON.stringify(result));return {result,n:a.action.completeAt};}
 assert.equal(KEYWORDS.length,8);assert.equal(KEYWORDS.filter(x=>x.good).length,5);assert.equal(KEYWORD_LIMIT,10);
-for(let i=0;i<8;i++){const {m,p}=fresh(),before=p.sp;const out=act(m,p,'char_action',{},T,(i+.5)/8);assert.deepEqual(p.rework.keywords,[KEYWORDS[i].id]);assert.equal(p.sp,before-5);assert.equal(p.cdAUntil,out.n+10000);assert.equal(p.rework.keywordNotices[0].name,KEYWORDS[i].name);assert.equal(p.rework.keywordNotices[0].id,1);}
+for(let i=0;i<8;i++){const {m,p}=fresh(),before=p.sp;const out=act(m,p,'char_action',{},T,(i+.5)/8);assert.deepEqual(p.rework.keywords,[KEYWORDS[i].id]);assert.equal(p.sp,before-5);assert.equal(p.cdAUntil,out.n+3000);assert.equal(p.rework.keywordNotices[0].name,KEYWORDS[i].name);assert.equal(p.rework.keywordNotices[0].id,1);assert.equal(p.cdADuration,3);assert.equal(beginServerAction(m,p,'char_action',{},out.n+2999).error,'action_cooldown');assert(beginServerAction(m,p,'char_action',{},out.n+3000).ok);}
 {
  const {m,p}=fresh();let now=T;
- for(let n=0;n<10;n++){const out=act(m,p,'char_action',{},now,.01);now=out.n+10000;}
+ for(let n=0;n<10;n++){const out=act(m,p,'char_action',{},now,.01);now=out.n+3000;}
  assert.equal(p.rework.keywords.length,10);assert(p.rework.keywords.every(x=>x==='tracking'));const before={sp:p.sp,cd:p.cdAUntil};assert.equal(beginServerAction(m,p,'char_action',{},now).error,'keywords_full');assert.equal(p.sp,before.sp);assert.equal(p.cdAUntil,before.cd);
  updatePassiveTime(m,now+100000);assert.equal(p.rework.keywords.length,10,'no timed expiry');
  const view=publicPlayer(m,p,now+100000,false);assert.equal(view.rework.keywordTotal,10);assert.equal(view.rework.keywords[0].count,10);
@@ -56,4 +56,4 @@ assert.equal(shot(['tracking'],.9).result.hit,true);assert.equal(shot(['scatter'
  const h=fresh(),{m,p}=h;await h.room.saveMatch(m);const clock=Date.now;Date.now=()=>T;
  try{await h.room.webSocketMessage(h.sockets[0],JSON.stringify({type:'command_char_action',words:['healing']}));let saved=await h.room.getMatch();const due=saved.players[0].pendingAction.completeAt;Date.now=()=>due;fixed(.01,()=>completeAction(saved,saved.players[0],due));assert.deepEqual(saved.players[0].rework.keywords,['tracking']);await h.room.saveMatch(saved);const loaded=await new Room(h.ctx,h.env).getMatch();assert.deepEqual(loaded.players[0].rework.keywords,['tracking']);}finally{Date.now=clock;}
 }
-console.log('PASS: all 8 equal-probability outcomes, CD10/SP5, duplicates/cap10, no expiry, 120% shot, every stacked effect, hit/miss/target-loss, legacy migration, successful-only debuff provenance, self/event/wild/garden causes, grouping/deduplication, private snapshots and save/reload');
+console.log('PASS: all 8 equal-probability outcomes, CD3/SP5, duplicates/cap10, no expiry, 120% shot, every stacked effect, hit/miss/target-loss, legacy migration, successful-only debuff provenance, self/event/wild/garden causes, grouping/deduplication, private snapshots and save/reload');
