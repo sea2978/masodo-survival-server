@@ -1084,7 +1084,7 @@ export function actionDuration(match,p,type,payload={},now=Date.now()){
     sec=payload.kind==="eq"?1.2:payload.kind==="con" ? .9:Math.min(1.5,.65+.12*Math.max(0,qty-1));
   }
   sec*=Math.max(.65,1+(combinedFx(p,match,now).actionTime||0));
-  if(type==="skill"&&REWORK_CONFIG[p.charId])sec=reworkSkillPrep(p,now)*(1+(fx.skillPrep||0));
+  if(type==="skill"&&REWORK_CONFIG[p.charId])sec=reworkSkillPrep(p,now)*(1+(fx.skillPrep||0))*(p.charId==="c21"?1+(fx.prep||0):1);
   if(type==="char_action"&&p.charId==="c18"&&now-match.startedAt>=780000)sec=2;
   if(type==="remove_object")sec=(match.reworkObjects||[]).find(o=>o.id===payload.objectId)?.kind==="avatar"||(match.reworkObjects||[]).find(o=>o.id===payload.objectId)?.kind==="trap"?2:3;
   if(type==="skill"&&status(p,"domination",now))sec*=1.25;

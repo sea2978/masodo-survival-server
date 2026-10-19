@@ -46,7 +46,7 @@ const combatCds=[45,50,45,55,40,45,45,45,45,45,45,45,55,45,45,45,50,50,60,40,45,
 const choices={c02:['fear','confusion'],c03:['poison','bleed'],c04:['blade','rail','boost'],c07:['avatar'],c08:['earth','wind','life'],c16:['shield','bird'],c17:['bleed','slow','silence'],c18:['leap'],c25:['aim','guard'],c26:['thorn','flower'],c29:['card','wall'],c32:['spore','steel','bloom'],c37:['sword','barrage'],c39:['amplify','reverse'],c41:['shell','regen'],c50:['cycle','cleanse'],c51:['tracking','flame','repeat']};
 const REWORK_LABELS={fear:'공포 선언',confusion:'혼란 선언',poison:'독',bleed:'출혈 / 혈독',slow:'연근독',silence:'신경독',blade:'블레이드',rail:'레일건',boost:'부스터',avatar:'아바타 배치',earth:'대지',wind:'바람',life:'생명',shield:'방패',bird:'새',leap:'초월기동',aim:'명중 길조',guard:'방어 길조',thorn:'가시덩굴',flower:'방패꽃',card:'카드 계약',wall:'방벽 계약',spore:'포자',steel:'강철나무',bloom:'홍련화',sword:'대검',barrage:'마력 난사',amplify:'자기 증폭',reverse:'역증폭',shell:'갑각',regen:'재생',cycle:'순환',cleanse:'세척',tracking:'추적',flame:'화염',repeat:'연타'};
 const targeted=new Set(['c02','c06','c14','c20','c30','c35','c38','c42','c45','c46','c48']);
-for(let n=2;n<=51;n++){const id='c'+String(n).padStart(2,'0');REWORK_CONFIG[id]={cd:cds[n-2],combatCd:combatCds[n-2],choices:choices[id]||[],targeted:targeted.has(id),time:id==='c13'?3:id==='c51'?2:['c14','c20','c42'].includes(id)?(id==='c20'?2:1.5):1,sp:id==='c18'?12:id==='c51'?10:8};}
+for(let n=2;n<=51;n++){const id='c'+String(n).padStart(2,'0');REWORK_CONFIG[id]={cd:cds[n-2],combatCd:combatCds[n-2],choices:choices[id]||[],targeted:targeted.has(id),time:id==='c13'?3:id==='c51'?2:['c20','c42'].includes(id)?(id==='c20'?2:1.5):1,sp:id==='c18'?12:id==='c51'?10:8};}
 REWORK_CONFIG.c18.time=1;
 const sid=x=>x?.playerId||x?.id;
 const active=(r,k,n)=>r[k]?.until>n?r[k]:null;
@@ -289,7 +289,7 @@ function createReworkSystem(api){
    case 'c11':healed(has(p,'slow',n)?'slow':'actionDelay');buff(p,'moveBoost',12,n,{moveTime:-.30},{uses:1});timed(p,'wave',10,n);break;
    case 'c12':{const o=install(m,p,'trap',30,n);triggerObject(m,o,n);break;}
    case 'c13':heal(p,20,m,n);api.removeStacks(p,'bleed',2);break;
-   case 'c14':if(mark(m,p,t,'timeStop',2,n)){const old=t.pendingAction;if(old){old.completeAt+=2000;r.stoppedActionId=old.startedAt;t.reworkPause={until:n+2000,sourceId:p.playerId};}t.statusImmunity??={};t.statusImmunity.timeStop=n+17000;}break;
+   case 'c14':if(mark(m,p,t,'timeStop',2,n)){const pause=t.statuses.timeStop.until-n,old=t.pendingAction;if(old){old.completeAt+=pause;r.stoppedActionId=old.startedAt;t.reworkPause={until:n+pause,sourceId:p.playerId};}t.statusImmunity??={};t.statusImmunity.timeStop=n+pause+15000;}break;
    case 'c15':scan(m,p,n);break;
    case 'c16':if(live(p,'art',n)?.kind==='shield')consume(p,'shield',n);res('paint',-1);if(choice==='shield'){shield(m,p,.2,12,n);timed(p,'art',12,n,{kind:'shield'});}else timed(p,'art',15,n,{kind:'bird'});break;
    case 'c17':timed(p,'poisonLoad',25,n,{kind:choice});break;
@@ -332,7 +332,7 @@ function createReworkSystem(api){
  }
  function dispelNames(t,n){const r=reworkState(t);return Object.entries(r.timed).filter(([k,v])=>v.until>n&&['shield','art','domain','potion','mutation','invisible','nextGuard','reverse','moveBoost','broadcast','revGuard','hairReady','combo','toxin'].includes(k)).map(([id,v])=>({id,name:v.name||display[id]?.[0]||'강화 효과'}));}
  function scan(m,p,n,region=p.region){for(const t of m.players.filter(t=>t!==p&&t.alive&&t.region===region)){if(Math.random()<cap(1-(fx(t,m,n).conceal||0),0,1)){if(region===p.region)known(m,p,t,n,false);else{p.intel??={};p.intel.remoteScout={at:n,region,names:[...(p.intel.remoteScout?.region===region?p.intel.remoteScout.names:[]).filter(x=>x!==t.playerName),t.playerName]};}}}}
- function triggerObject(m,o,n,t=null){const p=m.players.find(p=>p.playerId===o.ownerId);if(!p?.alive||o.until<=n)return;const ts=t?[t]:targets(m,{...p,region:o.region});const q=ts.find(q=>sid(q)!==p.playerId);if(o.kind==='trap'&&q){mark(m,p,q,'talisman',15,n);roll(m,p,q,'slow',1,n);known(m,p,q,n,false);o.until=n;}}
+ function triggerObject(m,o,n,t=null){const p=m.players.find(p=>p.playerId===o.ownerId);if(!p?.alive||o.until<=n)return;const ts=t?[t]:targets(m,{...p,region:o.region});const valid=ts.filter(q=>sid(q)!==p.playerId),q=valid[Math.floor(Math.random()*valid.length)];if(o.kind==='trap'&&q){mark(m,p,q,'talisman',15,n);roll(m,p,q,'slow',1,n);known(m,p,q,n,false);o.until=n;}}
  function moved(m,p,from,n){const r=reworkState(p);if(p.charId==='c06')timed(p,'moved',8,n);if(p.charId==='c11')timed(p,'wave',10,n);if(p.charId==='c18'){const hist=r.route||[];if(!hist.includes(p.region)){resource(p,'momentum',1,2);}r.route=[...hist,p.region].slice(-3);timed(p,'momentumExpiry',15,n);}if(p.charId==='c21')timed(p,'gearExpiry',10,n);
   for(const o of m.reworkObjects||[])if(o.region===p.region&&o.until>n){if(o.kind==='trap'&&o.ownerId!==p.playerId)triggerObject(m,o,n,p);if(o.kind==='avatar'&&o.ownerId!==p.playerId){const owner=m.players.find(t=>t.playerId===o.ownerId);if(owner)scan(m,owner,n,o.region);}}
   consume(p,'freeMove',n);consume(p,'moveBoost',n);
@@ -2909,7 +2909,7 @@ function actionDuration(match,p,type,payload={},now=Date.now()){
     sec=payload.kind==="eq"?1.2:payload.kind==="con" ? .9:Math.min(1.5,.65+.12*Math.max(0,qty-1));
   }
   sec*=Math.max(.65,1+(combinedFx(p,match,now).actionTime||0));
-  if(type==="skill"&&REWORK_CONFIG[p.charId])sec=reworkSkillPrep(p,now)*(1+(fx.skillPrep||0));
+  if(type==="skill"&&REWORK_CONFIG[p.charId])sec=reworkSkillPrep(p,now)*(1+(fx.skillPrep||0))*(p.charId==="c21"?1+(fx.prep||0):1);
   if(type==="char_action"&&p.charId==="c18"&&now-match.startedAt>=780000)sec=2;
   if(type==="remove_object")sec=(match.reworkObjects||[]).find(o=>o.id===payload.objectId)?.kind==="avatar"||(match.reworkObjects||[]).find(o=>o.id===payload.objectId)?.kind==="trap"?2:3;
   if(type==="skill"&&status(p,"domination",now))sec*=1.25;

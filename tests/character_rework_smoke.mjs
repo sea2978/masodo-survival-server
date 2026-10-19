@@ -58,3 +58,8 @@ for(const id of Object.keys(REWORK_CONFIG)){
  w.hp=1;updatePassiveTime(m,T+4100);assert(!w.alive,'wild DOT death is settled');
 }
 console.log('PASS: all 50 reworked combat skills against wildlife and actual poison DOT/death');
+
+assert.equal(REWORK_CONFIG.c14.time,1,'default additional-action preparation');
+{const {m,p}=fresh('c21');p.rework.resources.gear=2;assert.equal(actionDuration(m,p,'skill',{},T),.65*.8);}
+{const {m,p,t}=fresh('c14');t.charId='c28';p.encounter=null;t.encounter=null;const a=beginServerAction(m,t,'rest',{},T);const original=a.action.completeAt;const stop=act(m,p,'char_action',{targetId:t.playerId});assert.equal(t.statuses.timeStop.until-stop.n,1500);assert.equal(t.pendingAction.completeAt,original+1500);}
+console.log('PASS: exact default preparation, accelerated combat skill and resistance-shortened action pause');
