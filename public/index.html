@@ -501,12 +501,12 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
     <footer class="scene-action-dock">
       <div class="scene-secondary-row rest-row"><button id="rest" class="btn">휴식</button></div>
       <div id="exploreControls" class="scene-controls-group">
-        <div class="scene-primary-row"><button id="search" class="btn primary scene-main-btn primary-float">탐색</button><button id="charAction" class="btn scene-main-btn skill-float"><span class="btn-kicker">추가 행동</span><b id="actionSkillName">추가 행동</b></button></div>
+        <div id="exploreActionRow" class="scene-primary-row"><button id="search" class="btn primary scene-main-btn primary-float">탐색</button><button id="charAction" class="btn scene-main-btn skill-float"><span class="btn-kicker">추가 행동</span><b id="actionSkillName">추가 행동</b></button></div>
         
       </div>
       <div id="encounterControls" class="scene-controls-group hidden">
         <div class="scene-primary-row"><button id="attack" class="btn primary scene-main-btn primary-float">일반 공격</button><button id="skill" class="btn scene-main-btn skill-float"><span class="btn-kicker">전투 스킬</span><b id="combatSkillName">전투 스킬</b></button></div>
-        <div class="scene-secondary-row flee-row"><button id="flee" class="btn">도주</button></div>
+        <div id="encounterActionRow" class="scene-secondary-row flee-row"><button id="flee" class="btn">도주</button></div>
       </div>
     </footer>
   </section>
@@ -1163,7 +1163,7 @@ function paintSkillCooldowns(){
     const remaining=state?Math.max(0,(state.end-performance.now())/1000):0,btn=$('#'+id);
     btn.classList.toggle('cooling',remaining>0);
     btn.style.setProperty('--cooldown-angle',(state?Math.min(1,remaining/state.total)*360:0)+'deg');
-    if(M?.self){btn.disabled=busy()||!M.self.alive||!!M.pendingEvent||(id==='skill'?!M.encounter:!!M.encounter)||(remaining>0&&!(id==='skill'&&confusedCombatInput()))}
+    if(M?.self){btn.disabled=busy()||!M.self.alive||!!M.pendingEvent||(id==='skill'?!M.encounter:false)||(remaining>0&&!(id==='skill'&&confusedCombatInput()))}
     if(remaining>0)running=true;
   }
   if(running)skillCooldownFrame=requestAnimationFrame(paintSkillCooldowns);
@@ -1280,6 +1280,7 @@ function renderOtherSurvivors(m){
 function renderMatch(m){M=m;if(matchIntro.show(m)){showGame();$('#gameScreen').hidden=true;clearMatchClock();clearSkillCooldowns();debuffHud.clear();return}notifyMatchChanges(m);showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderVitalBars(p);debuffHud.update(m);reworkUI.update(m);renderActionLoading(m);renderResult(m);renderPickup(m);
 $('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
+const actionHome=inEncounter?$('#encounterActionRow'):$('#exploreActionRow');if($('#charAction').parentNode!==actionHome){if(inEncounter)actionHome.prepend($('#charAction'));else actionHome.appendChild($('#charAction'));}
 $('#exploreControls').classList.toggle('hidden',inEncounter);$('#encounterControls').classList.toggle('hidden',!inEncounter);$('#actionSkillName').textContent=charInfo(p.charId)?.action||'추가 행동';$('#combatSkillName').textContent=charInfo(p.charId)?.combat||'전투 스킬';
 $('#search').disabled=dis||inEncounter||inEvent;
 $('#rest').disabled=dis||inEncounter||inEvent;
