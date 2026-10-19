@@ -141,6 +141,7 @@ export class GameRoom extends DurableObject{
     const now=Date.now(),times=[];
     if(this.joinedSessions().length>0&&match){
       if(match.phase==="playing"&&match.startedAt>now)times.push(match.startedAt);
+      times.push(...Object.values(match.regionGardens||{}).flatMap(g=>(g.sources||[g]).map(x=>x.until)));
       times.push(...match.players.map(p=>p.pendingAction?.completeAt).filter(Number.isFinite));
       if(match.phase==="playing"){const lockAt=nextRegionLockAt(match);if(lockAt!==null)times.push(lockAt)}
       if(match.phase==="playing"&&match.players.some(p=>p.isAI&&p.alive)){
@@ -158,7 +159,7 @@ export class GameRoom extends DurableObject{
   async completeDueActions(match,now=Date.now(),{defer=false}={}){
     if(now<match.startedAt)return false;
     const introChanged=match.introCompleted===false;if(introChanged)match.introCompleted=true;
-    const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects,p.enemyContacts,p.heardNoiseIds]),match.noises]);
+    const passiveView=()=>JSON.stringify([match.combatNoticeSeq,match.players.map(p=>[p.hp,p.sp,p.satiety,p.alive,p.statuses,p.tempEffects,p.delayedEffects,p.enemyContacts,p.heardNoiseIds]),match.noises,match.regionGardens]);
     const before=passiveView();
     let changed=updateRegionRestrictions(match,now)||introChanged;
     for(const p of match.players){

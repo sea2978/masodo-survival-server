@@ -103,6 +103,22 @@ function tempFx(p,match,now=Date.now()){
   for(const e of p.tempEffects)for(const[k,v]of Object.entries(e.fx||{}))if(typeof v==="number")out[k]=(out[k]||0)+v;
   return out;
 }
+function gardenSources(match,region,now){
+ const g=match.regionGardens?.[region];return (g?.sources|| (g?[g]:[])).filter(x=>x.until>now);
+}
+function enemyGarden(match,p,now){return gardenSources(match,p.region,now).filter(x=>x.ownerId!==p.playerId).sort((a,b)=>b.until-a.until)[0]||null}
+function gardenAuras(match,p,now){
+ const enemy=enemyGarden(match,p,now),own=PASSIVE_FX[p.charId]?.gardenSearchLoot?gardenSources(match,p.region,now).sort((a,b)=>b.until-a.until)[0]:null;
+ const row=g=>({stacks:1,startedAt:g.installedAt,until:g.until,durationMs:g.until-g.installedAt});
+ return {statuses:enemy?{doll:{...row(enemy),sourceId:enemy.ownerId}}:{},buffs:own?{gardenPassive:{...row(own),name:char(p).passive}}:{}};
+}
+function refreshGardens(match,now){
+ for(const [region,g] of Object.entries(match.regionGardens||{})){
+  const sources=gardenSources(match,region,now);
+  if(!sources.length){delete match.regionGardens[region];continue}
+  if(g.sources){g.sources=sources;g.until=Math.max(...sources.map(x=>x.until))}
+ }
+}
 function combinedFx(p,match,now=Date.now()){
   const out={...(PASSIVE_FX[p.charId]||{})};
   if(match.regionGardens?.[p.region]?.until>now){
@@ -130,14 +146,14 @@ function equipmentDef(p){return (p.eq||[]).reduce((s,id)=>s+(item(id)?.def||0),0
 function atk(p,match,now=Date.now()){
   let v=char(p).baseAtk+equipmentAtk(p),fx=combinedFx(p,match,now);
   if(fx.timeAtk&&fx.timeAtkEvery)v+=Math.min(fx.timeAtkCap??Infinity,Math.floor(nowSec(match,now)/fx.timeAtkEvery)*fx.timeAtk);
-  return v;
+  return v*(enemyGarden(match,p,now)?.9:1);
 }
 function def(p,match,now=Date.now()){
   let v=char(p).baseDef+equipmentDef(p);
   const fx=combinedFx(p,match,now);
   v+=fx.defFlat||0;
   if(p.hp/maxHp(p,match,now)<.5)v+=fx.lowDef||0;
-  return Math.max(0,v);
+  return Math.max(0,v)*(enemyGarden(match,p,now)?.9:1);
 }
 function incomingMult(p,match,now=Date.now()){
   const fx=combinedFx(p,match,now);
@@ -309,7 +325,7 @@ function applyStatusTicks(match,p,now){
 export function updatePassiveTime(match,now=Date.now()){
   if(match.phase==="finished"||now<match.startedAt)return;
   updateRegionRestrictions(match,now);
-  for(const [region,garden] of Object.entries(match.regionGardens||{}))if(!(garden.until>now))delete match.regionGardens[region];
+  refreshGardens(match,now);
   for(const w of match.wilds||[])if(w.statuses)cleanseExpired(w,now);
   for(const p of match.players){
     if(!p.alive)continue;
@@ -436,6 +452,7 @@ function baseDamage(a,b,match,now){
 }
 function wildDamage(a,w,match,now){
   const t=wildTemplate(w);let wa=t.atk;if(t.skill==="berserk"&&w.hp/t.hp<=.4)wa*=1.25;
+  if(enemyGarden(match,w,now))wa*=.9;
   return Math.max(1,Math.round(wa*100/(100+def(a,match,now))*incomingMult(a,match,now)));
 }
 function createDeathCorpse(match,p,now){
@@ -509,7 +526,7 @@ function skillDamageVsPlayer(match,p,t,sd,now){
   return Math.max(1,atk(p,match,now)*100/(100+d)*incomingMult(t,match,now));
 }
 function skillDamageVsWild(match,p,w,sd,now){
-  const wt=wildTemplate(w),ignore=sd.defIgnore||0,d=Math.max(0,wt.def*(1-ignore));
+  const wt=wildTemplate(w),ignore=sd.defIgnore||0,d=Math.max(0,wt.def*(enemyGarden(match,w,now)?.9:1)*(1-ignore));
   return Math.max(1,atk(p,match,now)*100/(100+d));
 }
 function attackPlayer(match,p,t,skill=false,now=Date.now()){
@@ -600,7 +617,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
   }
 
   const fx=combinedFx(p,match,now);
-  let d=(skill?skillDamageVsWild(match,p,w,sd,now):Math.max(1,atk(p,match,now)*100/(100+t.def)))*mult;
+  let d=(skill?skillDamageVsWild(match,p,w,sd,now):Math.max(1,atk(p,match,now)*100/(100+t.def*(enemyGarden(match,w,now)?.9:1))))*mult;
   if(skill){ctx.skillDamageBonus=p.nextSkillDamageBonus||0;p.nextSkillDamageBonus=0;d*=1+(fx.skillDamage||0)+ctx.skillDamageBonus}
   if(skill&&sd.quietBonus&&ctx.quietReady)d*=1+sd.quietBonus;
   const canSkillCrit=!skill||!!sd.crit;
@@ -765,7 +782,9 @@ function charAction(match,p,now){
 
   let gardenResult;
   if(d.garden){
-    match.regionGardens??={};match.regionGardens[p.region]={installedAt:now,until:now+30000,ownerId:p.playerId};
+    match.regionGardens??={};
+    const sources=gardenSources(match,p.region,now).filter(x=>x.ownerId!==p.playerId);sources.push({installedAt:now,until:now+30000,ownerId:p.playerId});
+    match.regionGardens[p.region]={installedAt:now,until:Math.max(...sources.map(x=>x.until)),ownerId:p.playerId,sources};
     const targets=[...match.players,...(match.wilds||[])].filter(q=>q!==p&&q.alive&&q.region===p.region);
     const detected=[];
     for(const q of targets){
@@ -948,7 +967,8 @@ function recordMaterialHintIntel(p,now){
 }
 export function publicPlayer(match,p,now=Date.now(),advance=true){
   if(advance)updatePassiveTime(match,now);else p={...p,intel:p.intel?{...p.intel}:undefined};ensureIntel(p);
-  return {...p,inGarden:(match.regionGardens?.[p.region]?.until||0)>now,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
+  const aura=gardenAuras(match,p,now);
+  return {...p,statuses:{...p.statuses,...aura.statuses},buffs:aura.buffs,inGarden:(match.regionGardens?.[p.region]?.until||0)>now,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
     inventory:{eq:(p.eq||[]).map(id=>({id,...item(id),salvage:equipmentSalvage(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
 }

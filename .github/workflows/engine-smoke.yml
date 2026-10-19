@@ -26,7 +26,7 @@ jobs:
       - name: Debuff rules and confusion actions
         run: npm run test:debuffs && npm run test:debuff-hud && npm run test:test-character
       - name: Seonori garden rework
-        run: npm run test:garden && npm run test:garden-resistance
+        run: npm run test:garden && npm run test:garden-resistance && npm run test:garden-aura
       - name: Active skill bonus tuning
         run: node tests/skill_bonus_audit.mjs
       - name: Passive minimum tuning

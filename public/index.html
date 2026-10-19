@@ -376,6 +376,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 #matchIntro{position:fixed;inset:0;z-index:1400;display:flex;flex-direction:column;gap:18px;padding:clamp(12px,3vw,40px);background:radial-gradient(ellipse at top,#203248,#080e17 75%);color:#e8ecf1}
 #matchIntro[hidden]{display:none!important}.intro-heading{text-align:center;flex:none}.intro-heading h1{font-size:clamp(20px,3vw,34px);margin:0 0 5px}.intro-heading p{margin:0;color:#acc1d6}.intro-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;flex:1;min-height:0;overflow:auto;align-content:center;width:min(1440px,100%);margin:auto}.intro-card{min-width:0;display:flex;flex-direction:column;text-align:center;align-items:center;padding:12px;border:1px solid #536b84;border-radius:10px;background:#122030;gap:5px;overflow:hidden}.intro-self{border-color:#e3c779;box-shadow:inset 0 0 0 1px #e3c779}.intro-portrait{position:relative;width:100%;height:clamp(110px,24vh,250px);display:flex;justify-content:center;align-items:center;background:linear-gradient(#29425b88,#101a2800)}.intro-portrait canvas{width:100%;height:100%;object-fit:contain}.intro-fallback{align-items:center;justify-content:center;height:100%;color:#b5c9dc}.intro-card strong,.intro-card>span{width:100%;overflow-wrap:anywhere}.intro-card>span{font-size:16px;color:#e3c779}.intro-card strong{font-size:13px}.intro-card small{color:#96b0c9}.intro-footer{flex:none;text-align:center;font-size:15px;color:#b3c8dc}#introCountdown{font-size:22px;color:#e3c779;margin:0 6px}
 @media(max-height:500px){#matchIntro{padding:10px;gap:7px}.intro-heading h1{font-size:19px}.intro-heading p{font-size:11px}.intro-cards{grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;align-content:start}.intro-card{padding:6px;gap:2px}.intro-portrait{height:clamp(50px,20vh,90px)}.intro-card>span{font-size:12px}.intro-card strong,.intro-card small{font-size:10px}.intro-footer{font-size:12px}}
+#moves button.garden-region{background:#513174;border-color:#bd8be8;color:#fff}#moves button.garden-region:hover{background:#68408f}#selfDebuffs .buff-icon{box-shadow:0 0 0 1px #7cdeac,0 2px 8px #0008}
 </style></head><body><section id="matchIntro" role="region" aria-label="게임 참가자 소개" hidden><header class="intro-heading"><h1>생존자 집결</h1><p>이번 게임에 참가하는 플레이어와 캐릭터</p></header><div id="introCards" class="intro-cards"></div><footer class="intro-footer"><span id="introCountdown">5</span>초 후 게임이 시작됩니다</footer></section>
 
 <div class="wrap">
@@ -458,7 +459,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       <div id="encounter" class="encounter-panel"></div>
       <div id="eventBox" class="event-panel"></div>
     </section>
-    <div id="selfDebuffs" role="group" aria-label="나에게 걸린 디버프" hidden></div>
+    <div id="selfDebuffs" role="group" aria-label="나에게 적용된 버프와 디버프" hidden></div>
     <div id="noMatch" class="no-match-card">경기 시작 전입니다.</div>
 
     <aside class="inventory-hud glass-panel">
@@ -1238,8 +1239,9 @@ function renderRegionRestrictions(m){
   }
  }
 }
+function activeGardenRegion(m,id){return (m.regionGardens?.[id]?.until||0)>(m.serverNow||Date.now())}
 function renderMoves(m,p,disabled){
- $('#moves').innerHTML=(m.adjacency?.[p.region]||[]).map(id=>`<button data-move="${id}" ${(disabled||regionLocked(m,id))?'disabled':''}>${rname(id)}${regionLocked(m,id)?' · 잠금':''}</button>`).join('');
+ $('#moves').innerHTML=(m.adjacency?.[p.region]||[]).map(id=>`<button data-move="${id}" ${(disabled||regionLocked(m,id))?'disabled':''} class="${activeGardenRegion(m,id)?'garden-region':''}">${rname(id)}${activeGardenRegion(m,id)?' · 정원':''}${regionLocked(m,id)?' · 잠금':''}</button>`).join('');
  $('#moves').querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{if(regionLocked(M,b.dataset.move))return;net.move(b.dataset.move);$('#movePanel').close()});
 }
 function renderEnemyContacts(m){
