@@ -51,6 +51,6 @@ for(const [idx,[id,it]] of consumables.entries()){
   const p=createServerPlayer({sessionId:"aba",playerName:"Abaddon",charId:"c49",startRegion:"city"},0),m=matchFor(p,"aba");
   p.hp=10;p.sp=10;p.satiety=10;p.con.carbonara_mint_fish=1;p.mat.iron=3;p.eq.push("basic_tool");
   const a=beginServerAction(m,p,"use_item",{id:"carbonara_mint_fish"},t0);completeAction(m,p,a.action.completeAt+1);
-  assert.equal(p.hp,p.maxHp);assert.equal(p.sp,p.maxSp);assert.equal(p.satiety,100);assert.equal(p.eq.length,0);assert.equal(p.mat.iron||0,0);
+  assert.equal(p.hp,p.maxHp);assert.equal(p.sp,p.maxSp);assert.equal(p.satiety,100);assert.equal(p.eq.length,0);assert.equal(p.mat.iron,3);assert.equal(p.rework.resources.feast,3);
 }
 console.log("all consumables audit ok",{consumables:consumables.length});

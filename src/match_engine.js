@@ -877,9 +877,7 @@ function useConsumable(match,p,id,now){
   }
   if(id==="carbonara_mint_fish"&&p.charId==="c49"){
     p.hp=maxHp(p,match,now);p.sp=p.maxSp;p.satiety=100;consumeItem(p,id,1);
-    dropSpecialsFromPlayer(match,p,p.region);p.eq=[];
-    for(const mid of Object.keys(p.mat||{}))if(!isSpecialMaterial(mid))delete p.mat[mid];
-    p.con={};
+    p.eq=[];reworkState(p).resources.feast=3;
     if(inCombat)p.encounter=null;
     return {ok:true,itemId:id,itemName:it.n,special:"아바돈 특수 반응"};
   }

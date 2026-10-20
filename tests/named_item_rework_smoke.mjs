@@ -29,7 +29,7 @@ for(const[id,d]of Object.entries(NAMED_ITEMS)){
  // Removing the item removes its HUD and active stored charge/shield, but cannot reset effect cooldowns.
  const cooldown=p.gearState?.[id]?.castAt;p.eq=[];updatePassiveTime(m,h.now);const removed=publicPlayer(m,p,h.now,false);assert(!removed.buffs['rw_gear_'+id]);assert.equal(p.gearState?.[id]?.count||0,0);assert(!p.gearState?.[id]?.shield);if(cooldown)assert.equal(p.gearState[id].castAt,cooldown);
 }
-for(const[id,it]of Object.entries(ITEMS))if(it.t==='e'){if(it.equipKind==='weapon'){assert(it.atk>0,id);assert.equal(it.def,0,id);}else{assert.equal(it.atk,0,id);assert(it.def>0,id);}}
+for(const[id,it]of Object.entries(ITEMS))if(it.t==='e'){if(it.equipKind==='weapon'){assert(it.atk>0,id);assert(it.atk>it.def,id);assert(it.def<=it.atk*.25,id);}else{assert(it.def>it.atk,id);assert(it.atk<=it.def*.25,id);assert(it.def>0,id);}}
 assert.equal(ITEMS.final_18.weaponType,'검');assert.equal(ITEMS.final_18.n,'하나린의 검');assert(ITEMS.final_18.r.blade);assert(!ITEMS.final_18.r.rare_dagger);assert.equal(CHARACTERS.find(c=>c.id==='c38').preferredWeapon,'검');assert.equal(CHARACTERS.find(c=>c.id==='c07').preferredWeapon,'총');assert.equal(ITEMS.near_final_02.weaponType,'총');assert.equal(ITEMS.near_final_03.equipKind,'equipment');assert(ITEMS.near_final_03.r.rare_boots);assert(ITEMS.rare_boots.r.basic_boots);assert.equal(ITEMS.final_09.n,'녹투아의 일본도');
 console.log('PASS: all 41 named items work on non-owner characters through real action/cast/hit/status/shield/charge paths; source notices, private buff HUD, save/load, removal; all weapon/equipment stats and DB corrections');
 // Casting consumes the stored bonus before damage; the same weak mechanic also works on the legacy c01 path.

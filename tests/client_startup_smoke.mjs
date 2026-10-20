@@ -157,5 +157,5 @@ console.log('PASS: full client random keyword click -> room -> acquisition toast
 }
 console.log('PASS: actual full client inventory displays mixed-stat gauntlet/grimoire as weapons and piercing as equipment; common three-slot storage preserved (DOM/socket mocks)');
 
-net.catalog.items=ITEMS;vm.runInContext('fillCatalog()',ctx);assert.equal(vm.runInContext("I('final_18').n",ctx),'하나린의 검');assert.equal(vm.runInContext("I('final_18').def",ctx),0);assert.equal(vm.runInContext("I('final_03').atk",ctx),0);assert(vm.runInContext("I('final_15').effectText.includes('60%')",ctx));assert(vm.runInContext("I('near_final_03').r.rare_boots===1",ctx));
+net.catalog.items=ITEMS;vm.runInContext('fillCatalog()',ctx);assert.equal(vm.runInContext("I('final_18').n",ctx),'하나린의 검');assert.equal(vm.runInContext("I('final_18').def",ctx),0);assert.equal(vm.runInContext("I('final_03').atk",ctx),5);assert(vm.runInContext("I('final_15').effectText.includes('60%')",ctx));assert(vm.runInContext("I('near_final_03').r.rare_boots===1",ctx));
 console.log('PASS: full client crafting data sync uses the current catalog: corrected DB names/recipes, role stats and 60% x2 tooltip (DOM mocks)');

@@ -53,8 +53,19 @@ export function applyItemRework(items,events=[]){
   const grade=it.tier==='최종'?4:it.tier==='준최종'?3:['희귀','희귀 시너지'].includes(it.tier)?2:1;
   if(it.equipKind==='weapon'){it.atk=[0,8,18,25,34][grade]+(['중량무기','둔기'].includes(it.weaponType)?2:it.weaponType==='단검'?-1:0);it.def=0;}
   else{it.atk=0;it.def=[0,8,18,25,34][grade]-(it.weaponType==='장신구'?4:0);}
+  // Small secondary bonuses follow the item's physical role, never its category.
+  if(it.equipKind==='weapon'){
+   if(it.weaponType==='권갑'||it.weaponType==='마법서')it.def=[0,1,2,3,4][grade];
+   const guards={final_01:4,final_02:3,final_06:2,final_11:2,final_14:4,final_21:4,near_final_11:3};
+   if(guards[id])it.def=guards[id];
+  }else{
+   if(it.weaponType==='도구')it.atk=[0,1,2,3,4][grade];
+   if(it.weaponType==='병기')it.atk=[0,1,3,4,5][grade];
+   if(['basic_boots','rare_boots','near_final_03'].includes(id))it.atk=[0,1,2,3,4][grade];
+  }
   if(NAMED_ITEMS[id]){it.effectText=NAMED_ITEMS[id].text+(NAMED_ITEMS[id].gimmick.chargeEvent?' · 충전 획득 간격 2초':'')+' · 동일 아이템의 고유 효과는 중복 발동하지 않음';it.namedOwner=NAMED_ITEMS[id].owner;}
  }
+ items.carbonara_mint_fish.effectText='아바돈: HP·SP·포만도 최대 + 모든 장착 장비 소실 + 포식 3 즉시 획득(재료·다른 소모품 보존) · 아바돈 이외: 섭취 시 즉사';
  const renames={};for(const[id,n]of Object.entries({special_07:'아바타 광선총 코어',special_09:'모발 제어 부츠 조각',special_29:'월광 검편'})){renames[items[id].n]=n;items[id].n=n;}
  const rewrite=value=>{if(typeof value==='string'){for(const[a,b]of Object.entries(renames))value=value.split(a).join(b);return value;}if(Array.isArray(value))return value.map(rewrite);if(value&&typeof value==='object')for(const k of Object.keys(value))value[k]=rewrite(value[k]);return value;};for(const e of events)rewrite(e);
 }
