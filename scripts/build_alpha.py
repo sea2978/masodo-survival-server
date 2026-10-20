@@ -6,19 +6,6 @@ s=s.replace("if(!$('#serverAddress').value)$('#serverAddress').value='https://ma
 a=s.index(" try{url=new URL($('#serverAddress').value.trim());");b=s.index('\n button.disabled=true;',a)
 s=s[:a]+" url=new URL('https://masodo-survival-server.alphacheonbung.workers.dev/');\n if(mobileScreenQuery.matches)void enterMobileFullscreen();"+s[b:]
 s=s.replace('서버 주소를 입력하고 연결해 주세요.','플레이어명을 입력하고 알파 서버에 접속해 주세요.').replace('플레이어명과 서버 주소를 확인하고 접속하세요.','플레이어명을 확인하고 알파 서버에 접속하세요.').replace('주소와 연결 상태를 확인해 주세요.','연결 상태를 확인해 주세요.')
-s=s.replace('<label for="roomName">방 이름</label>','<label for="alphaRoomAccess">방 생성 코드</label><input id="alphaRoomAccess" type="password" autocomplete="off" placeholder="방 생성 코드를 입력하세요"><p id="alphaRoomMessage" role="status"></p><label for="roomName">방 이름</label>')
-s=s.replace("  if(roomEntryBusy)return;\n  const options=", """  if(roomEntryBusy)return;
-  if(create&&!net.offline){
-    const access=$('#alphaRoomAccess');
-    if(access.value!=='cjsthRhfflsek'){
-      document.querySelectorAll('.lobby-popup[open]').forEach(d=>d.close());
-      if(!$('#createRoomPanel').open)$('#createRoomPanel').showModal();
-      $('#alphaRoomMessage').textContent='올바른 방 생성 코드를 입력해 주세요.';access.focus();return false;
-    }
-    settings={...settings,alphaCode:access.value};
-  }
-  const options=""")
-s=s.replace("if(create){const room=await net.createRoom(settings);code=room.code;log('방 생성 '+code)}", "if(create){const room=await net.createRoom(settings);code=room.code;$('#alphaRoomAccess').value='';$('#alphaRoomMessage').textContent='';log('방 생성 '+code)}")
 s=s.replace("try{\n  net.useOffline();", "try{\n  if(mobileScreenQuery.matches)void enterMobileFullscreen();\n  net.useOffline();")
 css='''
 /* Alpha mobile lobby: fill the viewport and respect device safe areas. */
@@ -43,6 +30,6 @@ s=s.replace('</style></head>',css+'</style></head>',1)
 s=s.replace('<title>','<title>알파 테스트 · ',1)
 assert '$('+"'#serverAddress'"+')' not in s
 out.write_text(s)
-with zipfile.ZipFile(out.with_suffix('.zip'),'w',zipfile.ZIP_DEFLATED,compresslevel=6)as z:z.write(out,out.name)
+with zipfile.ZipFile(out.with_suffix('.zip'),'w',zipfile.ZIP_DEFLATED,compresslevel=1)as z:z.write(out,out.name)
 with zipfile.ZipFile(out.with_suffix('.zip'))as z:assert z.testzip() is None
 print('Built alpha HTML and ZIP:',out)

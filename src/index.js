@@ -61,7 +61,6 @@ export default {
     if (url.pathname === "/api/room/create" && request.method === "POST") {
       const text=await request.text();let body;
       try{body=text?JSON.parse(text):{}}catch{return withCors(json({ok:false,error:"invalid_room_settings"},400))}
-      if(url.hostname==='masodo-survival-server.alphacheonbung.workers.dev'&&body?.alphaCode!=='cjsthRhfflsek')return withCors(json({ok:false,error:'올바른 방 생성 코드를 입력해 주세요.'},403));
       const parsed=normalizeRoomSettings(body);if(!parsed.ok)return withCors(json(parsed,400));
       for (let attempt = 0; attempt < 8; attempt++) {
         const code = randomRoomCode();

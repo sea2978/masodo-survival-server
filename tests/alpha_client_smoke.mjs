@@ -31,14 +31,13 @@ const alphaNet=vm.runInContext('net',ctx),savedCreate=alphaNet.createRoom,savedC
 let alphaCreates=0,alphaSettings;
 alphaNet.createRoom=async settings=>{alphaCreates++;alphaSettings=settings;return{code:'ALPHA1'}};
 alphaNet.connect=async()=>{};
-for(const value of ['', 'wrong']){document.querySelector('#alphaRoomAccess').value=value;assert.equal(await vm.runInContext("connectRoom(null,true,{name:'알파방',aiMode:'none'})",ctx),false);assert.equal(alphaCreates,0)}
-document.querySelector('#alphaRoomAccess').value='cjsthRhfflsek';
+assert(!ids.has('alphaRoomAccess'));
 await vm.runInContext("connectRoom(null,true,{name:'알파방',aiMode:'none'})",ctx);
-assert.equal(alphaCreates,1);assert.equal(alphaSettings.alphaCode,'cjsthRhfflsek');assert.equal(alphaSettings.name,'알파방');assert.equal(document.querySelector('#room').value,'ALPHA1');assert.equal(document.querySelector('#alphaRoomAccess').value,'');
+assert.equal(alphaCreates,1);assert.equal(alphaSettings.alphaCode,undefined);assert.equal(alphaSettings.name,'알파방');assert.equal(document.querySelector('#room').value,'ALPHA1');
 alphaNet.createRoom=savedCreate;alphaNet.connect=savedConnect;
 let fullscreenRequests=0;document.documentElement.requestFullscreen=async()=>{fullscreenRequests++};
 vm.runInContext('mobileScreenQuery.matches=true',ctx);await button.click();assert.equal(fullscreenRequests,1);vm.runInContext('mobileScreenQuery.matches=false',ctx);
-console.log('PASS: alpha fixed-address login -> wrong code blocked -> exact code creates/joins -> code cleared; mobile login requests fullscreen (DOM/network mocks)');
+console.log('PASS: alpha fixed-address login -> no code field -> immediate room create/join; mobile login requests fullscreen (DOM/network mocks)');
 
 // A favorite prepared in the lobby is immediately used by the live game route.
 vm.runInContext("toggleFavoriteItem('final_15')",ctx);
