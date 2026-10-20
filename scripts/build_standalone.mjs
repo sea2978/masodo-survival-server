@@ -41,6 +41,9 @@ function dataUrl(rel) {
 
 for(const file of ['Neutral','Angry','Closed','Happy','Contempt','Sad','Embarrassed','Base','Profile']){const rel='/assets/images/user/'+file+'.png';html=html.split(rel).join(dataUrl(rel))}
 
+for(const name of ['lin','elin'])for(const form of ['casual','transformed'])for(const file of ['Base','Neutral','Happy','Closed','Sad','Angry','Embarrassed','Contempt','Profile']){const rel=`/assets/images/${name}/${form}/${file}.png`;html=html.split(rel).join(dataUrl(rel))}
+{const rel='/assets/images/login/chibi.png';html=html.split(rel).join(dataUrl(rel))}
+
 const bgNames = [
   "city","estate","church","factory",
   "mgmt_lobby","mgmt_admin","mgmt_director","mgmt_cafeteria","mgmt_lab","mgmt_training",
