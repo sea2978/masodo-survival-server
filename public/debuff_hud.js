@@ -45,7 +45,7 @@ export class DebuffHud{
  describe(){
   if(!this.active)return;const info=DEBUFF_ICONS[this.active],s=this.rows[this.active];if(!s){this.hide();return}
   const left=this.active==='bleed'||s.until===null?null:Math.max(0,(s.until-this.now())/1000);
-  const title=s.name||info.name,detail=s.description||info.describe(s.stacks),foot=left===null?(this.active==='bleed'?`${s.stacks} / ${info.max}중첩 · 원형 게이지는 남은 중첩`:s.category==='mode'?'장착 중 · '+(s.retention||'전환할 때까지 유지'):`${s.stacks} / ${s.maxStacks||info.max}중첩 · ${s.retention||'고유 조건에 따라 소모·감소'}`):`남은 시간 ${left.toFixed(1)}초${info.max>1?' · '+s.stacks+'중첩':''}`;
+  const title=s.name||info.name,detail=s.description||info.describe(s.stacks),foot=left===null?(this.active==='bleed'?`${s.stacks} / ${info.max}중첩 · 원형 게이지는 남은 중첩`:s.category==='mode'?'장착 중 · '+(s.retention||'전환할 때까지 유지'):`${s.displayStacks??s.stacks} / ${s.maxStacks||info.max}중첩 · ${s.retention||'고유 조건에 따라 소모·감소'}`):`남은 시간 ${left.toFixed(1)}초${info.max>1?' · '+s.stacks+'중첩':''}`;
   const key=title+detail+foot;if(this.bubbleKey===key)return;this.bubbleKey=key;
   this.bubble.replaceChildren();for(const [tag,content]of [['strong',title],['span',detail],['small',foot]]){const el=document.createElement(tag);el.textContent=content;this.bubble.appendChild(el)}
  }
@@ -72,8 +72,8 @@ export class DebuffHud{
     this.buttons.set(id,b);
    }
    const duration=s.durationMs>0?s.durationMs:Math.max(info.seconds*1000||1,s.until-(s.startedAt??now));
-   const ratio=id==='bleed'||s.until===null?s.stacks/(s.maxStacks||info.max):(s.until-now)/duration;
-   if(s.category){if(!b.stackBadge){b.stackBadge=document.createElement('span');b.stackBadge.className='gimmick-count';b.stackBadge.setAttribute('aria-hidden','true');b.appendChild(b.stackBadge);}b.stackBadge.textContent=s.category==='mode'?'장':String(Math.round(s.stacks*10)/10);b.setAttribute('aria-label',(s.name||info.name)+(s.category==='mode'?' · 장착 중':' · '+s.stacks+'중첩'));}
+   const ratio=id==='bleed'||s.until===null?(s.displayStacks??s.stacks)/(s.maxStacks||info.max):(s.until-now)/duration;
+   if(s.category){if(!b.stackBadge){b.stackBadge=document.createElement('span');b.stackBadge.className='gimmick-count';b.stackBadge.setAttribute('aria-hidden','true');b.appendChild(b.stackBadge);}b.stackBadge.textContent=s.category==='mode'?'장':String(Math.round((s.displayStacks??s.stacks)*10)/10);b.setAttribute('aria-label',(s.name||info.name)+(s.category==='mode'?' · 장착 중':' · '+s.stacks+'중첩'));}
    b.style.setProperty('--debuff-offset',String(100*(1-Math.max(0,Math.min(1,ratio)))));
    // Append only on snapshot changes/new icons so pointer focus remains stable while timers tick.
    if(!b.parentNode)this.root.appendChild(b);

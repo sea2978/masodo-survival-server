@@ -1,3 +1,4 @@
+import {ITEMS,POOLS} from "../src/offline_content.js";
 import fs from "node:fs";
 import{buildOfflineRuntime}from"./build_offline_runtime.mjs";
 import path from "node:path";
@@ -9,6 +10,7 @@ const adapterPath = path.join(publicDir, "network_adapter.js");
 const outputPath = path.join(publicDir, "MasodoSurvival.html");
 
 let html = fs.readFileSync(indexPath, "utf8");
+html=html.replace(/^const D=.*$/m,()=>"const D="+JSON.stringify({items:ITEMS,pools:POOLS})+";");
 const itemClassification=fs.readFileSync(path.join(root,'src/item_classification.js'),'utf8');
 fs.writeFileSync(path.join(publicDir,'item_classification.js'),itemClassification);
 html=html.replace('import{equipmentKind,itemClassLabel,itemClassIcon}from"./item_classification.js";',itemClassification.replace(/export /g,''));

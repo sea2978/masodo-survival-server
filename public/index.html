@@ -663,6 +663,7 @@ function renderBuild(){
   document.title=`마소도 서바이벌 · ${label}`;
 }
 function fillCatalog(){
+  if(net.catalog?.items&&Object.keys(net.catalog.items).length)D.items=net.catalog.items;
   if(net.catalog?.characters?.length){
     const keep=$('#char').value;
     $('#char').innerHTML=net.catalog.characters.map(c=>`<option value="${c.id}">${escapeRoomText(c.name)}</option>`).join("");

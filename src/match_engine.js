@@ -1,3 +1,4 @@
+import {createNamedGearSystem} from "./named_gear_runtime.js";
 import {appendStatusNotice} from "./status_notices.js";
 import {createReworkSystem,REWORK_CONFIG,reworkState} from "./character_reworks.js";
 import {rememberEnemy,rememberIncoming,pruneEnemyTraces} from "./enemy_contacts.js";
@@ -21,8 +22,9 @@ export const STATUS_DEFS={
 const REWORK_STATUS_DEFS={timeStop:{duration:2,max:1},awe:{duration:10,max:1},reverseAmp:{duration:8,max:1},fragrance:{duration:10,max:1},talisman:{duration:15,max:1},starTarget:{duration:30,max:1},domination:{duration:10,max:1},suggestion:{duration:15,max:1},chainMark:{duration:15,max:1}
 };
 const char=p=>CHARACTER_BY_ID.get(p.charId)||CHARACTER_BY_ID.get("c01");
+const namedGear=createNamedGearSystem({apply:applyStatus,fx:combinedFx,maxHp,heal:healPlayer,sp:recoverSp,name:id=>item(id)?.n||id,description:id=>item(id)?.effectText||'',isFood:id=>!!item(id)?.sat&&item(id)?.kind==='food'});
 const reworks=createReworkSystem({
- status,skillName:(p,key)=>char(p)[key],fx:combinedFx,maxHp,heal:healPlayer,sp:recoverSp,apply:applyStatus,notice:recordCombatNotice,
+ gearAbsorb:(m,p,d,n)=>namedGear.absorb(m,p,d,n),gearHit:(m,p,t,skill,hit,n)=>namedGear.hit(m,p,t,skill,hit,n),gearKill:(m,p,t,n)=>namedGear.kill(m,p,t,n),status,skillName:(p,key)=>char(p)[key],fx:combinedFx,maxHp,heal:healPlayer,sp:recoverSp,apply:applyStatus,notice:recordCombatNotice,
  known:(m,p,t,n,exact)=>{if(!t?.playerId)return;if(exact)rememberEnemy(p,{id:t.playerId,name:t.playerName,kind:'player',source:'encounter',hp:Math.max(0,t.hp),maxHp:maxHp(t,m,n),alive:t.alive},n);else rememberIncoming(p,t,t.playerName,n,'trace');},
  locked:isRegionLocked,adjacency:ADJACENCY,kill:killPlayer,wildDeath:()=>{},prof:gainProf,bleed:triggerBleedAction,
  noise:recordNoise,cleanse:removeAnyStatus,damage:damagePlayer,invincible,environmentDeath,removeStacks:removeStatusStacks,
@@ -41,7 +43,7 @@ function reworkCombat(m,p,t,skill,n){
  const f=combinedFx(p,m,n),base=COMBAT_SKILL_DEFS[p.charId],cost=reworkSkillCost(p,Math.max(0,(base.sp??12)*((p.eq||[]).includes("focus")?.95:1)*(1+(f.skillSp||0))-(f.skillSpFlat||0)-(p.nextSkillSpDiscount||0)),f,n);
  if(skill){if(status(p,'silence',n))return {ok:false,error:'silenced'};if((p.cdCUntil||0)>n)return {ok:false,error:'skill_cooldown'};if(p.sp<cost)return {ok:false,error:'not_enough_sp'};p.sp-=cost;p.nextSkillSpDiscount=0;p.cdCUntil=n+base.cd/Math.max(.25,1+(f.cdRate||0))*1000;p.cdCDuration=(p.cdCUntil-n)/1000;reworks.consume(p,'freeSpell',n);}
  const quietReady=n-(p.lastAttackAt||0)>=10000,ctx=attackContext(m,p,t,skill,n);ctx.quietReady=quietReady;
- const spec=skill?reworks.skillSpec(m,p,t,n):{mult:1,rows:[],hits:1};spec.hits??=1;if(skill){spec.legacySkillBonus=p.nextSkillDamageBonus||0;}
+ const spec=skill?reworks.skillSpec(m,p,t,n):(namedGear.attackProfile(p)||{mult:1,rows:[],hits:1});spec.hits??=1;if(skill){spec.legacySkillBonus=p.nextSkillDamageBonus||0;}
  if(!skill&&p.charId==='c36')reworks.consume(p,'invisible',n);
  const volley={sourceId:p.playerId,targetId:t.playerId||t.id,region:p.region,skill,spec,ctx,remaining:spec.hits,index:0,total:0,hit:false,at:n};
  const result=reworkStrike(m,volley,n);
@@ -77,7 +79,8 @@ function reworkStrike(m,v,n){
  if(killed)v.remaining=0;
  if(v.remaining===0&&v.skill)reworks.afterSkill(m,p,t,s,v.hit,v.total,killed,n);
  if(!v.skill){for(const k of ['aimOnce','armHit'])reworks.consume(p,k,n);if(p.charId==='c15')reworks.consume(p,'heard',n);}
- return {ok:true,hit,damage:d,killed,death,drop,dispelled:!!s.dispelled};
+ const counter=s.hits>1&&v.remaining===0&&!t.playerId&&t.alive&&p.alive?wildCounter(m,p,t,n):undefined;
+ return {ok:true,hit,damage:d,killed,death,drop,dispelled:!!s.dispelled,...(counter!==undefined?{counter}:{})};
 }
 function processReworkStrikes(m,n){
  const pending=m.reworkStrikes||[];m.reworkStrikes=[];
@@ -194,7 +197,7 @@ function combinedFx(p,match,now=Date.now()){
     out.restSp=(out.restSp||0)+(out.gardenRestSp||0);
   }
   for(const[k,v]of Object.entries(tempFx(p,match,now)))out[k]=(out[k]||0)+v;
-  for(const id of p.eq||[]){
+  for(const id of new Set(p.eq||[])){
     const it=item(id);if(!it)continue;
     const named=NAMED_GEAR_FX[id];
     if(named)for(const[k,v]of Object.entries(named))if(typeof v==="number")out[k]=(out[k]||0)+v;
@@ -422,9 +425,12 @@ export function updatePassiveTime(match,now=Date.now()){
   updateRegionRestrictions(match,now);
   refreshGardens(match,now);
   reworks.tick(match,now);
+  for(const player of match.players)namedGear.tick(player);
   processReworkStrikes(match,now);
   for(const w of match.wilds||[])if(w.statuses){applyWildStatusTicks(match,w,now);cleanseExpired(w,now);}
   for(const p of match.players){
+    const oldType=p.charId==='c07'?'단말':p.charId==='c38'?'단검':null,newType=p.charId==='c07'?'총':'검';
+    if(oldType&&(p.proficiency?.[oldType]||0)>(p.proficiency?.[newType]||0))p.proficiency[newType]=p.proficiency[oldType];
     if(!p.alive)continue;
     const activeNoises=(match.noises||[]).filter(x=>x.expiresAt>now);
     if(activeNoises.length||p.heardNoiseIds?.length){
@@ -502,12 +508,13 @@ function triggerBleedAction(match,p,now){
 function attackContext(match,p,target,skill,now){
   const fx=combinedFx(p,match,now),tid=target.playerId||target.id||null;
   const quietReady=((p.eq||[]).includes("camo_mask")||fx.quietDamage)&&now-(p.lastAttackAt||0)>=8000;
-  let hitBonus=(p.nextHitBonus||0)+(skill?(fx.skillHit||0):0);
+  const gear=namedGear.prepare(match,p,target,skill,now);
+  let hitBonus=gear.hit+(p.nextHitBonus||0)+(skill?(fx.skillHit||0):0);
   if((p.eq||[]).includes("aim_terminal")&&tid&&(p.trackingMarks?.[tid]||0)>now)hitBonus+=.05;
   if((p.eq||[]).includes("propulsion")&&p.moveHitReady&&now-(p.lastMoveAt||0)<=8000)hitBonus+=.04;
   if((p.eq||[]).includes("trace")&&p.redetectReady&&p.lastDetectedTarget===tid)hitBonus+=.04;
   if(p.moveHitReady&&now-(p.lastMoveAt||0)<=8000)hitBonus+=fx.afterMoveHit||0;
-  const ctx={tid,quietReady,movedRecently:now-(p.lastMoveAt||0)<=8000,hitBonus,actionDamageBonus:p.nextDamageBonus||0,skillDamageBonus:0,actionCritBonus:p.nextCritBonus||0};
+  const ctx={gearBonus:gear.bonus,tid,quietReady,movedRecently:now-(p.lastMoveAt||0)<=8000,hitBonus,actionDamageBonus:p.nextDamageBonus||0,skillDamageBonus:0,actionCritBonus:p.nextCritBonus||0};
   p.nextHitBonus=0;p.nextDamageBonus=0;p.nextCritBonus=0;p.lastAttackAt=now;
   if(p.moveHitReady)p.moveHitReady=false;if(p.redetectReady)p.redetectReady=false;
   return ctx;
@@ -516,7 +523,7 @@ function modifyAttackDamage(match,p,target,d,ctx,now){
   const fx=combinedFx(p,match,now);
   if(p.attackChainTarget===ctx.tid)p.attackChainHits=(p.attackChainHits||0)+1;else{p.attackChainTarget=ctx.tid;p.attackChainHits=1}
   if(p.namedChainTarget===ctx.tid)p.namedChainHits=(p.namedChainHits||0)+1;else{p.namedChainTarget=ctx.tid;p.namedChainHits=1}
-  let mult=1+(fx.damage||0)+(ctx.actionDamageBonus||0);
+  let mult=1+(fx.damage||0)+(ctx.actionDamageBonus||0)+(ctx.gearBonus||0);
   if(ctx.quietReady&&(p.eq||[]).includes("camo_mask"))mult*=1.04;
   if(ctx.quietReady&&fx.quietDamage)mult*=1+fx.quietDamage;
   if((p.eq||[]).includes("toxin_kit")&&status(target,"poison",now))mult*=1.03;
@@ -579,6 +586,7 @@ function killPlayer(match,a,b,now,force=false){
   const linked=linkedSpecialForChar(b.charId);
   if(linked&&specialAvailable(match,linked)&&a.alive)grantSpecial(match,a,linked);
   createDeathCorpse(match,b,now);
+  namedGear.kill(match,a,b,now);
   return {killed:true}
 }
 function recordCombatNotice(match,source,target,damage,kind,now,hit=true){
@@ -639,7 +647,7 @@ function skillDamageVsWild(match,p,w,sd,now){
   return Math.max(1,atk(p,match,now)*100/(100+d));
 }
 function attackPlayer(match,p,t,skill=false,now=Date.now()){
-  if(REWORK_CONFIG[p.charId])return reworkCombat(match,p,t,skill,now);
+  if(REWORK_CONFIG[p.charId]||!skill&&namedGear.attackProfile(p))return reworkCombat(match,p,t,skill,now);
   const sd=COMBAT_SKILL_DEFS[p.charId]||{mult:1.08,sp:12,cd:55};
   const ctx=attackContext(match,p,t,skill,now);
   let spCost=0,bonus=ctx.hitBonus,mult=1;
@@ -658,7 +666,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   }
   if(!(skill&&sd.execute)&&!hitRoll(p,skill,bonus,match,now)){
     recordCombatNotice(match,p,t,0,skill?'전투 스킬':'일반 공격',now,false);
-    gainProf(p,.5,match,now);p.attackChainTarget=t.playerId;p.attackChainHits=0;
+    reworks.afterDirect(match,p,t,skill,false,0,now);gainProf(p,.5,match,now);p.attackChainTarget=t.playerId;p.attackChainHits=0;
     if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
     const bleedDamage=triggerBleedAction(match,p,now);
     return {ok:true,hit:false,damage:0,bleedDamage};
@@ -702,7 +710,7 @@ function attackPlayer(match,p,t,skill=false,now=Date.now()){
   return {ok:true,hit:true,crit,damage:d,death,dispelled,bleedDamage};
 }
 function attackWild(match,p,w,skill=false,now=Date.now()){
-  if(REWORK_CONFIG[p.charId])return reworkCombat(match,p,w,skill,now);
+  if(REWORK_CONFIG[p.charId]||!skill&&namedGear.attackProfile(p))return reworkCombat(match,p,w,skill,now);
   const t=wildTemplate(w),sd=COMBAT_SKILL_DEFS[p.charId]||{mult:1.08,sp:12,cd:55};
   const ctx=attackContext(match,p,w,skill,now);
   let spCost=0,bonus=ctx.hitBonus,mult=1;
@@ -720,7 +728,7 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
     if(sd.timeScale)mult*=1+Math.min(.20,Math.floor(nowSec(match,now)/120)*.05);
   }
   if(!(skill&&sd.execute)&&!hitRoll(p,skill,bonus,match,now)){
-    recordCombatNotice(match,p,w,0,skill?'전투 스킬':'일반 공격',now,false);
+    reworks.afterDirect(match,p,w,skill,false,0,now);recordCombatNotice(match,p,w,0,skill?'전투 스킬':'일반 공격',now,false);
     gainProf(p,.5,match,now);p.attackChainTarget=w.id;p.attackChainHits=0;
     if(skill)applySkillSelfEffects(match,p,sd,0,false,now);
     const bleedDamage=triggerBleedAction(match,p,now);
@@ -737,11 +745,11 @@ function attackWild(match,p,w,skill=false,now=Date.now()){
   d=modifyAttackDamage(match,p,w,d,ctx,now);
   if(t.skill==="guard"&&w.guardReady){w.guardReady=false;d=Math.max(1,Math.round(d*.8))}
   if(skill&&sd.execute)d=w.hp;
-  w.hp-=d;if(d>0)wakeOnDamage(w,now);recordCombatNotice(match,p,w,d,skill?'전투 스킬':'일반 공격',now);gainProf(p,1.5,match,now);
+  w.hp-=d;reworks.afterDirect(match,p,w,skill,true,d,now);if(d>0)wakeOnDamage(w,now);recordCombatNotice(match,p,w,d,skill?'전투 스킬':'일반 공격',now);gainProf(p,1.5,match,now);
 
   let drop=null,extra=[],killed=false;
   if(w.hp<=0){
-    killed=true;w.alive=false;w.hp=0;drop=pick(t.drop);if(!addItem(p,drop)&&item(drop)?.t==="e")offerEquipment(match,p,drop);
+    reworks.killed(match,p,w,now);killed=true;w.alive=false;w.hp=0;drop=pick(t.drop);if(!addItem(p,drop)&&item(drop)?.t==="e")offerEquipment(match,p,drop);
     if(t.skill==="supply_cache")for(let i=0;i<2;i++){const x=pick(t.drop);if(addItem(p,x)||(item(x)?.t==="e"&&offerEquipment(match,p,x)))extra.push(x)}
     const kfx=combinedFx(p,match,now);
     if(kfx.killHeal)healPlayer(p,kfx.killHeal,match,now);
@@ -1080,7 +1088,7 @@ function recordMaterialHintIntel(p,now){
 export function publicPlayer(match,p,now=Date.now(),advance=true){
   if(advance)updatePassiveTime(match,now);else p={...p,intel:p.intel?{...p.intel}:undefined};ensureIntel(p);
   const aura=gardenAuras(match,p,now),rw=reworks.view(match,p,now);
-  return {...p,...rw,statuses:{...p.statuses,...aura.statuses},buffs:{...aura.buffs,...rw.reworkBuffs},inGarden:(match.regionGardens?.[p.region]?.until||0)>now,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
+  return {...p,...rw,statuses:{...p.statuses,...aura.statuses},buffs:{...aura.buffs,...rw.reworkBuffs,...namedGear.view(match,p,now)},inGarden:(match.regionGardens?.[p.region]?.until||0)>now,enemyContacts:p.enemyContacts?.[p.region]||[],nearbyNoise:nearbyNoiseFor(match,p,now),maxHp:maxHp(p,match,now),atk:atk(p,match,now),def:def(p,match,now),cdC:Math.max(0,((p.cdCUntil||0)-now)/1000),cdA:Math.max(0,((p.cdAUntil||0)-now)/1000),
     inventory:{eq:(p.eq||[]).map(id=>({id,...item(id),salvage:equipmentSalvage(id)})),mat:Object.entries(p.mat||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,name:item(id)?.n||id})),con:Object.entries(p.con||{}).filter(([,n])=>n>0).map(([id,n])=>({id,count:n,...item(id)}))}
   };
 }
@@ -1191,6 +1199,7 @@ export function completeAction(match,p,now=Date.now()){
   else if(type==="loot_corpse")result={...result,...lootCorpse(match,p,x.corpseId,x.kind,x.id,x.qty||1,!!x.replace,now)};
   if(type==="remove_object"){const o=(match.reworkObjects||[]).find(o=>o.id===x.objectId&&o.region===p.region&&o.until>now&&o.ownerId!==p.playerId);if(o)o.until=now;else result={ok:false,error:"object_missing"};}
   reworks.afterComplete(match,p,type,x,result,now,before);
+  if(result?.ok)namedGear.action(match,p,type,now,x);
   match.corpses=(match.corpses||[]).filter(c=>c.expiresAt>now);
   match.updatedAt=now;updatePassiveTime(match,now);
   const seen=encounterTarget(match,p)||observed;

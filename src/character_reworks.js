@@ -92,7 +92,7 @@ export function createReworkSystem(api){
  function takeDirect(m,t,p,amount,n){
   if(!t.playerId){t.hp-=amount;return amount;}
   if(api.invincible(t))return 0;
-  const r=reworkState(t);let d=Math.max(0,amount),b=live(t,'reverse',n);if(b){consume(t,'reverse',n);const saved=d*.3;d-=saved;timed(t,'momentum',12,n,{value:Math.min(maxHp(t,m,n)*.15,saved)});}
+  const r=reworkState(t);let d=api.gearAbsorb(m,t,Math.max(0,amount),n),b=live(t,'reverse',n);if(b){consume(t,'reverse',n);const saved=d*.3;d-=saved;timed(t,'momentum',12,n,{value:Math.min(maxHp(t,m,n)*.15,saved)});}
   b=live(t,'nextGuard',n);if(b){consume(t,'nextGuard',n);d*=.7;}
   b=live(t,'shield',n);if(b){const absorbed=Math.min(d,b.amount);b.amount-=absorbed;d-=absorbed;if(b.amount<=0)consume(t,'shield',n);}
   consume(t,'revGuard',n);
@@ -127,6 +127,7 @@ export function createReworkSystem(api){
   return b;
  }
  function afterDirect(m,p,t,skill,hit,d,n){
+  api.gearHit(m,p,t,skill,hit,n);
   const id=p.charId,r=reworkState(p);
   if(!hit){if(['c25','c33'].includes(id)&&(!r.lastBadAt||n-r.lastBadAt>=(id==='c25'?4000:5000))){resource(p,id==='c25'?'luck':'calamity',1);r.lastBadAt=n;}return;}
   if(id==='c30')observe(p,t,n);
@@ -214,7 +215,7 @@ export function createReworkSystem(api){
   if(p.charId==='c50')resource(p,'flow',1,2);
 
  }
- function killed(m,p,t,n){if(p.charId==='c19')resource(p,'soul',1);if(p.charId==='c40'&&(has(t,'fear',n)||has(t,'confusion',n)))heal(p,15,m,n);}
+ function killed(m,p,t,n){api.gearKill(m,p,t,n);if(p.charId==='c19')resource(p,'soul',1);if(p.charId==='c40'&&(has(t,'fear',n)||has(t,'confusion',n)))heal(p,15,m,n);}
  function options(m,p,n){const cfg=REWORK_CONFIG[p.charId]||{choices:[],targeted:false};const knownIds=(p.enemyContacts?.[p.region]||[]).map(x=>x.id);const ts=targets(m,p).filter(t=>p.isAI||sid(t)===p.encounter?.targetId||sid(t)===p.encounter?.wildId||knownIds.includes(sid(t))).map(t=>({id:sid(t),name:t.playerName||api.wildName(t)}));return {choices:cfg.choices.map(id=>({id,name:REWORK_LABELS[id]})),targeted:cfg.targeted,targets:ts,regions:[p.region,...(adjacency[p.region]||[])].filter(x=>!locked(m,x)),objects:(m.reworkObjects||[]).filter(o=>o.region===p.region&&o.ownerId!==p.playerId&&o.until>n).map(o=>({id:o.id,kind:o.kind,name:o.kind==='avatar'?'아바타 제거':o.kind==='trap'?'부적 해제':'식물 제거',seconds:o.kind==='avatar'||o.kind==='trap'?2:3}))};}
  function validate(m,p,x,n){
   const cfg=REWORK_CONFIG[p.charId];if(!cfg)return null;const r=reworkState(p),v=x.choice||cfg.choices[0];
