@@ -61,7 +61,8 @@
     "test:keywords-notices": "node tests/keyword_notice_smoke.mjs",
     "test:action-choice-cycle": "node tests/action_choice_cycle_smoke.mjs",
     "test:named-item-rework": "node tests/named_item_rework_smoke.mjs",
-    "test:lobby-favorites": "node tests/lobby_favorites_smoke.mjs"
+    "test:lobby-favorites": "node tests/lobby_favorites_smoke.mjs",
+    "test:alpha": "node tests/alpha_server_smoke.mjs && python3 scripts/build_alpha.py public/MasodoSurvival.html /tmp/MasodoSurvival_Alpha.html && MASODO_CLIENT_HTML=/tmp/MasodoSurvival_Alpha.html node tests/alpha_client_smoke.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
