@@ -262,6 +262,24 @@ export class GameRoom extends DurableObject{
       return
     }
     if(!session.joined){send(ws,"error",{error:"hello_required"});return}
+    if(msg.type==='leave_room'||msg.type==='delete_room'){
+      if(msg.type==='delete_room'&&meta.hostSessionId!==session.sessionId){send(ws,'error',{error:'host_only'});return}
+      if(meta.phase==='playing'){send(ws,'error',{error:'match_already_started'});return}
+      if(msg.type==='delete_room'){
+        const peers=[...this.sessions.keys()];
+        await this.removeFromDirectory(meta.code);await this.ctx.storage.deleteAlarm();await this.ctx.storage.deleteAll();
+        this.metaJson=null;this.matchJson=null;this.recipeCache.clear();this.sessions.clear();
+        for(const peer of peers){const a=peer.deserializeAttachment?.();if(a)peer.serializeAttachment({...a,joined:false});send(peer,'room_deleted',{code:meta.code});try{peer.close(1000,'room deleted')}catch{}}
+      }else{
+        session.joined=false;ws.serializeAttachment(session);this.sessions.delete(ws);
+        meta.reconnectRecords=this.reconnectRecords(meta).filter(r=>r.sessionId!==session.sessionId);
+        if(meta.hostSessionId===session.sessionId)meta.hostSessionId=this.joinedSessions()[0]?.sessionId||null;
+        if(!this.joinedSessions().length){await this.removeFromDirectory(meta.code);await this.ctx.storage.deleteAlarm();await this.ctx.storage.deleteAll();this.metaJson=null;this.matchJson=null;this.recipeCache.clear()}
+        else{await this.saveMeta(meta);await this.broadcastRoomState(meta);await this.scheduleNextAlarm(await this.getMatch(),meta)}
+        send(ws,'room_left',{code:meta.code});try{ws.close(1000,'room left')}catch{}
+      }
+      return;
+    }
     if(msg.type==="set_ready"){if(meta.phase!=="lobby"){send(ws,"error",{error:"match_already_started"});return}session.ready=!!msg.ready;const rr=this.reconnectRecords(meta).find(r=>r.sessionId===session.sessionId);if(rr)rr.ready=session.ready;await this.saveMeta(meta);ws.serializeAttachment(session);this.sessions.set(ws,session);await this.broadcastRoomState(meta);return}
     if(msg.type==="set_character"){if(meta.phase!=="lobby"||!isValidCharacter(msg.charId)){send(ws,"error",{error:"invalid_character"});return}session.charId=msg.charId;session.ready=false;const rr=this.reconnectRecords(meta).find(r=>r.sessionId===session.sessionId);if(rr){rr.charId=session.charId;rr.ready=false}await this.saveMeta(meta);ws.serializeAttachment(session);this.sessions.set(ws,session);await this.broadcastRoomState(meta);return}
     if(msg.type==="set_start_region"){if(meta.phase!=="lobby"||!isValidRegion(msg.region)){send(ws,"error",{error:"invalid_region"});return}session.startRegion=msg.region;session.ready=false;const rr=this.reconnectRecords(meta).find(r=>r.sessionId===session.sessionId);if(rr){rr.startRegion=session.startRegion;rr.ready=false}await this.saveMeta(meta);ws.serializeAttachment(session);this.sessions.set(ws,session);await this.broadcastRoomState(meta);return}
@@ -325,3 +343,4 @@ export class GameRoom extends DurableObject{
   async webSocketClose(ws,code,reason){await this.markDisconnected(ws);try{ws.close(code,reason)}catch{}}
   async webSocketError(ws){await this.markDisconnected(ws)}
 }
+

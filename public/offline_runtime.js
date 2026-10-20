@@ -76,6 +76,7 @@ function applyItemRework(items,events=[]){
  const rewrite=value=>{if(typeof value==='string'){for(const[a,b]of Object.entries(renames))value=value.split(a).join(b);return value;}if(Array.isArray(value))return value.map(rewrite);if(value&&typeof value==='object')for(const k of Object.keys(value))value[k]=rewrite(value[k]);return value;};for(const e of events)rewrite(e);
 }
 
+
 return {NAMED_ITEMS,NAMED_GEAR_EFFECTS,applyItemRework};
 })();
 __modules["src/item_classification.js"]=(()=>{
@@ -88,6 +89,7 @@ function equipmentKind(it){
 }
 function itemClassLabel(it){return it?.t==='m'?'재료':it?.t==='c'?'소모품':equipmentKind(it)==='weapon'?'무기':equipmentKind(it)==='equipment'?'장비':'기타';}
 function itemClassIcon(it){return it?.t==='m'?'M':it?.t==='c'?'C':equipmentKind(it)==='weapon'?'W':equipmentKind(it)==='equipment'?'E':'I';}
+
 
 return {WEAPON_ITEM_TYPES,equipmentKind,itemClassLabel,itemClassIcon};
 })();
@@ -106,6 +108,7 @@ const ITEM_IDS=Object.keys(ITEMS);
 function item(id){return ITEMS[id]||null;}
 function recipeOf(id){return ITEMS[id]?.r||null;}
 function regionPool(region){return POOLS[region]||[];}
+
 
 return {ITEMS,POOLS,WILD_TEMPLATES,OFFLINE_RULES,ENCOUNTER_EVENTS,ITEM_IDS,item,recipeOf,regionPool};
 })();
@@ -128,6 +131,7 @@ function uniqueMaterialExists(match,id,ignorePlayer=null,ignoreIndex=-1){
  return false;
 }
 
+
 return {isUniqueMaterial,uniqueMaterialExists};
 })();
 __modules["src/keyword_defs.js"]=(()=>{
@@ -146,6 +150,7 @@ const KEYWORDS=[
 const KEYWORD_BY_ID=Object.fromEntries(KEYWORDS.map(x=>[x.id,x]));
 function keywordCounts(words){const counts={};for(const id of words||[])if(KEYWORD_BY_ID[id])counts[id]=(counts[id]||0)+1;return counts;}
 function keywordView(words){const counts=keywordCounts(words);return KEYWORDS.filter(x=>counts[x.id]).map(x=>({...x,count:counts[x.id]}));}
+
 
 return {KEYWORD_LIMIT,KEYWORDS,KEYWORD_BY_ID,keywordCounts,keywordView};
 })();
@@ -186,6 +191,7 @@ function gimmickBuffs(p,r,{maxHp=p.maxHp,players=[]}={}){
  if(p.charId==='c30')for(const[id,record]of Object.entries(r.records||{}))if(record.count>0)entry('rw_record_'+id,'관측 기록 · '+(players.find(x=>x.playerId===id)?.playerName||'대상'),'기록한 대상에 대한 방어력 무시: 중첩당 10%. 2중첩 이상이면 해당 대상에 대한 명중률 +20%p.',record.count,3);
  return out;
 }
+
 
 return {gimmickBuffs};
 })();
@@ -524,6 +530,7 @@ function createReworkSystem(api){
  return {effects,healObserved,takeDirect,reduction,damageMult,hitBonus,afterDirect,skillSpec,afterSkill,killed,action,validate,tick,moved,afterComplete,afterApplied,heard,view,resource,live,consume,target:getTarget,roll,shield};
 }
 
+
 return {REWORK_CONFIG,REWORK_LABELS,reworkState,createReworkSystem};
 })();
 __modules["src/game_data.js"]=(()=>{
@@ -559,6 +566,7 @@ function createAIPlayer(index,charId,region,profile="balanced"){
   return{playerId:`p${index+1}`,sessionId:null,playerName:c.name,charId:c.id,region:isValidRegion(region)?region:"city",maxHp:c.baseHp,maxSp:c.baseSp,hp:c.baseHp,sp:c.baseSp,satiety:100,alive:true,kills:0,eq:[],mat:{},con:{},statuses:{},rework:reworkState({charId:c.id}),proficiency,encounter:null,pendingAction:null,rev:false,isAI:true,ai:profile,lastFoodId:null,lastFoodAt:0,foodRepeatCount:0,delayedEffects:[],lastAttackAt:0,lastMoveAt:0,moveHitReady:false,attackChainTarget:null,attackChainHits:0,namedChainTarget:null,namedChainHits:0,nextHitBonus:0,nextDamageBonus:0,nextSkillDamageBonus:0,nextCritBonus:0,nextDetectBonus:0,nextSearchLootBonus:0,nextSkillSpDiscount:0,nextCraftTimeMult:1,nextStatusBonus:{},tempGuardUntil:0,tempGuardRate:0,lastDetectedTarget:null,redetectReady:false,trackingMarks:{},detoxStealthUntil:0};
 }
 
+
 return {CHARACTERS,REGIONS,EDGES,CHARACTER_BY_ID,REGION_BY_ID,ADJACENCY,isValidCharacter,isValidRegion,movementProfile,createServerPlayer,createAIPlayer};
 })();
 __modules["src/region_restrictions.js"]=(()=>{
@@ -590,6 +598,7 @@ function updateRegionRestrictions(match,now=Date.now()){
  for(const p of match.players||[])if(p.encounter?.kind==='player'&&moved.has(p.encounter.targetId))p.encounter=null;
  return true;
 }
+
 
 return {SAFE_PASSAGES,LOCK_INTERVAL,matchElapsedSeconds,isRegionLocked,nextRegionLockAt,updateRegionRestrictions};
 })();
@@ -643,6 +652,7 @@ function send(ws, type, payload = {}) {
   }
 }
 
+
 return {MAX_HUMANS,ROOM_CODE_LENGTH,ROOM_CODE_ALPHABET,json,safeRoomCode,randomRoomCode,safeText,parseJsonMessage,send};
 })();
 __modules["src/room_settings.js"]=(()=>{
@@ -660,6 +670,7 @@ function normalizeRoomSettings(body={}){
 function roomSettings(meta){return normalizeRoomSettings(meta).settings||normalizeRoomSettings().settings}
 function humanCapacity(meta){const s=roomSettings(meta);return Math.min(MAX_HUMANS,MAX_COMPETITORS-(s.aiMode==='fixed'?s.aiCount:0))}
 function plannedAICount(meta,humans){const s=roomSettings(meta);return s.aiMode==='fill'?Math.max(0,MAX_COMPETITORS-humans):s.aiMode==='fixed'?s.aiCount:0}
+
 
 return {MAX_COMPETITORS,normalizeRoomSettings,roomSettings,humanCapacity,plannedAICount};
 })();
@@ -730,6 +741,7 @@ function inventoryOperation(match,p,msg){
  return {ok:true,mode,itemId:msg.id,rewards};
 }
 
+
 return {equipmentSalvage,offerSearchConsumable,offerEquipment,inventoryOperation};
 })();
 __modules["src/state_transport.js"]=(()=>{
@@ -758,6 +770,7 @@ function compactSnapshot(snapshot){
   return JSON.parse(JSON.stringify(s));
 }
 
+
 return {STATE_DELTA_FEATURE,stateDiff,substantivePatch,compactSnapshot};
 })();
 __modules["src/match_result.js"]=(()=>{
@@ -783,6 +796,7 @@ function playerResult(match,p,now=Date.now()){
     total:match.players.length,kills:p.kills||0,survivalSeconds:Math.max(0,Math.floor((end-match.startedAt)/1000)),
     region:p.region,endedAt:end,...(p.deathSource?{deathSource:p.deathSource}:{})};
 }
+
 
 return {settleMatch,playerResult};
 })();
@@ -816,6 +830,7 @@ function createNamedGearSystem(api){
  return{prepare,hit,action,kill,absorb,tick,view,attackProfile};
 }
 
+
 return {createNamedGearSystem};
 })();
 __modules["src/status_notices.js"]=(()=>{
@@ -827,6 +842,7 @@ function appendStatusNotice(target,{statusId,sourceId=null,sourceName='환경',c
  const row={id:target.statusNoticeSeq,at,statusId,statusName:STATUS_NAMES[statusId]||statusId,sourceId,sourceName,cause,stacks};
  (target.statusNotices??=[]).push(row);target.statusNotices=target.statusNotices.slice(-64);return row;
 }
+
 
 return {STATUS_NAMES,appendStatusNotice};
 })();
@@ -862,6 +878,7 @@ function pruneEnemyTraces(match,player,at){
  }
  player.enemyTraceNotices=player.enemyTraceNotices.slice(-32);
 }
+
 
 return {rememberEnemy,rememberIncoming,pruneEnemyTraces};
 })();
@@ -1979,6 +1996,7 @@ const NAMED_GEAR_FX=NAMED_GEAR_EFFECTS;
 
 // Replace, never add to the retired character effects.
 for(const [id,c] of Object.entries(REWORK_CONFIG)){PASSIVE_FX[id]=id==="c37"?{revive:true}:{};COMBAT_SKILL_DEFS[id]={mult:id==="c51"?1.2:1.5,sp:12,cd:c.combatCd,rework:true};ACTION_SKILL_DEFS[id]={cd:c.cd,time:c.time,rework:true};}
+
 
 return {PASSIVE_FX,COMBAT_SKILL_DEFS,ACTION_SKILL_DEFS,NAMED_GEAR_FX};
 })();
@@ -3574,11 +3592,20 @@ function lootCorpse(match,p,corpseId,kind,id,qty=1,replace=false,now=Date.now())
 function aiHpRatio(match,p,now){return p.hp/Math.max(1,maxHp(p,match,now))}
 function aiSpRatio(p){return p.sp/Math.max(1,p.maxSp)}
 function aiHasBadStatus(p,now){return ["poison","bleed","fear","confusion","slow"].some(id=>status(p,id,now))}
-function aiBestHeal(p){
-  const ids=Object.keys(p.con||{}).filter(id=>(p.con[id]||0)>0);
-  if((p.statuses?.poison?.stacks||0)>0&&ids.includes("antidote"))return"antidote";
-  if((p.statuses?.bleed?.stacks||0)>0&&ids.includes("bandage"))return"bandage";
-  return ids.filter(id=>item(id)?.heal).sort((a,b)=>(item(b)?.heal||0)-(item(a)?.heal||0))[0]||null
+function aiCanConsume(p,id){
+  return !(id==='carbonara_mint_fish'&&p.charId!=='c49')&&!(id==='mint_choco_fish'&&p.charId==='c13');
+}
+function aiBestRecovery(match,p,now){
+  const hpMissing=Math.max(0,maxHp(p,match,now)-p.hp),spMissing=Math.max(0,p.maxSp-p.sp);
+  const needsHp=aiHpRatio(match,p,now)<.48,needsSp=aiSpRatio(p)<.35,needsFood=p.satiety<30;
+  const score=id=>{
+    const it=item(id);if(!it||!aiCanConsume(p,id))return 0;
+    if(id==='antidote'&&status(p,'poison',now))return 100;
+    if(id==='bandage'&&status(p,'bleed',now))return 100;
+    if(id==='carbonara_mint_fish'&&p.charId==='c49')return needsHp||needsSp||needsFood?80:0;
+    return (needsHp?Math.min(hpMissing,it.heal||0):0)+(needsSp?Math.min(spMissing,it.sp||0)*1.2:0)+(needsFood?Math.min(100-p.satiety,it.sat||0)*.5:0);
+  };
+  return Object.keys(p.con||{}).filter(id=>p.con[id]>0&&score(id)>0).sort((a,b)=>score(b)-score(a))[0]||null;
 }
 function aiChooseCraft(p){
   const recommendedReady=recommendedCrafts(p,12).filter(x=>x.ready);
@@ -3640,6 +3667,7 @@ function aiActionUtility(match,p,now){
   if((p.cdAUntil||0)>now||p.encounter||status(p,"sleep",now))return 0;
   if(REWORK_CONFIG[p.charId])return reworks.validate(match,p,reworkAIChoice(match,p,now),now)?.ok?1.1:0;
   const d=ACTION_SKILL_DEFS[p.charId]||{};let score=.10;
+  if(d.garden)return gardenSources(match,p.region,now).some(g=>g.ownerId===p.playerId)?0:1.2;
   if(d.heal)score+=Math.max(0,1-aiHpRatio(match,p,now))*(d.heal/8);
   if(d.sp)score+=Math.max(0,1-aiSpRatio(p))*(d.sp/10);
   if((d.cleanse||d.cleanseAny||d.cleanseSpecific)&&aiHasBadStatus(p,now))score+=1.2;
@@ -3684,6 +3712,7 @@ function aiChooseEncounterCommand(match,p,target,now){
 function runAIStep(match,p,now=Date.now()){
   if(!p?.isAI||!p.alive||p.pendingAction||status(p,"sleep",now))return false;
   if(status(p,"actionDelay",now)&&Math.random()<.25)return false;
+  if(p.encounter&&!encounterTarget(match,p))p.encounter=null;
 
   if(p.pendingEvent){
     const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);
@@ -3695,10 +3724,14 @@ function runAIStep(match,p,now=Date.now()){
     return true;
   }
 
+  const recovery=aiBestRecovery(match,p,now);
+  if(recovery&&aiQueue(match,p,'use_item',{id:recovery},now))return true;
+
   if(p.encounter){
-    if(REWORK_CONFIG[p.charId]&&(p.cdAUntil||0)<=now&&Math.random()<.4){const x=reworkAIChoice(match,p,now);if(reworks.validate(match,p,x,now)?.ok&&aiQueue(match,p,"char_action",x,now))return true;}
+    if((REWORK_CONFIG[p.charId]||ACTION_SKILL_DEFS[p.charId]?.garden)&&(p.cdAUntil||0)<=now&&Math.random()<.4){const x=reworkAIChoice(match,p,now);if((reworks.validate(match,p,x,now)?.ok??true)&&aiQueue(match,p,"char_action",x,now))return true;}
     const cmd=aiChooseEncounterCommand(match,p,encounterTarget(match,p),now);
-    return cmd?aiQueue(match,p,cmd.type,cmd.payload,now):false;
+    if(cmd&&aiQueue(match,p,cmd.type,cmd.payload,now))return true;
+    return cmd&&cmd.type!=='attack'?aiQueue(match,p,'attack',{},now):false;
   }
 
   if((match.corpses||[]).some(c=>c.region===p.region&&c.expiresAt>now)&&Math.random()<(p.ai==="craft" ? .28 : .16)){
@@ -3706,9 +3739,8 @@ function runAIStep(match,p,now=Date.now()){
     if(loot&&aiQueue(match,p,"loot_corpse",loot,now))return true;
   }
 
-  const heal=aiBestHeal(p);
-  if(heal&&(aiHpRatio(match,p,now)<.48||aiHasBadStatus(p,now))){
-    if(aiQueue(match,p,"use_item",{id:heal},now))return true;
+  if(aiSpRatio(p)<.25||aiHpRatio(match,p,now)<.40){
+    if(aiQueue(match,p,'rest',{},now))return true;
   }
 
   if(aiShouldUseAction(match,p,now)){
@@ -3752,13 +3784,15 @@ function runAITick(match,now=Date.now()){
   return changed
 }
 
+
 return {STATUS_DEFS,applyStatus,updatePassiveTime,initWorld,eventChoiceAvailability,recommendedCrafts,publicPlayer,actionDuration,validateAction,beginServerAction,completeAction,beginEventChoice,resolveEventChoice,lootCorpse,runAIStep,runAITick};
 })();
 __modules["src/version.js"]=(()=>{
-const GAME_VERSION="0.10.4-online";
+const GAME_VERSION="0.10.5-online";
 const PHASE="3A";
 const PROTOCOL_VERSION=14;
 const BUILD_LABEL=`v${GAME_VERSION} · Phase ${PHASE}`;
+
 
 return {GAME_VERSION,PHASE,PROTOCOL_VERSION,BUILD_LABEL};
 })();
@@ -4027,6 +4061,24 @@ class GameRoom extends DurableObject{
       return
     }
     if(!session.joined){send(ws,"error",{error:"hello_required"});return}
+    if(msg.type==='leave_room'||msg.type==='delete_room'){
+      if(msg.type==='delete_room'&&meta.hostSessionId!==session.sessionId){send(ws,'error',{error:'host_only'});return}
+      if(meta.phase==='playing'){send(ws,'error',{error:'match_already_started'});return}
+      if(msg.type==='delete_room'){
+        const peers=[...this.sessions.keys()];
+        await this.removeFromDirectory(meta.code);await this.ctx.storage.deleteAlarm();await this.ctx.storage.deleteAll();
+        this.metaJson=null;this.matchJson=null;this.recipeCache.clear();this.sessions.clear();
+        for(const peer of peers){const a=peer.deserializeAttachment?.();if(a)peer.serializeAttachment({...a,joined:false});send(peer,'room_deleted',{code:meta.code});try{peer.close(1000,'room deleted')}catch{}}
+      }else{
+        session.joined=false;ws.serializeAttachment(session);this.sessions.delete(ws);
+        meta.reconnectRecords=this.reconnectRecords(meta).filter(r=>r.sessionId!==session.sessionId);
+        if(meta.hostSessionId===session.sessionId)meta.hostSessionId=this.joinedSessions()[0]?.sessionId||null;
+        if(!this.joinedSessions().length){await this.removeFromDirectory(meta.code);await this.ctx.storage.deleteAlarm();await this.ctx.storage.deleteAll();this.metaJson=null;this.matchJson=null;this.recipeCache.clear()}
+        else{await this.saveMeta(meta);await this.broadcastRoomState(meta);await this.scheduleNextAlarm(await this.getMatch(),meta)}
+        send(ws,'room_left',{code:meta.code});try{ws.close(1000,'room left')}catch{}
+      }
+      return;
+    }
     if(msg.type==="set_ready"){if(meta.phase!=="lobby"){send(ws,"error",{error:"match_already_started"});return}session.ready=!!msg.ready;const rr=this.reconnectRecords(meta).find(r=>r.sessionId===session.sessionId);if(rr)rr.ready=session.ready;await this.saveMeta(meta);ws.serializeAttachment(session);this.sessions.set(ws,session);await this.broadcastRoomState(meta);return}
     if(msg.type==="set_character"){if(meta.phase!=="lobby"||!isValidCharacter(msg.charId)){send(ws,"error",{error:"invalid_character"});return}session.charId=msg.charId;session.ready=false;const rr=this.reconnectRecords(meta).find(r=>r.sessionId===session.sessionId);if(rr){rr.charId=session.charId;rr.ready=false}await this.saveMeta(meta);ws.serializeAttachment(session);this.sessions.set(ws,session);await this.broadcastRoomState(meta);return}
     if(msg.type==="set_start_region"){if(meta.phase!=="lobby"||!isValidRegion(msg.region)){send(ws,"error",{error:"invalid_region"});return}session.startRegion=msg.region;session.ready=false;const rr=this.reconnectRecords(meta).find(r=>r.sessionId===session.sessionId);if(rr){rr.startRegion=session.startRegion;rr.ready=false}await this.saveMeta(meta);ws.serializeAttachment(session);this.sessions.set(ws,session);await this.broadcastRoomState(meta);return}
@@ -4091,6 +4143,7 @@ class GameRoom extends DurableObject{
   async webSocketError(ws){await this.markDisconnected(ws)}
 }
 
+
 return {GameRoom};
 })();
 __modules["src/offline_session.js"]=(()=>{
@@ -4111,6 +4164,7 @@ class OfflineSession{
   this.room=new GameRoom(this.ctx,{ROOMS:{getByName:()=>({fetch:async()=>({ok:true,json:async()=>({ok:true})})})}});
  }
  receive(msg){
+  if(msg.type==='room_left'||msg.type==='room_deleted'){this.stop();this.alarmAt=null;this.adapter.endRoomConnection()}
   if(msg.type==='match_state'){this.adapter.lastMatch=msg.match;this.adapter.networkState=msg.match;this.adapter.stateRevision=0}
   this.adapter.emit(msg.type,msg);this.adapter.emit('*',msg);
  }
@@ -4158,6 +4212,7 @@ function installOfflineMode(adapter){
  adapter.close=(...args)=>{if(adapter.offline){local.stop();adapter.manualClose=true}else original.close(...args)};
  return adapter;
 }
+
 
 return {OfflineSession,installOfflineMode};
 })();

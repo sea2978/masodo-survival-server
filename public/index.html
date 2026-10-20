@@ -448,7 +448,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
     <div class="log-panel" hidden><div id="log"></div></div>
   </section>
   <dialog id="quickMatchPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>빠른대전</h2><button data-close-panel>닫기</button></div><p>참가 가능한 방을 찾아 입장하고 준비합니다. 방이 없으면 새 방을 만듭니다.</p><p class="muted">경기 시작은 방장이 진행합니다.</p><button id="quickMatchStart">빠른대전 시작</button><p id="quickMatchMessage" role="status"></p></dialog>
-  <dialog id="roomBrowserPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>방 목록</h2><button data-close-panel>닫기</button></div><div class="room-popup-grid"><section class="lobby-pane lobby-rooms"><button id="refreshRooms">새로고침</button><div id="roomsList" class="room-browser"></div><div class="lobby-entry"><button id="create">방 만들기</button><div class="row"><input id="room" placeholder="방 코드" maxlength="6" aria-label="방 코드"><button id="join" disabled>코드로 참가</button></div></div></section><section class="lobby-pane lobby-current"><h2>현재 방</h2><div id="roomState"><p class="muted">방을 만들거나 목록에서 참가하세요.</p></div><div class="lobby-ready"><button id="ready">준비</button><button id="unready">준비 취소</button><button id="start">방장: 경기 시작</button></div></section></div></dialog>
+  <dialog id="roomBrowserPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>방 목록</h2><button data-close-panel>닫기</button></div><div class="room-popup-grid"><section class="lobby-pane lobby-rooms"><button id="refreshRooms">새로고침</button><div id="roomsList" class="room-browser"></div><div class="lobby-entry"><button id="create">방 만들기</button><div class="row"><input id="room" placeholder="방 코드" maxlength="6" aria-label="방 코드"><button id="join" disabled>코드로 참가</button></div></div></section><section class="lobby-pane lobby-current"><h2>현재 방</h2><div id="roomState"><p class="muted">방을 만들거나 목록에서 참가하세요.</p></div><div class="lobby-ready"><button id="ready">준비</button><button id="unready">준비 취소</button><button id="start">방장: 경기 시작</button></div><div class="row"><button id="leaveRoom" type="button" disabled>방 나가기</button><button id="deleteRoom" type="button" disabled hidden>방 삭제</button></div></section></div></dialog>
   <dialog id="playerSettingsPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>플레이어 세팅</h2><button data-close-panel>닫기</button></div><p>플레이어: <b id="settingsPlayerName"></b></p><div class="lobby-player"><label for="char">캐릭터</label><select id="char"><option>캐릭터 목록 불러오는 중...</option></select><label for="startRegion">시작 지역</label><select id="startRegion"><option>지역 목록 불러오는 중...</option></select><div id="charInfo" class="card muted"></div></div></dialog>
   <dialog id="itemCodexPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>아이템 도감</h2><button data-close-panel>닫기</button></div><input id="itemCodexSearch" type="search" placeholder="이름·등급·효과 검색" aria-label="아이템 검색"><div id="itemCodexList" class="item-codex-shop"></div></dialog>
   <dialog id="characterCodexPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>캐릭터 도감</h2><button data-close-panel>닫기</button></div><input id="characterCodexSearch" type="search" placeholder="이름·스킬 검색" aria-label="캐릭터 검색"><div id="characterCodexList" class="codex-list"></div></dialog>
@@ -721,7 +721,7 @@ function fillCatalog(){
 }
 const escapeRoomText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function aiSettingText(r){return r.aiMode==='none'?'AI 없음':r.aiMode==='fixed'?'AI '+r.aiCount+'명':'AI 남은 인원 채우기'}
-function renderRoom(r){$('#lobbyRoomSummary').textContent=(r.name||'생존게임 방')+' · '+r.code+' · '+r.humanCount+'/'+r.maxHumans;$('#roomState').innerHTML=`<p><b>${escapeRoomText(r.name||'생존게임 방')}</b></p><p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p><p class="muted">${aiSettingText(r)}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${escapeRoomText(p.playerName)} / ${escapeRoomText(characterName(p.charId))} / ${rname(p.startRegion)}</div>`).join("")}
+function renderRoom(r){$('#leaveRoom').disabled=false;$('#deleteRoom').hidden=r.hostSessionId!==net.sessionId;$('#deleteRoom').disabled=r.hostSessionId!==net.sessionId||r.phase==='playing';$('#lobbyRoomSummary').textContent=(r.name||'생존게임 방')+' · '+r.code+' · '+r.humanCount+'/'+r.maxHumans;$('#roomState').innerHTML=`<p><b>${escapeRoomText(r.name||'생존게임 방')}</b></p><p><code>${r.code}</code> · ${r.humanCount}/${r.maxHumans} · ${r.phase}</p><p class="muted">${aiSettingText(r)}</p>`+r.players.map(p=>`<div>${p.ready?"✅":"⬜"} ${p.host?'<span class="host">[방장]</span> ':''}${escapeRoomText(p.playerName)} / ${escapeRoomText(characterName(p.charId))} / ${rname(p.startRegion)}</div>`).join("")}
 let roomEntryBusy=false;
 async function connectRoom(code,create=false,settings={}){
   if(roomEntryBusy)return;
@@ -1477,6 +1477,16 @@ $('#offlineMode').disabled=false;
 $('#loginForm').onsubmit=e=>{e.preventDefault();if(!$('#connectServer').disabled)$('#connectServer').click()};
 $('#connectServer').textContent='접속';$('#connectServer').disabled=false;$('#serverConnectMessage').textContent='서버 주소를 입력하고 연결해 주세요.';
 $('#returnLogin').onclick=()=>{net.close();setServerControls(false);M=null;$('#serverConnectMessage').textContent='플레이어명과 서버 주소를 확인하고 접속하세요.';$('#lobbyRoomSummary').textContent='참가 중인 방이 없습니다.';$('#roomState').replaceChildren();showLogin()};
+function departedRoom(e){
+ net.endRoomConnection();M=null;showLobby();$('#lobbyRoomSummary').textContent='참가 중인 방이 없습니다.';$('#roomState').replaceChildren();
+ for(const id of ['leaveRoom','deleteRoom','ready','unready','start'])$('#'+id).disabled=true;$('#deleteRoom').hidden=true;
+ if(!$('#roomBrowserPanel').open)$('#roomBrowserPanel').showModal();
+ if(e.type==='room_deleted')toast('방 삭제','방장이 방을 삭제했습니다.');
+ refreshRooms();
+}
+net.on('room_left',e=>departedRoom({...e,type:'room_left'}));net.on('room_deleted',e=>departedRoom({...e,type:'room_deleted'}));
+$('#leaveRoom').onclick=()=>{if(confirm('현재 방에서 나갈까요?'))net.leaveRoom()};
+$('#deleteRoom').onclick=()=>{if(confirm('이 방을 삭제할까요? 모든 참가자가 로비로 돌아갑니다.'))net.deleteRoom()};
 $('#refreshRooms').onclick=()=>refreshRooms();
 $('#create').onclick=()=>{if(serverReady&&!roomEntryBusy){$('#roomBrowserPanel').close();$('#createRoomPanel').showModal()}};
 $('#cancelCreateRoom').onclick=()=>{$('#createRoomPanel').close();$('#roomBrowserPanel').showModal()};
@@ -1486,3 +1496,4 @@ $('#createRoomForm').onsubmit=async e=>{e.preventDefault();if(roomEntryBusy)retu
 $('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=refreshInfo;$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>reworkUI.openCombat();$('#charAction').onclick=()=>reworkUI.open();$('#flee').onclick=()=>net.flee();
 if(typeof ResizeObserver!=='undefined'){const encounterInfoObserver=new ResizeObserver(([entry])=>{$('#gameScreen').style.setProperty('--encounter-info-height',Math.ceil(entry.contentRect.height)+'px')});encounterInfoObserver.observe($('#game'))}
 </script></body></html>
+

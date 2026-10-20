@@ -1589,11 +1589,20 @@ export function lootCorpse(match,p,corpseId,kind,id,qty=1,replace=false,now=Date
 function aiHpRatio(match,p,now){return p.hp/Math.max(1,maxHp(p,match,now))}
 function aiSpRatio(p){return p.sp/Math.max(1,p.maxSp)}
 function aiHasBadStatus(p,now){return ["poison","bleed","fear","confusion","slow"].some(id=>status(p,id,now))}
-function aiBestHeal(p){
-  const ids=Object.keys(p.con||{}).filter(id=>(p.con[id]||0)>0);
-  if((p.statuses?.poison?.stacks||0)>0&&ids.includes("antidote"))return"antidote";
-  if((p.statuses?.bleed?.stacks||0)>0&&ids.includes("bandage"))return"bandage";
-  return ids.filter(id=>item(id)?.heal).sort((a,b)=>(item(b)?.heal||0)-(item(a)?.heal||0))[0]||null
+function aiCanConsume(p,id){
+  return !(id==='carbonara_mint_fish'&&p.charId!=='c49')&&!(id==='mint_choco_fish'&&p.charId==='c13');
+}
+function aiBestRecovery(match,p,now){
+  const hpMissing=Math.max(0,maxHp(p,match,now)-p.hp),spMissing=Math.max(0,p.maxSp-p.sp);
+  const needsHp=aiHpRatio(match,p,now)<.48,needsSp=aiSpRatio(p)<.35,needsFood=p.satiety<30;
+  const score=id=>{
+    const it=item(id);if(!it||!aiCanConsume(p,id))return 0;
+    if(id==='antidote'&&status(p,'poison',now))return 100;
+    if(id==='bandage'&&status(p,'bleed',now))return 100;
+    if(id==='carbonara_mint_fish'&&p.charId==='c49')return needsHp||needsSp||needsFood?80:0;
+    return (needsHp?Math.min(hpMissing,it.heal||0):0)+(needsSp?Math.min(spMissing,it.sp||0)*1.2:0)+(needsFood?Math.min(100-p.satiety,it.sat||0)*.5:0);
+  };
+  return Object.keys(p.con||{}).filter(id=>p.con[id]>0&&score(id)>0).sort((a,b)=>score(b)-score(a))[0]||null;
 }
 function aiChooseCraft(p){
   const recommendedReady=recommendedCrafts(p,12).filter(x=>x.ready);
@@ -1655,6 +1664,7 @@ function aiActionUtility(match,p,now){
   if((p.cdAUntil||0)>now||p.encounter||status(p,"sleep",now))return 0;
   if(REWORK_CONFIG[p.charId])return reworks.validate(match,p,reworkAIChoice(match,p,now),now)?.ok?1.1:0;
   const d=ACTION_SKILL_DEFS[p.charId]||{};let score=.10;
+  if(d.garden)return gardenSources(match,p.region,now).some(g=>g.ownerId===p.playerId)?0:1.2;
   if(d.heal)score+=Math.max(0,1-aiHpRatio(match,p,now))*(d.heal/8);
   if(d.sp)score+=Math.max(0,1-aiSpRatio(p))*(d.sp/10);
   if((d.cleanse||d.cleanseAny||d.cleanseSpecific)&&aiHasBadStatus(p,now))score+=1.2;
@@ -1699,6 +1709,7 @@ function aiChooseEncounterCommand(match,p,target,now){
 export function runAIStep(match,p,now=Date.now()){
   if(!p?.isAI||!p.alive||p.pendingAction||status(p,"sleep",now))return false;
   if(status(p,"actionDelay",now)&&Math.random()<.25)return false;
+  if(p.encounter&&!encounterTarget(match,p))p.encounter=null;
 
   if(p.pendingEvent){
     const e=ENCOUNTER_EVENTS.find(x=>x.id===p.pendingEvent);
@@ -1710,10 +1721,14 @@ export function runAIStep(match,p,now=Date.now()){
     return true;
   }
 
+  const recovery=aiBestRecovery(match,p,now);
+  if(recovery&&aiQueue(match,p,'use_item',{id:recovery},now))return true;
+
   if(p.encounter){
-    if(REWORK_CONFIG[p.charId]&&(p.cdAUntil||0)<=now&&Math.random()<.4){const x=reworkAIChoice(match,p,now);if(reworks.validate(match,p,x,now)?.ok&&aiQueue(match,p,"char_action",x,now))return true;}
+    if((REWORK_CONFIG[p.charId]||ACTION_SKILL_DEFS[p.charId]?.garden)&&(p.cdAUntil||0)<=now&&Math.random()<.4){const x=reworkAIChoice(match,p,now);if((reworks.validate(match,p,x,now)?.ok??true)&&aiQueue(match,p,"char_action",x,now))return true;}
     const cmd=aiChooseEncounterCommand(match,p,encounterTarget(match,p),now);
-    return cmd?aiQueue(match,p,cmd.type,cmd.payload,now):false;
+    if(cmd&&aiQueue(match,p,cmd.type,cmd.payload,now))return true;
+    return cmd&&cmd.type!=='attack'?aiQueue(match,p,'attack',{},now):false;
   }
 
   if((match.corpses||[]).some(c=>c.region===p.region&&c.expiresAt>now)&&Math.random()<(p.ai==="craft" ? .28 : .16)){
@@ -1721,9 +1736,8 @@ export function runAIStep(match,p,now=Date.now()){
     if(loot&&aiQueue(match,p,"loot_corpse",loot,now))return true;
   }
 
-  const heal=aiBestHeal(p);
-  if(heal&&(aiHpRatio(match,p,now)<.48||aiHasBadStatus(p,now))){
-    if(aiQueue(match,p,"use_item",{id:heal},now))return true;
+  if(aiSpRatio(p)<.25||aiHpRatio(match,p,now)<.40){
+    if(aiQueue(match,p,'rest',{},now))return true;
   }
 
   if(aiShouldUseAction(match,p,now)){
@@ -1766,3 +1780,4 @@ export function runAITick(match,now=Date.now()){
   if(changed)match.updatedAt=now;
   return changed
 }
+

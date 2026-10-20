@@ -141,6 +141,11 @@ let localSession;const useOffline=net.useOffline;net.useOffline=()=>{localSessio
 try{
  
  await document.querySelector('#offlineMode').onclick();assert(net.offline);assert(!document.querySelector('#lobbyScreen').hidden);assert.equal(net.catalog.characters.length,52);assert(document.querySelector('#status').textContent.includes('오프라인'));
+ // Real offline room list buttons leave/delete the current waiting room, then permit a new room.
+ for(const buttonId of ['leaveRoom','deleteRoom']){
+  assert(await vm.runInContext("connectRoom(null,true,{name:'대기방 관리',aiMode:'none'})",ctx));assert(!document.querySelector('#leaveRoom').disabled);assert(!document.querySelector('#deleteRoom').hidden);
+  await document.querySelector('#'+buttonId).onclick();await localSession.queue;assert.equal((await net.listRooms()).rooms.length,0);assert.equal(net.roomCode,null);assert.equal(document.querySelector('#lobbyRoomSummary').textContent,'참가 중인 방이 없습니다.');
+ }
  document.querySelector('#char').value='c52';document.querySelector('#startRegion').value='city';assert(await vm.runInContext("connectRoom(null,true,{name:'오프라인 연습',aiMode:'fixed',aiCount:1})",ctx));
  document.querySelector('#ready').onclick();await localSession.queue;document.querySelector('#start').onclick();await localSession.queue;assert(!document.querySelector('#matchIntro').hidden);assert.equal(document.querySelector('#introCards').children.length,2);
  localNow+=5000;perf+=5000;await localSession.room.alarm();assert(document.querySelector('#matchIntro').hidden);assert(!document.querySelector('#gameScreen').hidden);assert.equal(document.querySelector('#elapsed').textContent,'0');
@@ -196,3 +201,9 @@ for(const [id,base] of Object.entries({blade:'basic_sword',spear:'basic_spear',b
 assert.equal(vm.runInContext("I('final_19').n",ctx),'엠마의 배틀액스');assert.equal(vm.runInContext("I('final_19').r.rare_heavy",ctx),1);
 const emmaTree=vm.runInContext("codexRecipeTree(D.items,'final_19')",ctx);assert(emmaTree.includes('강화중량무기'));assert(emmaTree.includes('미노타우로스 배틀액스 파편'));
 console.log('PASS: actual catalog/codex trees show five basic-to-upgrade links and Emma battle axe through heavy weapon/material (DOM mocks)');
+
+
+// Host controls update immediately when room ownership changes.
+net.sessionId='host';vm.runInContext("renderRoom({name:'권한 검증',code:'ABC123',phase:'lobby',humanCount:2,maxHumans:10,aiMode:'none',players:[],hostSessionId:'host'})",ctx);assert(!document.querySelector('#deleteRoom').hidden);
+net.sessionId='guest';vm.runInContext("renderRoom({name:'권한 검증',code:'ABC123',phase:'lobby',humanCount:2,maxHumans:10,aiMode:'none',players:[],hostSessionId:'host'})",ctx);assert(document.querySelector('#deleteRoom').hidden);
+console.log('PASS: room-list exit/delete buttons complete actual offline room lifecycle; delete visible only to current host (DOM mocks)');

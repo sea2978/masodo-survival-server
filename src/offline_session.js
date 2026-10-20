@@ -15,6 +15,7 @@ export class OfflineSession{
   this.room=new GameRoom(this.ctx,{ROOMS:{getByName:()=>({fetch:async()=>({ok:true,json:async()=>({ok:true})})})}});
  }
  receive(msg){
+  if(msg.type==='room_left'||msg.type==='room_deleted'){this.stop();this.alarmAt=null;this.adapter.endRoomConnection()}
   if(msg.type==='match_state'){this.adapter.lastMatch=msg.match;this.adapter.networkState=msg.match;this.adapter.stateRevision=0}
   this.adapter.emit(msg.type,msg);this.adapter.emit('*',msg);
  }
@@ -62,3 +63,4 @@ export function installOfflineMode(adapter){
  adapter.close=(...args)=>{if(adapter.offline){local.stop();adapter.manualClose=true}else original.close(...args)};
  return adapter;
 }
+

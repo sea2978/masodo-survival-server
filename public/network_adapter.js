@@ -225,6 +225,7 @@ export class MasodoNetworkAdapter {
           try { sessionStorage.setItem(storageKey, msg.sessionId); } catch {}
           if (msg.reconnectToken) this.saveReconnectToken(this.roomCode, msg.reconnectToken);
         }
+        if(msg.type==='room_left'||msg.type==='room_deleted')this.endRoomConnection();
         if (msg.catalog) this.mergeCatalog(msg.catalog);
         if (msg.build) this.build = msg.build;
         if (msg.match) this.lastMatch = msg.match;
@@ -275,6 +276,14 @@ export class MasodoNetworkAdapter {
   chat(text) { return this.send("chat", { text }); }
   ping() { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send("ping"); }
 
+  leaveRoom(){return this.send('leave_room')}
+  deleteRoom(){return this.send('delete_room')}
+  endRoomConnection(){
+    const code=this.roomCode;this.close();
+    try{sessionStorage.removeItem(this.tokenKey(code));sessionStorage.removeItem('masodo-session-'+code)}catch{}
+    this.roomCode=null;this.sessionId=null;this.lastMatch=null;this.networkState=null;this.stateRevision=0;this.connectOptions=null;
+  }
+
   close() {
     this.connectionEpoch++;
     this.manualClose = true;
@@ -283,3 +292,4 @@ export class MasodoNetworkAdapter {
     try { ws?.close(1000, "client close"); } catch {}
   }
 }
+
