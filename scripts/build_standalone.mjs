@@ -9,6 +9,9 @@ const adapterPath = path.join(publicDir, "network_adapter.js");
 const outputPath = path.join(publicDir, "MasodoSurvival.html");
 
 let html = fs.readFileSync(indexPath, "utf8");
+const itemClassification=fs.readFileSync(path.join(root,'src/item_classification.js'),'utf8');
+fs.writeFileSync(path.join(publicDir,'item_classification.js'),itemClassification);
+html=html.replace('import{equipmentKind,itemClassLabel,itemClassIcon}from"./item_classification.js";',itemClassification.replace(/export /g,''));
 const clientVersion=fs.readFileSync(path.join(root,'src/version.js'),'utf8').match(/GAME_VERSION="([^"]+)"/)[1];
 const clientVersionSource='export const CLIENT_VERSION='+JSON.stringify(clientVersion)+';\n';
 fs.writeFileSync(path.join(publicDir,'client_version.js'),clientVersionSource);

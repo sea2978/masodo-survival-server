@@ -150,3 +150,8 @@ console.log('PASS: full client local cycle button -> immediate selected action -
  }finally{Date.now=clock;Math.random=oldRandom}
 }
 console.log('PASS: full client random keyword click -> room -> acquisition toast/HUD; incoming status source/cause -> grouped toast; repeated full state deduplicated (DOM mocks)');
+// Mixed-stat weapons/equipment retain their class in the actual inventory renderer.
+{
+ const classified=createHarness(Room,{humans:2,ai:0,now:t}),p=classified.match.players[0];p.eq=['gauntlet','near_final_01','final_16'];classified.match.matchId='classified-inventory';vm.runInContext('clearLocalAction();noticeSnapshot=null',ctx);net.emit('match_state',{match:classified.room.snapshot(classified.match,'s0',t)});const equipped=document.querySelector('#eq').innerHTML;assert(equipped.includes('강화권갑'));assert(equipped.includes('벨리트라의 혀 피어싱'));assert(equipped.includes('제타의 마법서'));assert(equipped.includes('무기 · 희귀'));assert(equipped.includes('장비 · 준최종'));assert(equipped.includes('무기 · 최종'));
+}
+console.log('PASS: actual full client inventory displays mixed-stat gauntlet/grimoire as weapons and piercing as equipment; common three-slot storage preserved (DOM/socket mocks)');

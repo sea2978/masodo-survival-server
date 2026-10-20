@@ -1,3 +1,4 @@
+import {equipmentKind,itemClassLabel,itemClassIcon} from '../src/item_classification.js';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
@@ -6,7 +7,7 @@ import {CHARACTERS} from '../src/game_data.js';
 const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),els=new Map();
 const element=()=>({value:'',textContent:'',innerHTML:'',scrollTop:0,querySelector(selector){if(selector!=='.item-codex-grid')return null;return this.grid??={scrollTop:0}},querySelectorAll(selector){const attribute=selector.slice(1,-1),regex=new RegExp(attribute+'="([^"]+)"','g');const nodes=[...this.innerHTML.matchAll(regex)].map(m=>({dataset:{[attribute==='data-codex-category'?'codexCategory':'codexSelect']:m[1]},onclick:null}));(this.nodes??={})[attribute]=nodes;return nodes}});
 const $=id=>{if(!els.has(id))els.set(id,element());return els.get(id)};
-const ctx={$,net:{catalog:{items:ITEMS,characters:CHARACTERS}},D:{items:ITEMS},escapeRoomText:x=>String(x).replaceAll('<','&lt;'),me:()=>null};vm.createContext(ctx);
+const ctx={equipmentKind,itemClassLabel,itemClassIcon,$,net:{catalog:{items:ITEMS,characters:CHARACTERS}},D:{items:ITEMS},escapeRoomText:x=>String(x).replaceAll('<','&lt;'),me:()=>null};vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('function craftStatsText('),source.indexOf('function nextUpgradeItems(')),ctx);
 vm.runInContext(source.slice(source.indexOf("let itemCodexCategory="),source.indexOf('function renderCharacterCodex(')),ctx);
 ctx.renderItemCodex();let html=$('#itemCodexList').innerHTML;for(const label of ['전체','무기','장비','소모품','재료'])assert(html.includes('>'+label+'</button>'));
@@ -30,3 +31,11 @@ ctx.charInfo=id=>CHARACTERS.find(c=>c.id===id);vm.runInContext(source.slice(sour
 ctx.rname=x=>x;vm.runInContext(source.slice(source.indexOf('function aiSettingText('),source.indexOf('let roomEntryBusy=')),ctx);ctx.renderRoom({name:'QA',code:'ABCDEF',humanCount:1,maxHumans:10,players:[{playerName:'QA',charId:'c46',startRegion:'city'}]});assert($('#roomState').innerHTML.includes('량아 레하'));assert(!$('#roomState').innerHTML.includes('c46'));
 assert(source.includes('value="${c.id}">${escapeRoomText(c.name)}</option>'));assert(!source.includes('${c.id} · ${c.name}</option>'));
 console.log('PASS: shared crafting categories, recursive ingredient quantities/cycle guard, upgrade links/search, character names in room/settings with unchanged network IDs (DOM mocks)');
+// Regression: attack+defense gear appeared in both categories; utility gear with ATK was labelled a weapon.
+$('#itemCodexSearch').value='';
+const expectedWeapon=['gauntlet','basic_gauntlet','rare_magic','final_01','final_16','final_20','final_22'];
+const expectedEquipment=['basic_mask','rare_mask','near_final_12','near_final_01','near_final_06','near_final_15','basic_accessory','basic_terminal','aim_terminal','basic_tool','toxin_kit','near_final_13','near_final_14','basic_armament','final_03'];
+for(const [ids,category,label,icon]of [[expectedWeapon,'weapon','무기','W'],[expectedEquipment,'armor','장비','E']])for(const id of ids){assert.equal(ctx.craftCategoryMatch(id,ITEMS[id],category),true,id);assert.equal(ctx.craftCategoryMatch(id,ITEMS[id],category==='weapon'?'armor':'weapon'),false,id);assert.equal(itemClassLabel(ITEMS[id]),label);assert.equal(itemClassIcon(ITEMS[id]),icon);vm.runInContext('itemCodexCategory='+JSON.stringify(category)+';itemCodexSelected='+JSON.stringify(id),ctx);ctx.renderItemCodex();assert($('#itemCodexList').innerHTML.includes(ITEMS[id].n));assert($('#itemCodexList').innerHTML.includes(' · '+label));}
+let weapons=0,equipment=0;
+for(const [id,it]of Object.entries(ITEMS)){const w=ctx.craftCategoryMatch(id,it,'weapon'),e=ctx.craftCategoryMatch(id,it,'armor');assert(!(w&&e),id+' has overlapping categories');if(it.t==='e'){assert(['weapon','equipment'].includes(it.equipKind),id+' lacks explicit metadata');assert(w!==e,id+' is missing from wearable categories');assert.equal(equipmentKind({...it,atk:999,def:999}),it.equipKind,'stat bonuses must never change kind');w?weapons++:equipment++;}else assert(!w&&!e,id+' is not a wearable');}
+console.log('PASS: all '+weapons+' weapons and '+equipment+' equipment items are explicitly typed, mutually exclusive and unaffected by stat bonuses; named counterexamples render correctly in the actual codex (DOM mocks)');

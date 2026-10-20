@@ -489,7 +489,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
     </aside>
     <dialog id="movePanel" class="game-popup"><div class="popup-head"><h2>지역 이동</h2><button data-close-panel>닫기</button></div><p id="regionLockStatus" class="muted" role="status"></p><div id="moves" class="move-buttons"></div></dialog>
-    <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 장비</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><div id="regionalObjects" aria-label="현재 지역 설치물"></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
+    <dialog id="inventoryPanel" class="game-popup"><div class="popup-head"><h2>인벤토리</h2><button data-close-panel>닫기</button></div><div class="inventory-columns"><div><h3>장착 아이템</h3><div id="eq"></div></div><div><h3>소모품</h3><div id="con"></div></div><div><h3>재료</h3><div id="mat" class="scroll"></div></div></div><div id="regionalObjects" aria-label="현재 지역 설치물"></div><h3>현재 지역 시체</h3><div id="corpses"></div></dialog>
     <dialog id="inventoryConfirmPanel" class="game-popup"><div class="popup-head"><h2 id="inventoryConfirmTitle">아이템 관리</h2><button data-close-panel>취소</button></div><p id="inventoryConfirmDetail"></p><button id="inventoryConfirmApply">확인</button></dialog>
     <dialog id="craftDiscardPanel" class="game-popup"><div class="popup-head"><h2>버릴 장비 선택</h2><button onclick="this.closest('dialog').close()">취소</button></div><p id="craftDiscardDescription"></p><div id="craftDiscardChoices" class="compact-list"></div><p class="muted">취소하면 장비와 제작 재료를 그대로 보존합니다.</p></dialog>
     <dialog id="pickupPanel" class="game-popup"><div class="popup-head"><h2 id="pickupTitle">아이템 칸이 가득 찼습니다</h2></div><p id="pickupDescription"></p><p id="pickupHelp" class="muted"></p><div id="pickupChoices" class="compact-list"></div><button id="discardPickup">새로 발견한 소모품 버리기</button></dialog>
@@ -530,6 +530,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 <p id="resultNote" class="muted"></p><div class="result-actions"><button id="resultWatch">화면 보기</button><button id="resultLobby">로비로 돌아가기</button></div></dialog>
 <script type="module">
 import{installOfflineMode}from"./offline_runtime.js";
+import{equipmentKind,itemClassLabel,itemClassIcon}from"./item_classification.js";
 import{CLIENT_VERSION}from"./client_version.js";
 import{MasodoNetworkAdapter}from"./network_adapter.js";
 import{PortraitReactions,EnemyExitReaction}from"./portrait_reactions.js";
@@ -974,13 +975,7 @@ function renderRouteGuide(){
   }
 }
 
-function craftTypeLabel(id,it){
-  if(it.t==='m')return '재료';
-  if(it.t==='c')return '소모품';
-  if((it.atk||0)>0)return '무기';
-  if((it.def||0)>0)return '장비';
-  return it.r?'제작품':'기타';
-}
+function craftTypeLabel(id,it){return itemClassLabel(it);}
 function craftStatsText(it){
   const a=[];
   if(it.atk)a.push('공격력 +'+it.atk);
@@ -997,8 +992,8 @@ function craftCategoryMatch(id,it,cat){
   if(cat==='all')return true;
   if(cat==='recommended')return isRecommendedGear(me(),id,it);
   if(cat==='craftable')return !!it.r&&canCraft(me(),id);
-  if(cat==='weapon')return (it.atk||0)>0;
-  if(cat==='armor')return (it.def||0)>0;
+  if(cat==='weapon')return equipmentKind(it)==='weapon';
+  if(cat==='armor')return equipmentKind(it)==='equipment';
   if(cat==='consumable')return it.t==='c';
   if(cat==='material')return it.t==='m';
   return true;
@@ -1035,7 +1030,7 @@ function renderCraft(force=false){
 
   const side=document.createElement('div');side.className='craft-sidebar';
   side.innerHTML='<div class="craft-sidebar-title">아이템 분류</div>';
-  const cats=[['recommended','★ 추천 장비'],['all','전체'],['craftable','제작 가능'],['weapon','무기'],['armor','장비'],['consumable','소모품'],['material','재료']];
+  const cats=[['recommended','★ 추천 아이템'],['all','전체'],['craftable','제작 가능'],['weapon','무기'],['armor','장비'],['consumable','소모품'],['material','재료']];
   for(const[cid,label]of cats){
     const b=document.createElement('button');b.className='craft-cat'+(craftShopCategory===cid?' active':'');b.textContent=label;
     b.onclick=()=>{craftShopCategory=cid;renderCraft()};side.appendChild(b)
@@ -1058,7 +1053,7 @@ function renderCraft(force=false){
     card.className='craft-item-card'+(craftShopSelected===id?' selected':'')+(it.r&&canCraft(p,id)?' craftable':'');
     const owned=it.t==='m'?(p.mat[id]||0):it.t==='c'?(p.con[id]||0):p.eq.filter(x=>x===id).length;
     const rec=isRecommendedGear(p,id,it);
-    card.innerHTML='<button class="craft-fav-btn '+(favoriteItems.includes(id)?'active':'')+'" title="아이템 루트 즐겨찾기">'+(favoriteItems.includes(id)?'★':'☆')+'</button><div class="craft-item-icon">'+(it.t==='m'?'M':it.t==='c'?'C':(it.atk?'W':'E'))+'</div><div class="craft-item-name">'+it.n+'</div><div class="craft-item-meta">'+craftTypeLabel(id,it)+(rec?' · 추천 '+recommendedGearScore(p,id,it).toFixed(0):'')+(owned?' · 보유 '+owned:'')+'</div>';
+    card.innerHTML='<button class="craft-fav-btn '+(favoriteItems.includes(id)?'active':'')+'" title="아이템 루트 즐겨찾기">'+(favoriteItems.includes(id)?'★':'☆')+'</button><div class="craft-item-icon">'+itemClassIcon(it)+'</div><div class="craft-item-name">'+it.n+'</div><div class="craft-item-meta">'+craftTypeLabel(id,it)+(rec?' · 추천 '+recommendedGearScore(p,id,it).toFixed(0):'')+(owned?' · 보유 '+owned:'')+'</div>';
     card.onclick=e=>{if(e.target.closest('.craft-fav-btn'))return;craftShopSelected=id;renderCraft()};
     card.querySelector('.craft-fav-btn').onclick=e=>{e.stopPropagation();toggleFavoriteItem(id)};
     grid.appendChild(card)
@@ -1070,7 +1065,7 @@ function renderCraft(force=false){
   if(!it){detail.innerHTML='<div class="craft-empty">아이템을 선택하십시오.</div>'}
   else{
     const owned=it.t==='m'?(p.mat[id]||0):it.t==='c'?(p.con[id]||0):p.eq.filter(x=>x===id).length;
-    detail.innerHTML='<div class="craft-detail-head"><div class="craft-detail-icon">'+(it.t==='m'?'M':it.t==='c'?'C':(it.atk?'W':'E'))+'</div><div><div class="craft-detail-name">'+it.n+'</div><div class="craft-detail-type">'+craftTypeLabel(id,it)+' · 보유 '+owned+'</div></div></div><div class="craft-statbox">'+craftStatsText(it)+(isRecommendedGear(p,id,it)?'<br><b>추천 이유:</b> '+recommendedReason(p,id,it):'')+'</div>';
+    detail.innerHTML='<div class="craft-detail-head"><div class="craft-detail-icon">'+itemClassIcon(it)+'</div><div><div class="craft-detail-name">'+it.n+'</div><div class="craft-detail-type">'+craftTypeLabel(id,it)+' · 보유 '+owned+'</div></div></div><div class="craft-statbox">'+craftStatsText(it)+(isRecommendedGear(p,id,it)?'<br><b>추천 이유:</b> '+recommendedReason(p,id,it):'')+'</div>';
     const fav=document.createElement('button');fav.className='craft-detail-fav'+(favoriteItems.includes(id)?' active':'');fav.textContent=favoriteItems.includes(id)?'★ 루트 추적 중':'☆ 아이템 루트 즐겨찾기';fav.onclick=()=>toggleFavoriteItem(id);detail.appendChild(fav);
 
     const title=document.createElement('div');title.className='recipe-title';title.textContent=it.r?'제작 재료':'제작 정보';detail.appendChild(title);
@@ -1098,7 +1093,7 @@ function renderCraft(force=false){
       for(const[uid,uit]of upgrades){
         const c=document.createElement('div');c.className='craft-upgrade-card';
         const need=uit.r[id]||1;
-        c.innerHTML='<div class="craft-upgrade-icon">'+(uit.atk?'W':uit.def?'E':'I')+'</div><div><b>'+uit.n+'</b><small>'+it.n+' ×'+need+' 사용 · '+craftStatsText(uit)+'</small></div><span class="craft-upgrade-tier">'+(uit.tier||'제작품')+'</span>';
+        c.innerHTML='<div class="craft-upgrade-icon">'+itemClassIcon(uit)+'</div><div><b>'+uit.n+'</b><small>'+it.n+' ×'+need+' 사용 · '+craftStatsText(uit)+'</small></div><span class="craft-upgrade-tier">'+(uit.tier||'제작품')+'</span>';
         c.onclick=()=>{craftShopSelected=uid;craftDetailScrollTop=0;renderCraft()};
         ul.appendChild(c)
       }
@@ -1298,7 +1293,7 @@ $('#skill').disabled=dis||!inEncounter||inEvent;
 $('#flee').disabled=dis||!inEncounter||inEvent;
 updateSkillCooldowns(m);syncMatchClock(m);
 renderMoves(m,p,dis||inEncounter||inEvent);
-const equipSummary=it=>`<b>${it.n}</b><div class="muted">${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</div>`;
+const equipSummary=it=>`<b>${it.n}</b><div class="muted">${itemClassLabel(it)} · ${it.tier||''} ATK ${it.atk||0} DEF ${it.def||0}</div>`;
 $('#eq').innerHTML=p.inventory.eq.length?p.inventory.eq.map((it,index)=>`<div class="card">${equipSummary(it)}<div class="muted">분해: ${(it.salvage||[]).map(x=>x.name+' ×'+x.count).join(' · ')||'분해 불가'}</div><button data-eq-drop="${index}" ${dis?'disabled':''}>버리기</button><button data-eq-dismantle="${index}" ${(dis||!it.salvage?.length)?'disabled':''}>분해</button></div>`).join(''):'<span class="muted">없음</span>';
 $('#equippedHud').innerHTML=p.inventory.eq.length?p.inventory.eq.map(it=>`<div class="card">${equipSummary(it)}</div>`).join(''):'<span class="muted">없음</span>';
 for(const [attr,mode,label]of [['data-eq-drop','drop_equipment','장비 버리기'],['data-eq-dismantle','dismantle_equipment','장비 분해']])$('#eq').querySelectorAll('['+attr+']').forEach(b=>b.onclick=()=>{const index=Number(b.getAttribute(attr)),it=p.inventory.eq[index];confirmInventory({mode,index,id:it.id},label,it.n+(mode==='drop_equipment'?' 장비 한 개를 버립니다.':': '+it.salvage.map(x=>x.name+' ×'+x.count).join(' · ')+' 반환. 칸이 부족하면 장비는 보존됩니다.'))});
@@ -1353,7 +1348,7 @@ function renderItemCodex(reset=false,keepSelection=false){
  const id=itemCodexSelected,it=items[id];let detail='<p class="muted">아이템을 선택하세요.</p>';
  if(it){
   const upgrades=Object.entries(items).filter(([other,x])=>other!==id&&x.r?.[id]);
-  detail='<h3>'+escapeRoomText(it.n)+'</h3><p class="muted">'+escapeRoomText((it.tier||'일반')+' · '+(it.weaponType||(it.t==='m'?'재료':it.t==='c'?'소모품':'장비')))+'</p><p>'+escapeRoomText(craftStatsText(it))+'</p><h4>제작 트리</h4>'+(it.r?'<ul class="codex-recipe-tree">'+codexRecipeTree(items,id)+'</ul>':'<p class="muted">직접 제작하지 않는 아이템입니다.</p>')+'<h4>상위 아이템</h4>'+(upgrades.map(([next,x])=>'<button class="codex-upgrade" data-codex-select="'+escapeRoomText(next)+'">'+escapeRoomText(x.n)+'</button>').join('')||'<p class="muted">상위 제작 아이템이 없습니다.</p>');
+  detail='<h3>'+escapeRoomText(it.n)+'</h3><p class="muted">'+escapeRoomText((it.tier||'일반')+' · '+(itemClassLabel(it)+(it.weaponType?' · '+it.weaponType:'')))+'</p><p>'+escapeRoomText(craftStatsText(it))+'</p><h4>제작 트리</h4>'+(it.r?'<ul class="codex-recipe-tree">'+codexRecipeTree(items,id)+'</ul>':'<p class="muted">직접 제작하지 않는 아이템입니다.</p>')+'<h4>상위 아이템</h4>'+(upgrades.map(([next,x])=>'<button class="codex-upgrade" data-codex-select="'+escapeRoomText(next)+'">'+escapeRoomText(x.n)+'</button>').join('')||'<p class="muted">상위 제작 아이템이 없습니다.</p>');
  }
  root.innerHTML=side+grid+'<section class="item-codex-detail">'+detail+'</section>';
  root.querySelectorAll('[data-codex-category]').forEach(b=>b.onclick=()=>{itemCodexCategory=b.dataset.codexCategory;renderItemCodex(true)});
