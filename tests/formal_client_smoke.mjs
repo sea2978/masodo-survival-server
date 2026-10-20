@@ -16,7 +16,8 @@ const ctx={$,URL,serverReady:true,roomEntryBusy:false,net:{close(){},async loadC
 vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf("$('#create').onclick="),source.indexOf("$('#cancelCreateRoom').onclick=")),ctx);
 $('#create').onclick();assert($('#createRoomPanel').open,'room settings open immediately without a secret');
-vm.runInContext(source.slice(source.indexOf("$('#connectServer').onclick="),source.indexOf("$('#loginForm').onsubmit=")),ctx);
+vm.runInContext(source.slice(source.indexOf("$('#connectServer').onclick="),source.indexOf("// Hover/focus previews")),ctx);
 $('#name').value='QA';$('#serverAddress').value='https://chosen-server.example/path';await $('#connectServer').onclick();assert.equal(ctx.net.baseUrl,'https://chosen-server.example');assert.equal(loaded,1);assert.equal(rooms,1);assert(enabled);assert.equal($('#serverConnectMessage').textContent,'서버 연결됨');
 $('#serverAddress').value='invalid';await $('#connectServer').onclick();assert.equal(loaded,1,'invalid address must not connect');
 console.log('PASS: ordinary room creation without code, user-selected server connection, no pinned alpha endpoint/branding, mobile fixes and gameplay features retained (DOM mocks)');
+

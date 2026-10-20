@@ -16,7 +16,7 @@ vm.runInContext(source.slice(source.indexOf('function showLogin('),source.indexO
 ctx.showLobby();assert(!$('#loginScreen').hidden);assert($('#lobbyScreen').hidden);assert($('#gameScreen').hidden);
 vm.runInContext(source.slice(source.indexOf('function openLobbyPanel('),source.indexOf("document.querySelectorAll('[data-lobby-panel]').forEach")),ctx);
 vm.runInContext(source.slice(source.indexOf('function setServerControls('),source.indexOf('setServerControls(false);')),ctx);
-vm.runInContext(source.slice(source.indexOf("$('#connectServer').onclick="),source.indexOf("$('#loginForm').onsubmit=")),ctx);
+vm.runInContext(source.slice(source.indexOf("$('#connectServer').onclick="),source.indexOf("// Hover/focus previews")),ctx);
 $('#serverAddress').value='https://example.test';await $('#connectServer').onclick();assert.equal(calls.length,0);assert($('#serverConnectMessage').textContent.includes('플레이어명'));
 $('#name').value='  테스터  ';await $('#connectServer').onclick();assert.equal($('#name').value,'테스터');assert.equal(ctx.net.baseUrl,'https://example.test');assert($('#loginScreen').hidden);assert(!$('#lobbyScreen').hidden);assert.equal($('#lobbyPlayerName').textContent,'테스터');
 for(const id of ['quickMatchPanel','roomBrowserPanel','itemCodexPanel','characterCodexPanel','playerSettingsPanel']){ctx.openLobbyPanel(id);assert($('#'+id).open,id)}
@@ -38,3 +38,4 @@ for(const version of ['', '0.0.0-online','99.0.0-online']){const response=await 
 const versionFetch=globalThis.fetch;globalThis.fetch=(url,options)=>worker.fetch(new Request(url,options),{});
 try{const adapter=new MasodoNetworkAdapter('https://example.test');adapter.clientVersion='0.0.0-online';await assert.rejects(adapter.loadCatalog(),error=>error.code==='client_version_mismatch'&&error.serverVersion===GAME_VERSION);assert.equal(adapter.catalog,null);adapter.clientVersion=GAME_VERSION;await adapter.loadCatalog();assert.equal(adapter.build.version,GAME_VERSION);}finally{globalThis.fetch=versionFetch}
 console.log('PASS: real server rejects absent/older/newer versions; adapter receives typed update error and matching catalog succeeds');
+
