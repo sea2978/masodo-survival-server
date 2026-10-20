@@ -24,10 +24,15 @@ serverVersion=GAME_VERSION;await button.click();assert(!document.querySelector('
 console.log('PASS: mismatched older/newer/missing version -> update popup -> login retained -> no room list; matching retry -> lobby (complete client DOM/network mocks)');
 console.log('PASS: complete bundled-page startup, disabled pre-init click, click/Enter login -> catalog/rooms -> lobby, connection failure/retry without reload or input loss; actual client code with DOM/network mocks');
 
+// A favorite prepared in the lobby is immediately used by the live game route.
+vm.runInContext("toggleFavoriteItem('final_15')",ctx);
+assert.equal(vm.runInContext('favoriteItems[0]',ctx),'final_15');
 // Exercise the entire game renderer and real server action through the client adapter.
 const Room=await loadRoom(),t=1700000000000,h=createHarness(Room,{humans:2,ai:0,now:t});
 const net=vm.runInContext('net',ctx);net.emit('match_state',{match:h.room.snapshot(h.match,'s0',t)});
 assert.equal(document.querySelector('#elapsed').textContent,'0');
+assert.equal(document.querySelector('#routeTargetName').textContent,'휘트니의 건틀릿');
+console.log('PASS: favorite prepared in lobby automatically becomes live match route target (complete client DOM mocks)');
 perf=2000;for(const [id,fn]of [...frames]){frames.delete(id);fn()}
 assert.equal(document.querySelector('#elapsed').textContent,'2','clock advances after full match rendering');
 const sent=[];net.ws={readyState:1,send:s=>sent.push(JSON.parse(s))};

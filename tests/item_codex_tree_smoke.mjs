@@ -7,7 +7,7 @@ import {CHARACTERS} from '../src/game_data.js';
 const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),els=new Map();
 const element=()=>({value:'',textContent:'',innerHTML:'',scrollTop:0,querySelector(selector){if(selector!=='.item-codex-grid')return null;return this.grid??={scrollTop:0}},querySelectorAll(selector){const attribute=selector.slice(1,-1),regex=new RegExp(attribute+'="([^"]+)"','g');const nodes=[...this.innerHTML.matchAll(regex)].map(m=>({dataset:{[attribute==='data-codex-category'?'codexCategory':'codexSelect']:m[1]},onclick:null}));(this.nodes??={})[attribute]=nodes;return nodes}});
 const $=id=>{if(!els.has(id))els.set(id,element());return els.get(id)};
-const ctx={equipmentKind,itemClassLabel,itemClassIcon,$,net:{catalog:{items:ITEMS,characters:CHARACTERS}},D:{items:ITEMS},escapeRoomText:x=>String(x).replaceAll('<','&lt;'),me:()=>null};vm.createContext(ctx);
+const ctx={favoriteItems:[],equipmentKind,itemClassLabel,itemClassIcon,$,net:{catalog:{items:ITEMS,characters:CHARACTERS}},D:{items:ITEMS},escapeRoomText:x=>String(x).replaceAll('<','&lt;'),me:()=>null};vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('function craftStatsText('),source.indexOf('function nextUpgradeItems(')),ctx);
 vm.runInContext(source.slice(source.indexOf("let itemCodexCategory="),source.indexOf('function renderCharacterCodex(')),ctx);
 ctx.renderItemCodex();let html=$('#itemCodexList').innerHTML;for(const label of ['전체','무기','장비','소모품','재료'])assert(html.includes('>'+label+'</button>'));
