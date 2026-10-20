@@ -32,7 +32,7 @@ jobs:
       - name: Seonori garden rework
         run: npm run test:garden && npm run test:garden-resistance && npm run test:garden-aura
       - name: Named item rework, DB and stat roles
-        run: npm run test:named-item-rework && node tests/carbonara_death_audit.mjs
+        run: npm run test:weapon-progression && npm run test:named-item-rework && node tests/carbonara_death_audit.mjs
       - name: Debuff provenance and random keywords
         run: npm run test:keywords-notices
       - name: Action type rotation and selected skill execution

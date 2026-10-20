@@ -164,3 +164,10 @@ console.log('PASS: actual full client inventory displays mixed-stat gauntlet/gri
 
 net.catalog.items=ITEMS;vm.runInContext('fillCatalog()',ctx);assert.equal(vm.runInContext("I('final_18').n",ctx),'하나린의 검');assert.equal(vm.runInContext("I('final_18').def",ctx),0);assert.equal(vm.runInContext("I('final_03').atk",ctx),5);assert(vm.runInContext("I('final_15').effectText.includes('60%')",ctx));assert(vm.runInContext("I('near_final_03').r.rare_boots===1",ctx));
 console.log('PASS: full client crafting data sync uses the current catalog: corrected DB names/recipes, role stats and 60% x2 tooltip (DOM mocks)');
+
+for(const [id,base] of Object.entries({blade:'basic_sword',spear:'basic_spear',bow:'basic_bow',gun:'basic_gun',gauntlet:'basic_gauntlet'})){
+ const tree=vm.runInContext(`codexRecipeTree(D.items,'${id}')`,ctx);assert(tree.includes(ITEMS[base].n));assert(tree.includes('data-codex-select="'+base+'"'));
+}
+assert.equal(vm.runInContext("I('final_19').n",ctx),'엠마의 배틀액스');assert.equal(vm.runInContext("I('final_19').r.rare_heavy",ctx),1);
+const emmaTree=vm.runInContext("codexRecipeTree(D.items,'final_19')",ctx);assert(emmaTree.includes('강화중량무기'));assert(emmaTree.includes('미노타우로스 배틀액스 파편'));
+console.log('PASS: actual catalog/codex trees show five basic-to-upgrade links and Emma battle axe through heavy weapon/material (DOM mocks)');
