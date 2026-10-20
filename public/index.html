@@ -500,7 +500,7 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 
     </section>
 
-    <dialog id="infoPanel" class="game-popup"><div class="popup-head"><h2>플레이어 목록</h2><button data-close-panel>닫기</button></div><button id="refresh">상태 갱신</button><div id="others" class="scroll compact-list"></div></dialog>
+    <dialog id="infoPanel" class="game-popup"><div class="popup-head"><h2>플레이어 목록</h2><button data-close-panel>닫기</button></div><button id="refresh">상태 갱신</button><div id="others" class="scroll compact-list"></div><button id="leaveGame" type="button">게임 나가기</button></dialog>
     <footer class="scene-action-dock">
       <div id="actionChoiceRow" class="scene-secondary-row action-choice-row" hidden><button id="actionChoiceCycle" type="button" class="btn" aria-label="종류 변경">종류 변경</button></div>
       <div class="scene-secondary-row rest-row"><button id="rest" class="btn">휴식</button></div>
@@ -1243,6 +1243,14 @@ function renderResult(m){
   $('#resultNote').textContent=m.phase==='finished'?'경기가 종료되었습니다.': '탈락 시점의 기록입니다. 남은 경기는 계속 진행됩니다.';
   $('#resultPanel').showModal();
 }
+$('#leaveGame').onclick=async()=>{
+ const message=net.offline?'현재 오프라인 게임을 종료하고 로비로 나갈까요? 이 게임의 진행 기록은 삭제됩니다.':'현재 게임에서 나가고 로비로 돌아갈까요?';
+ if(!confirm(message))return;
+ const button=$('#leaveGame');button.disabled=true;
+ try{await net.leaveGame();M=null;$('#lobbyRoomSummary').textContent='참가 중인 방이 없습니다.';$('#roomState').replaceChildren();showLobby();await refreshRooms()}
+ catch(e){toast('게임 나가기 실패',String(e.message||e),'다시 시도해 주세요.','combat')}
+ finally{button.disabled=false}
+};
 $('#resultWatch').onclick=()=>$('#resultPanel').close();
 $('#resultLobby').onclick=()=>{net.close();$('#resultPanel').close();M=null;showLobby();refreshRooms()};
 function busy(){return !!inventoryPending||!!M?.self?.pendingPickup||M?.phase==="finished"||!!localAction||!!searchLoading||!!M?.self?.pendingAction}

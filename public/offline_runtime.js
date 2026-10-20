@@ -3755,7 +3755,7 @@ function runAITick(match,now=Date.now()){
 return {STATUS_DEFS,applyStatus,updatePassiveTime,initWorld,eventChoiceAvailability,recommendedCrafts,publicPlayer,actionDuration,validateAction,beginServerAction,completeAction,beginEventChoice,resolveEventChoice,lootCorpse,runAIStep,runAITick};
 })();
 __modules["src/version.js"]=(()=>{
-const GAME_VERSION="0.10.3-online";
+const GAME_VERSION="0.10.4-online";
 const PHASE="3A";
 const PROTOCOL_VERSION=14;
 const BUILD_LABEL=`v${GAME_VERSION} · Phase ${PHASE}`;
@@ -4131,6 +4131,12 @@ class OfflineSession{
  send(type,payload){if(!this.running)return false;this.enqueue(()=>this.room.webSocketMessage(this.ws,JSON.stringify({type,...payload})));return true}
  enqueue(fn){this.queue=this.queue.then(fn).catch(error=>this.receive({type:'error',error:String(error.message||error)}));return this.queue}
  schedule(){if(this.timer!==null)clearTimeout(this.timer);this.timer=null;if(!this.running||this.alarmAt===null)return;this.timer=setTimeout(()=>{this.timer=null;this.alarmAt=null;this.enqueue(()=>this.room.alarm()).then(()=>this.schedule())},Math.max(0,this.alarmAt-Date.now()))}
+ async abandon(){
+  this.stop();await this.queue;this.stop();this.alarmAt=null;
+  this.room.sessions.clear();this.room.metaJson=null;this.room.matchJson=null;this.room.recipeCache.clear();this.ws.attachment=null;
+  await this.ctx.storage.deleteAll();
+  try{localStorage.removeItem?.(SAVE_KEY)}catch{}
+ }
  stop(){this.running=false;if(this.timer!==null)clearTimeout(this.timer);this.timer=null;this.ws.readyState=3;if(this.adapter.ws===this.ws)this.adapter.ws=null}
 }
 function installOfflineMode(adapter){
@@ -4145,6 +4151,10 @@ function installOfflineMode(adapter){
  adapter.roomStatus=(...args)=>adapter.offline?local.status(...args):original.roomStatus(...args);
  adapter.connect=(...args)=>adapter.offline?local.connect(...args):original.connect(...args);
  adapter.send=(type,payload={})=>adapter.offline?local.send(type,payload):original.send(type,payload);
+ adapter.leaveGame=async()=>{
+  if(adapter.offline)await local.abandon();else original.close();
+  adapter.manualClose=true;adapter.roomCode=null;adapter.sessionId=null;adapter.lastMatch=null;adapter.networkState=null;adapter.stateRevision=0;
+ };
  adapter.close=(...args)=>{if(adapter.offline){local.stop();adapter.manualClose=true}else original.close(...args)};
  return adapter;
 }

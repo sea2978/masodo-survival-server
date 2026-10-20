@@ -24,7 +24,7 @@ jobs:
       - name: Guaranteed escape
         run: npm run test:guaranteed-flee
       - name: Offline mode with blocked network
-        run: npm run test:offline-mode
+        run: npm run test:offline-mode && npm run test:leave-game
       - name: API-only server and standalone client separation
         run: node tests/api_only_server_smoke.mjs
       - name: Debuff rules and confusion actions

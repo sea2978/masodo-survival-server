@@ -148,6 +148,16 @@ try{
  await document.querySelector('#search').onclick();await localSession.queue;let game=await localSession.room.getMatch();assert.equal(game.players[0].pendingAction.type,'search');localNow=game.players[0].pendingAction.completeAt;await localSession.room.alarm();assert(document.querySelector('#actionLoading').hidden);
  game=await localSession.room.getMatch();const me=game.players[0],enemy=game.players[1];me.pendingEvent=null;me.pendingPickup=null;enemy.region=me.region;me.encounter={kind:'player',targetId:enemy.playerId};await localSession.room.saveMatch(game);localSession.room.sendMatchState(localSession.ws,game,{force:true,now:localNow});
  await document.querySelector('#skill').onclick();await localSession.queue;game=await localSession.room.getMatch();localNow=game.players[0].pendingAction.completeAt;await localSession.room.alarm();assert(document.querySelector('#resultTitle').textContent.includes('승리'));assert.equal(offlineFetches,0);assert.equal(offlineSockets,0);
+ // Repeat the reported condition while a new offline game has an active search.
+ assert(await vm.runInContext("connectRoom(null,true,{name:'나가기 검증',aiMode:'fixed',aiCount:1})",ctx));
+ document.querySelector('#ready').onclick();await localSession.queue;document.querySelector('#start').onclick();await localSession.queue;localNow+=5000;await localSession.room.alarm();
+ await document.querySelector('#search').onclick();await localSession.queue;assert.equal((await localSession.room.getMatch()).players[0].pendingAction.type,'search');
+ // Information panel exit: cancel preserves the game; accept removes it and re-entry stays in lobby.
+ assert(html.indexOf('id="leaveGame"')>html.indexOf('id="others"'));
+ ctx.confirm=()=>false;await document.querySelector('#leaveGame').onclick();assert(await localSession.room.getMatch());
+ ctx.confirm=()=>true;await document.querySelector('#leaveGame').onclick();assert(document.querySelector('#gameScreen').hidden);assert(!document.querySelector('#lobbyScreen').hidden);assert.equal(vm.runInContext('M',ctx),null);assert.equal((await net.listRooms()).rooms.length,0);
+ await document.querySelector('#offlineMode').onclick();assert(document.querySelector('#gameScreen').hidden);assert(!document.querySelector('#lobbyScreen').hidden);assert.equal((await net.listRooms()).rooms.length,0);assert.equal(offlineFetches,0);assert.equal(offlineSockets,0);
+ console.log('PASS: actual info exit click cancel/accept -> lobby -> offline re-entry stays in lobby, no network (DOM mocks)');
  net.close();net.useOnline();assert.equal(net.offline,false);
 }finally{net.close();Date.now=oldLocalNow;ctx.fetch=priorFetch;ctx.WebSocket=priorSocket;ctx.setTimeout=priorTimeout;ctx.clearTimeout=priorClear}
 console.log('PASS: full HTML offline button -> local catalog/lobby -> character/AI room -> 5s roster -> search/loading -> instant skill/victory UI with zero fetch/WebSocket calls; explicit online switch (DOM mocks, not live browser visual QA)');
