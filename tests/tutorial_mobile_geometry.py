@@ -1,15 +1,13 @@
 from pathlib import Path
 s=Path('public/index.html').read_text()
-css=s.split('/* Tutorial surface is scoped;',1)[1].split('</style>',1)[0]
-assert '#tutorialPanel .tutorial-lesson{overflow:auto' in css
-assert 'grid-template-columns:158px minmax(0,1fr)' in css
-assert 'grid-template-rows:62px minmax(0,1fr)' in css
-assert 'height:calc(100dvh - 16px)' in css
+css=s.split('/* Tutorial chapter picker and its independent in-game scenario surface. */',1)[1].split('</style>',1)[0]
+for rule in ['#tutorialGameScreen[hidden]','position:fixed;inset:0;z-index:150','scenario-dialogue-box','scenario-select-grid' if False else 'tutorial-select-grid','max-height:48dvh','--sc-button:46px','overflow:auto','bottom:max(16px,env(safe-area-inset-bottom))']:
+ assert rule in css,rule
 for w,h in [(320,568),(390,844),(640,360),(844,390),(1280,720)]:
- dialog_w=min(1120,.96*w) if w>1400 else w-16
- if h<=500 and w>h:lesson_w=dialog_w-20-158-8;lesson_h=h-16-20-60
- else:lesson_w=dialog_w-20-8;lesson_h=h-16-20-70-62-8
- assert lesson_w>=220 and lesson_h>=220,(w,h,lesson_w,lesson_h)
- assert 34+64+6<lesson_w-82-16,(w,h,'vital meter space')
- print(w,h,'lesson bounds',round(lesson_w),round(lesson_h))
-print('PASS: scoped tutorial CSS and viewport geometry; these checks do not assert real browser appearance')
+ mobile=w<=700 or w<=1400;button=46 if mobile else 64
+ actions=3*button+12;left=110 if .20*w<110 else min(.20*w,170)
+ assert actions+left+24<w,(w,h,'HUD/action overlap')
+ dialogue_width=.94*w-28;assert dialogue_width>250
+ assert .5*h>=132 if h<=500 and w>h else .48*h>=160
+ print(w,h,'scenario controls',actions,'dialogue text width',round(dialogue_width))
+print('PASS: chapter selector, dedicated surface and mobile/landscape geometry; real browser appearance unverified')

@@ -193,9 +193,10 @@ net.sessionId='host';vm.runInContext("renderRoom({name:'권한 검증',code:'ABC
 net.sessionId='guest';vm.runInContext("renderRoom({name:'권한 검증',code:'ABC123',phase:'lobby',humanCount:2,maxHumans:10,aiMode:'none',players:[],hostSessionId:'host'})",ctx);assert(document.querySelector('#deleteRoom').hidden);
 console.log('PASS: room-list exit/delete buttons complete actual offline room lifecycle; delete visible only to current host (DOM mocks)');
 
-// Tutorial stays separate from the currently selected online/offline room.
+// Scenario selection is separate from playback and the main room transport.
 const tutorialTransport={ws:net.ws,roomCode:net.roomCode,offline:net.offline,match:JSON.stringify(vm.runInContext('M',ctx)),requests:requests.length};
-vm.runInContext("openLobbyPanel('tutorialPanel')",ctx);assert(document.querySelector('#tutorialPanel').open);assert.equal(vm.runInContext('tutorialUI.chapterInfo().id',ctx),'story');
-vm.runInContext('tutorialUI.start(5);tutorialUI.index=1;tutorialUI.enterStep();tutorialUI.act()',ctx);assert(vm.runInContext('tutorialUI.busy',ctx));assert(vm.runInContext("tutorialUI.practice.player.pendingAction.type==='craft'",ctx));
-vm.runInContext('tutorialUI.stop()',ctx);document.querySelector('#tutorialPanel').close();assert.equal(vm.runInContext('tutorialUI.practice.player.pendingAction',ctx),null);assert.equal(net.ws,tutorialTransport.ws);assert.equal(net.roomCode,tutorialTransport.roomCode);assert.equal(net.offline,tutorialTransport.offline);assert.equal(JSON.stringify(vm.runInContext('M',ctx)),tutorialTransport.match);assert.equal(requests.length,tutorialTransport.requests);
-console.log('PASS: actual bundled lobby -> tutorial -> real craft wait -> exit cancels lesson; existing room/socket/mode/match unchanged and no requests (DOM mocks)');
+vm.runInContext("openLobbyPanel('tutorialPanel')",ctx);assert(document.querySelector('#tutorialPanel').open);assert(!vm.runInContext('tutorialUI.active',ctx));
+vm.runInContext('tutorialUI.select(4);tutorialUI.start(4)',ctx);assert(!document.querySelector('#tutorialPanel').open);assert(!document.querySelector('#tutorialGameScreen').hidden);assert.equal(vm.runInContext('tutorialUI.phase',ctx),'dialogue');
+vm.runInContext("tutorialUI.endDialogue();tutorialUI.command('attack')",ctx);assert(vm.runInContext('tutorialUI.busy',ctx));assert(vm.runInContext("tutorialUI.practice.player.pendingAction.type==='attack'",ctx));
+vm.runInContext('tutorialUI.exit(false)',ctx);assert(document.querySelector('#tutorialGameScreen').hidden);assert.equal(vm.runInContext('tutorialUI.practice.player.pendingAction',ctx),null);assert.equal(net.ws,tutorialTransport.ws);assert.equal(net.roomCode,tutorialTransport.roomCode);assert.equal(net.offline,tutorialTransport.offline);assert.equal(JSON.stringify(vm.runInContext('M',ctx)),tutorialTransport.match);assert.equal(requests.length,tutorialTransport.requests);
+console.log('PASS: actual bundled lobby chapter picker -> dedicated scenario screen -> dialogue -> real attack wait -> exit; main room/socket/mode/match unchanged, no network (DOM mocks)');
