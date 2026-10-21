@@ -1,6 +1,7 @@
 from pathlib import Path
 s=Path('public/index.html').read_text()
 css=s.split('/* Tutorial chapter picker and its independent in-game scenario surface. */',1)[1].split('</style>',1)[0]
+assert '#tutorialGameScreen .scenario-header{z-index:25;position:absolute;' in css, 'chapter exit stays above the dialogue overlay on touch screens'
 for rule in ['#tutorialGameScreen[hidden]','position:fixed;inset:0;z-index:150','scenario-dialogue-box','scenario-select-grid' if False else 'tutorial-select-grid','max-height:48dvh','--sc-button:46px','overflow:auto','bottom:max(16px,env(safe-area-inset-bottom))']:
  assert rule in css,rule
 for w,h in [(320,568),(390,844),(640,360),(844,390),(1280,720)]:
