@@ -15,6 +15,7 @@ const DEBUFF_ICONS={
 const FIXED_STATUS_IDS=new Set(Object.keys(DEBUFF_ICONS));
 const KEYWORD_SYMBOLS={tracking:'<circle cx="12" cy="12" r="6"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/>',amplify:'<path d="m3 16 5-5 4 4 8-11m-6 0h6v6"/>',piercing:'<path d="M3 21 21 3m-8 0h8v8M5 5v10h10"/>',healing:'<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6Z"/>',vigor:'<path d="m13 2-8 12h6l-1 8 9-13h-6Z"/>',scatter:'<path d="M12 12 3 3m9 9 9-9m-9 9-9 9m9-9 9 9M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5"/>',weakness:'<path d="m3 8 5 5 4-4 8 11m-6 0h6v-6"/>',recoil:'<path d="m13 2 2 7 7 3-7 3-2 7-4-7-7-3 7-3Z"/>'};
 export class DebuffHud{
+ static definitions(){return DEBUFF_ICONS}
  constructor(root,bubble){
   this.root=root;this.bubble=bubble;this.buttons=new Map();this.rows={};this.frame=null;this.active=null;this.pinned=false;this.anchor=null;this.key=null;
   document.addEventListener('pointerdown',e=>{if(!this.root.contains(e.target)&&!this.bubble.contains(e.target))this.hide()});
@@ -84,3 +85,4 @@ export class DebuffHud{
   if(ticking)this.frame=requestAnimationFrame(()=>this.paint());
  }
 }
+

@@ -433,6 +433,47 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 .mascot-bubble::after{content:'';position:absolute;left:100%;bottom:20px;border:7px solid transparent;border-left-color:#ad91d7}.mascot-bubble[hidden]{display:none}
 @media(max-width:600px){#loginScreen{padding-top:110px}.login-mascot{width:104px;height:104px;bottom:calc(100% - 10px);right:8px}.mascot-bubble{max-width:calc(100vw - 150px);bottom:12px;font-size:12px;padding:9px}}
 @media(max-height:500px) and (orientation:landscape){#loginScreen{padding-top:80px}.login-mascot{width:80px;height:80px;bottom:calc(100% - 8px)}.mascot-bubble{bottom:4px;width:300px;max-width:calc(100vw - 140px);padding:7px 10px;font-size:11px}}
+/* Tutorial surface is scoped; existing lobby/game panels keep their layouts. */
+#tutorialPanel{width:min(1120px,96vw);height:min(860px,92dvh);max-height:calc(100dvh - 16px);padding:16px;overflow:hidden}
+#tutorialPanel .popup-head{margin-bottom:6px}#tutorialPanel .popup-head h2{font-size:21px;margin:0}
+#tutorialPanel .tutorial-isolation{font-size:12px;color:#b6c9d8;margin:6px 0 12px}
+#tutorialPanel .tutorial-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;height:calc(100% - 75px);min-height:0}
+#tutorialPanel .tutorial-chapters{display:flex;flex-direction:column;gap:6px;overflow:auto;min-height:0;padding-right:5px}
+#tutorialPanel .tutorial-chapters button{text-align:left;padding:10px;font-size:12px;flex:none;white-space:normal}
+#tutorialPanel .tutorial-chapters b,#tutorialPanel .tutorial-chapters span{display:block}#tutorialPanel .tutorial-chapters span{font-size:11px;color:#b6c9d8;margin-top:5px}
+#tutorialPanel .tutorial-chapters [aria-current]{background:#49355f;border-color:#bda4d6}
+#tutorialPanel .tutorial-lesson{overflow:auto;min-width:0;min-height:0;padding:0 8px 16px 0;overscroll-behavior:contain}
+#tutorialPanel .tutorial-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}#tutorialPanel h3{font-size:19px;margin:4px 0}#tutorialPanel .tutorial-heading button{font-size:11px;padding:7px}
+#tutorialPanel .tutorial-progress{font-size:12px;color:#baacd7;margin:8px 0}#tutorialPanel .tutorial-story{font-size:21px;font-weight:700;margin:12px 0}
+#tutorialPanel .tutorial-task{line-height:1.85;font-size:14px;color:#d9e3ee;overflow-wrap:anywhere}
+#tutorialPanel .tutorial-stage{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:end;padding:12px;margin:14px 0;background:#080e18;border:1px solid #3d5369;border-radius:12px}
+#tutorialPanel .tutorial-portrait{height:210px;display:flex;align-items:end;justify-content:center;overflow:hidden}#tutorialPanel .tutorial-portrait canvas{width:100%;max-height:100%;object-fit:contain;object-position:bottom}
+#tutorialPanel .tutorial-state{font-size:12px;min-width:0;overflow-wrap:anywhere}#tutorialPanel .tutorial-state p{line-height:1.8;margin:7px 0}#tutorialPanel .tutorial-location{font-size:14px;color:#d2bfef;margin-bottom:8px}#tutorialPanel .tutorial-location strong{color:#d798ff}
+#tutorialPanel .tutorial-vital{display:grid;grid-template-columns:42px minmax(0,1fr) 76px;align-items:center;gap:6px;margin:6px 0}#tutorialPanel meter{width:100%;height:14px}#tutorialPanel .tutorial-vital b{font-size:11px;font-variant-numeric:tabular-nums;text-align:right}
+#tutorialPanel .tutorial-contact{border:1px solid #83626b;background:#35222c;padding:8px;border-radius:8px;margin-top:6px}#tutorialPanel .tutorial-lock{color:#ffb9b3}
+#tutorialPanel .tutorial-extras{margin:10px 0;font-size:13px;line-height:1.8}#tutorialPanel .tutorial-extras select{display:block;max-width:100%;width:100%;margin:6px 0 12px;min-height:38px}
+#tutorialPanel .tutorial-character-info,#tutorialPanel .tutorial-recipe,#tutorialPanel .tutorial-roster,#tutorialPanel .tutorial-result{padding:12px;background:#172336;border-radius:9px;border:1px solid #526881}#tutorialPanel .tutorial-character-info p{margin:8px 0}
+#tutorialPanel .tutorial-effects{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+#tutorialPanel .tutorial-effects button{position:relative;width:44px;height:44px;min-height:44px;padding:8px;border-radius:50%;background:conic-gradient(#9280b8 var(--tutorial-ring),#293240 0);border:1px solid #c3a6de;color:#fff}
+#tutorialPanel .tutorial-effects svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}#tutorialPanel .tutorial-effects small{position:absolute;right:-3px;bottom:-3px;border-radius:12px;background:#101827;padding:2px 5px;font-weight:bold}
+#tutorialPanel .tutorial-effect-bubble{position:relative;border:1px solid #bfa4db;border-radius:12px;padding:10px 12px;background:#291e3b;font-size:13px;line-height:1.7;margin:12px 0}#tutorialPanel .tutorial-effect-bubble::before{content:'';position:absolute;bottom:100%;left:18px;border:6px solid transparent;border-bottom-color:#bfa4db}
+#tutorialPanel .tutorial-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}#tutorialPanel .tutorial-actions button{position:relative;min-height:44px;padding:10px 15px}#tutorialPanel [data-tut="act"]{background:#49375f;border-color:#c3a6de}
+#tutorialPanel .tutorial-cooldown{position:absolute;inset:2px;border-radius:50%;background:conic-gradient(#999a var(--tutorial-ring),transparent 0);pointer-events:none}#tutorialPanel .tutorial-cooldown[hidden]{display:none}
+#tutorialPanel .tutorial-busy{font-size:15px;color:#dec4ff;border-bottom:3px solid #b397ce;padding:8px}
+#tutorialPanel .tutorial-feedback{line-height:1.8;color:#bde7d1;font-size:13px;margin-top:10px;min-height:24px}#tutorialPanel .tutorial-save-message{font-size:11px;color:#b6c9d8}
+@media(max-width:700px),(pointer:coarse) and (max-width:1400px){
+ #tutorialPanel{width:calc(100vw - 16px);height:calc(100dvh - 16px);padding:10px}
+ #tutorialPanel .tutorial-layout{grid-template-columns:1fr;grid-template-rows:62px minmax(0,1fr);gap:8px;height:calc(100% - 70px)}
+ #tutorialPanel .tutorial-chapters{flex-direction:row;padding:0 0 4px;overflow-x:auto;overflow-y:hidden;gap:5px}#tutorialPanel .tutorial-chapters button{min-width:152px;padding:8px;font-size:11px}#tutorialPanel .tutorial-chapters span{font-size:10px}
+ #tutorialPanel .tutorial-story{font-size:18px;margin:8px 0}#tutorialPanel .tutorial-task{font-size:12px;line-height:1.8}#tutorialPanel h3{font-size:16px}#tutorialPanel .tutorial-stage{grid-template-columns:82px minmax(0,1fr);padding:8px;gap:8px;margin:10px 0}#tutorialPanel .tutorial-portrait{height:164px}
+ #tutorialPanel .tutorial-state{font-size:11px}#tutorialPanel .tutorial-vital{grid-template-columns:34px minmax(0,1fr) 64px;gap:3px}#tutorialPanel .tutorial-vital b{font-size:10px}#tutorialPanel .tutorial-location{font-size:12px}
+}
+@media(max-height:500px) and (orientation:landscape){
+ #lobbyScreen .lobby-menu{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#lobbyScreen .lobby-menu button{min-height:64px;padding:10px}#lobbyScreen .lobby-menu b{font-size:17px;margin-bottom:4px}
+ #tutorialPanel .tutorial-layout{grid-template-columns:158px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:8px;height:calc(100% - 60px)}
+ #tutorialPanel .tutorial-chapters{flex-direction:column;overflow:auto}#tutorialPanel .tutorial-chapters button{min-width:0;min-height:54px}#tutorialPanel .tutorial-isolation{margin:4px 0;font-size:10px}#tutorialPanel .popup-head h2{font-size:17px}
+}
+
 </style></head><body><section id="matchIntro" role="region" aria-label="게임 참가자 소개" hidden><header class="intro-heading"><h1>생존자 집결</h1><p>이번 게임에 참가하는 플레이어와 캐릭터</p></header><div id="introCards" class="intro-cards"></div><footer class="intro-footer"><span id="introCountdown">5</span>초 후 게임이 시작됩니다</footer></section>
 
 <div class="wrap">
@@ -454,11 +495,13 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
       <button data-lobby-panel="itemCodexPanel"><b>아이템 도감</b><span>효과와 제작 재료 확인</span></button>
       <button data-lobby-panel="characterCodexPanel"><b>캐릭터 도감</b><span>능력과 스킬 확인</span></button>
       <button data-lobby-panel="playerSettingsPanel"><b>플레이어 세팅</b><span>캐릭터와 시작 지역 선택</span></button>
+      <button data-lobby-panel="tutorialPanel"><b>튜토리얼</b><span>유저노트 · 챕터별 조작 연습</span></button>
     </nav>
     <p id="lobbyRoomSummary" class="muted">참가 중인 방이 없습니다.</p>
     <footer class="lobby-footer"><button id="returnLogin">접속 화면</button><a href="/MasodoSurvival.html" download>단일 HTML 다운로드</a></footer>
     <div class="log-panel" hidden><div id="log"></div></div>
   </section>
+  <dialog id="tutorialPanel" class="game-popup lobby-popup" aria-label="유저노트 튜토리얼"></dialog>
   <dialog id="quickMatchPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>빠른대전</h2><button data-close-panel>닫기</button></div><p>참가 가능한 방을 찾아 입장하고 준비합니다. 방이 없으면 새 방을 만듭니다.</p><p class="muted">경기 시작은 방장이 진행합니다.</p><button id="quickMatchStart">빠른대전 시작</button><p id="quickMatchMessage" role="status"></p></dialog>
   <dialog id="roomBrowserPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>방 목록</h2><button data-close-panel>닫기</button></div><div class="room-popup-grid"><section class="lobby-pane lobby-rooms"><button id="refreshRooms">새로고침</button><div id="roomsList" class="room-browser"></div><div class="lobby-entry"><button id="create">방 만들기</button><div class="row"><input id="room" placeholder="방 코드" maxlength="6" aria-label="방 코드"><button id="join" disabled>코드로 참가</button></div></div></section><section class="lobby-pane lobby-current"><h2>현재 방</h2><div id="roomState"><p class="muted">방을 만들거나 목록에서 참가하세요.</p></div><div class="lobby-ready"><button id="ready">준비</button><button id="unready">준비 취소</button><button id="start">방장: 경기 시작</button></div><div class="row"><button id="leaveRoom" type="button" disabled>방 나가기</button><button id="deleteRoom" type="button" disabled hidden>방 삭제</button></div></section></div></dialog>
   <dialog id="playerSettingsPanel" class="game-popup lobby-popup"><div class="popup-head"><h2>플레이어 세팅</h2><button data-close-panel>닫기</button></div><p>플레이어: <b id="settingsPlayerName"></b></p><div class="lobby-player"><label for="char">캐릭터</label><select id="char"><option>캐릭터 목록 불러오는 중...</option></select><label for="startRegion">시작 지역</label><select id="startRegion"><option>지역 목록 불러오는 중...</option></select><div id="charInfo" class="card muted"></div></div></dialog>
@@ -583,7 +626,8 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 <div class="result-stats"><div class="result-stat">순위<b id="resultRank"></b></div><div class="result-stat">처치<b id="resultKills"></b></div><div class="result-stat">생존 시간<b id="resultTime"></b></div><div class="result-stat">마지막 지역<b id="resultRegion"></b></div></div>
 <p id="resultNote" class="muted"></p><div class="result-actions"><button id="resultWatch">화면 보기</button><button id="resultLobby">로비로 돌아가기</button></div></dialog>
 <script type="module">
-import{installOfflineMode}from"./offline_runtime.js";
+import{installOfflineMode,TutorialPractice}from"./offline_runtime.js";
+import{TutorialUI}from"./tutorial.js";
 import{equipmentKind,itemClassLabel,itemClassIcon}from"./item_classification.js";
 import{CLIENT_VERSION}from"./client_version.js";
 import{MasodoNetworkAdapter}from"./network_adapter.js";
@@ -1395,9 +1439,11 @@ $('#corpses').querySelectorAll('[data-loot]').forEach(b=>b.onclick=()=>{const[c,
 }
 net.on("build",()=>renderBuild());
 net.on("*",m=>{if(["match_state"].includes(m.type))return;const text=JSON.stringify(m);if(M)gameLog(text);else log(text)});net.on("connected",m=>{if(m.build){net.build=m.build;renderBuild()}$('#status').textContent=net.offline?'오프라인 모드':'연결됨';$('#status').className="good";$('#gameStatus').textContent=net.offline?'오프라인 모드':'연결됨';$('#gameStatus').className="good";fillCatalog()});net.on("room_state",m=>renderRoom(m.room));net.on("match_state",m=>renderMatch(m.match));net.on("action_result",m=>gameLog("ACTION "+JSON.stringify(m.result)));net.on("event_result",m=>gameLog("EVENT "+JSON.stringify(m.result)));net.on("error",m=>{if(M){clearLocalAction();renderMatch(M);if(m.error==="corpse_loot_first")openGamePanel("inventoryPanel");}const ko={keywords_full:"키워드는 최대 10개까지 보관할 수 있습니다. 마법탄으로 먼저 사용해 주세요.",invalid_skill_choice:"올바른 스킬 선택이 아닙니다.",rework_target_missing:"현재 지역에서 확인한 대상을 골라주세요.",rework_target_unknown:"확인하지 못한 대상입니다.",rework_resource_missing:"고유 자원이 부족합니다.",same_module:"현재와 다른 모듈을 선택하세요.",corpse_loot_first:"시체의 전리품을 먼저 수령하거나 버려주세요.",not_enough_satiety:"포만도가 부족합니다.",not_enough_hp:"HP가 부족합니다.",time_stopped:"시간정지 중입니다.",target_time_stopped:"시간정지 중인 대상은 공격할 수 없습니다.",invalid_words:"키워드를 1~2개 선택하세요.",object_missing:"설치물이 사라졌습니다.",match_starting:"참가자 소개가 끝나면 행동할 수 있습니다.",region_locked:"잠긴 지역으로 이동할 수 없습니다.",encounter_in_progress:"조우 중입니다. 공격/스킬/도주 중 하나를 선택하세요.",event_choice_required:"이벤트 선택지를 먼저 골라야 합니다.",pickup_choice_required:"발견한 소모품을 먼저 선택해 주세요.",no_encounter:"현재 조우 대상이 없습니다.",action_in_progress:"현재 행동이 끝날 때까지 기다려야 합니다.",not_enough_sp:"SP가 부족합니다.",corpse_missing:"시체가 사라졌거나 다른 지역에 있습니다.",loot_missing:"이미 다른 플레이어가 가져간 전리품입니다.",inventory_full:"소모품 슬롯이 가득 찼습니다.",equipment_full:"장비 슬롯이 가득 찼습니다.",event_choice_unavailable:"조건을 충족하지 못해 선택할 수 없습니다."};const t="SERVER ERROR: "+(ko[m.error]||m.error)+(m.reason?" · "+m.reason:"");M?gameLog(t):log(t)});net.on("close",()=>{$('#status').textContent="종료";$('#status').className="bad";$('#gameStatus').textContent="종료";$('#gameStatus').className="bad"});
+const tutorialUI=new TutorialUI($('#tutorialPanel'),{Practice:TutorialPractice,sprite:setCharacterSprite,effectDefinitions:DebuffHud.definitions()});
 function openLobbyPanel(id){
  if(!serverReady)return;
  document.querySelectorAll('.lobby-popup[open]').forEach(d=>d.close());
+ if(id==='tutorialPanel'){tutorialUI.open();return}
  if(id==='roomBrowserPanel')refreshRooms();
  if(id==='itemCodexPanel')renderItemCodex();
  if(id==='characterCodexPanel')renderCharacterCodex();
