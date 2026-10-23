@@ -93,6 +93,14 @@ export class GameRoom extends DurableObject{
   }
   async broadcastRoomState(meta){this.broadcast("room_state",{room:this.roomState(meta)});await this.updateDirectory(meta)}
   matchPlayerForSession(match,sid){return match?.players?.find(p=>p.sessionId===sid)||null}
+  spectatorPlayer(match,p,now){
+    // Explicit gameplay whitelist: never forward session IDs or AI internals.
+    const view=compactSnapshot({self:publicPlayer(match,p,now,false)}).self;
+    const target=p.encounter?.kind==='player'?match.players.find(x=>x.playerId===p.encounter.targetId):null;
+    const wild=p.encounter?.kind==='wild'?match.wilds.find(x=>x.id===p.encounter.wildId):null;
+    const event=match.eventCatalog.find(x=>x.id===p.pendingEvent);
+    return {...view,encounter:target?{name:target.playerName,charId:target.charId}:wild?{name:match.wildTemplates.find(x=>x.id===wild.templateId)?.n||'야생동물'}:null,pendingEvent:event?{name:event.n||event.name||event.title||'특수 이벤트'}:null};
+  }
   recipeView(p){
     const key=JSON.stringify([p.charId,p.eq,p.mat,p.con]),cached=this.recipeCache.get(p.playerId);
     if(cached?.key===key)return cached.value;
@@ -109,7 +117,7 @@ export class GameRoom extends DurableObject{
       const w=match.wilds.find(x=>x.id===self.encounter.wildId);if(!w?.alive||w.region!==self.region)return null;
       const t=(match.wildTemplates||[]).find(x=>x.id===w.templateId);return{kind:"wild",wildId:w.id,name:t?.n||w.templateId,hp:w.hp,maxHp:t?.hp||w.hp,skillText:t?.skillText||""}
     })():null;
-    return{introPending:now<match.startedAt,reworkRegions:(match.reworkObjects||[]).filter(o=>o.kind==="mist").map(o=>({region:o.region,until:o.until})),regionGardens:match.regionGardens||{},regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.phase==="playing"?Math.max(0,Math.floor((now-match.startedAt)/1000)):(match.elapsed||0),self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
+    return{introPending:now<match.startedAt,reworkRegions:(match.reworkObjects||[]).filter(o=>o.kind==="mist").map(o=>({region:o.region,until:o.until})),regionGardens:match.regionGardens||{},regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.phase==="playing"?Math.max(0,Math.floor((now-match.startedAt)/1000)):(match.elapsed||0),self:self?publicPlayer(match,self,now,false):null,others,spectatorPlayers:self&&(!self.alive||match.phase==="finished")?Object.fromEntries(match.players.map(p=>[p.playerId,this.spectatorPlayer(match,p,now)])):null,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
       pendingEvent:self?.pendingEvent?(()=>{
         const e=match.eventCatalog.find(e=>e.id===self.pendingEvent);if(!e)return null;
         return {...e,choices:(e.choices||[]).map((choice,index)=>({...choice,...eventChoiceAvailability(e,self,index)}))}
@@ -343,4 +351,5 @@ export class GameRoom extends DurableObject{
   async webSocketClose(ws,code,reason){await this.markDisconnected(ws);try{ws.close(code,reason)}catch{}}
   async webSocketError(ws){await this.markDisconnected(ws)}
 }
+
 

@@ -200,3 +200,17 @@ vm.runInContext('tutorialUI.select(4);tutorialUI.start(4)',ctx);assert(!document
 vm.runInContext("tutorialUI.endDialogue();tutorialUI.command('attack')",ctx);assert(vm.runInContext('tutorialUI.busy',ctx));assert(vm.runInContext("tutorialUI.practice.player.pendingAction.type==='attack'",ctx));
 vm.runInContext('tutorialUI.exit(false)',ctx);assert(document.querySelector('#tutorialGameScreen').hidden);assert.equal(vm.runInContext('tutorialUI.practice.player.pendingAction',ctx),null);assert.equal(net.ws,tutorialTransport.ws);assert.equal(net.roomCode,tutorialTransport.roomCode);assert.equal(net.offline,tutorialTransport.offline);assert.equal(JSON.stringify(vm.runInContext('M',ctx)),tutorialTransport.match);assert.equal(requests.length,tutorialTransport.requests);
 console.log('PASS: actual bundled lobby chapter picker -> dedicated scenario screen -> dialogue -> real attack wait -> exit; main room/socket/mode/match unchanged, no network (DOM mocks)');
+
+
+// Death result -> dedicated spectator screen -> current authoritative delta -> lobby.
+const watchHarness=createHarness(Room,{humans:3,ai:1,now:t});watchHarness.match.matchId='spectator-client-flow';
+const watchReceive=()=>{watchHarness.room.sendMatchState(watchHarness.sockets[0],watchHarness.match,{now:t+7000});const msg=net.acceptStateMessage(watchHarness.sockets[0].messages.at(-1));if(msg)net.emit(msg.type,msg)};
+watchReceive();assert.equal(vm.runInContext('M.spectatorPlayers',ctx),null);
+watchHarness.match.players[0].alive=false;watchHarness.match.players[0].hp=0;watchReceive();assert(document.querySelector('#resultPanel').open);
+await document.querySelector('#resultWatch').click();assert(!document.querySelector('#spectatorScreen').hidden);assert(document.querySelector('#gameScreen').hidden);assert(!document.querySelector('#resultPanel').open);assert.equal(vm.runInContext('spectatorCards.size',ctx),4);
+const watchCard=vm.runInContext("spectatorCards.get('p2')",ctx),watchCanvas=watchCard.canvas,watchRequestCount=requests.length;
+assert(watchCard.info.innerHTML.includes('무기·장비'));assert(watchCard.info.innerHTML.includes('고유 기믹'));
+watchHarness.match.players[1].hp=19;watchHarness.match.players[1].kills=3;watchReceive();assert.equal(vm.runInContext("M.spectatorPlayers.p2.hp",ctx),19);assert(watchCard.info.innerHTML.includes('19 /'));assert(watchCard.info.innerHTML.includes('3명'));assert.equal(vm.runInContext("spectatorCards.get('p2').canvas",ctx),watchCanvas,'profile canvas retained across updates');assert.equal(requests.length,watchRequestCount,'no additional spectator polling');
+watchHarness.match.phase='finished';watchReceive();assert(document.querySelector('#spectatorSummary').textContent.includes('경기 종료'));assert(!document.querySelector('#spectatorScreen').hidden);
+let watchLeaves=0;const watchLeave=net.leaveGame;net.leaveGame=async()=>{watchLeaves++};await document.querySelector('#spectatorLobby').click();net.leaveGame=watchLeave;assert.equal(watchLeaves,1);assert(document.querySelector('#spectatorScreen').hidden);assert.equal(vm.runInContext('spectatingMatch',ctx),null);assert(!document.querySelector('#lobbyScreen').hidden);
+console.log('PASS: death result -> observer cards/profiles -> live delta without portrait replacement or extra fetch -> finished match retained -> lobby cleanup (complete client DOM/socket mocks)');

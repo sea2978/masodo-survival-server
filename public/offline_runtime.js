@@ -759,7 +759,7 @@ function stateDiff(before,after,path=[],set=[],remove=[]){
   return {set,remove};
 }
 function substantivePatch(patch){
-  const clock=p=>p.length===1&&['serverNow','elapsed','combatNoticeSeq'].includes(p[0])||p.length===2&&p[0]==='self'&&['cdC','cdA'].includes(p[1]);
+  const clock=p=>p.length===1&&['serverNow','elapsed','combatNoticeSeq'].includes(p[0])||p.length===2&&p[0]==='self'&&['cdC','cdA'].includes(p[1])||p.length===3&&p[0]==='spectatorPlayers'&&['cdC','cdA'].includes(p[2]);
   return patch.remove.some(p=>!clock(p))||patch.set.some(([p])=>!clock(p));
 }
 function compactSnapshot(snapshot){
@@ -3785,13 +3785,15 @@ function runAITick(match,now=Date.now()){
 }
 
 
+
 return {STATUS_DEFS,applyStatus,updatePassiveTime,initWorld,eventChoiceAvailability,recommendedCrafts,publicPlayer,actionDuration,validateAction,beginServerAction,completeAction,beginEventChoice,resolveEventChoice,lootCorpse,runAIStep,runAITick};
 })();
 __modules["src/version.js"]=(()=>{
-const GAME_VERSION="0.10.5-online";
+const GAME_VERSION="0.10.6-online";
 const PHASE="3A";
 const PROTOCOL_VERSION=14;
 const BUILD_LABEL=`v${GAME_VERSION} · Phase ${PHASE}`;
+
 
 
 return {GAME_VERSION,PHASE,PROTOCOL_VERSION,BUILD_LABEL};
@@ -3892,6 +3894,14 @@ class GameRoom extends DurableObject{
   }
   async broadcastRoomState(meta){this.broadcast("room_state",{room:this.roomState(meta)});await this.updateDirectory(meta)}
   matchPlayerForSession(match,sid){return match?.players?.find(p=>p.sessionId===sid)||null}
+  spectatorPlayer(match,p,now){
+    // Explicit gameplay whitelist: never forward session IDs or AI internals.
+    const view=compactSnapshot({self:publicPlayer(match,p,now,false)}).self;
+    const target=p.encounter?.kind==='player'?match.players.find(x=>x.playerId===p.encounter.targetId):null;
+    const wild=p.encounter?.kind==='wild'?match.wilds.find(x=>x.id===p.encounter.wildId):null;
+    const event=match.eventCatalog.find(x=>x.id===p.pendingEvent);
+    return {...view,encounter:target?{name:target.playerName,charId:target.charId}:wild?{name:match.wildTemplates.find(x=>x.id===wild.templateId)?.n||'야생동물'}:null,pendingEvent:event?{name:event.n||event.name||event.title||'특수 이벤트'}:null};
+  }
   recipeView(p){
     const key=JSON.stringify([p.charId,p.eq,p.mat,p.con]),cached=this.recipeCache.get(p.playerId);
     if(cached?.key===key)return cached.value;
@@ -3908,7 +3918,7 @@ class GameRoom extends DurableObject{
       const w=match.wilds.find(x=>x.id===self.encounter.wildId);if(!w?.alive||w.region!==self.region)return null;
       const t=(match.wildTemplates||[]).find(x=>x.id===w.templateId);return{kind:"wild",wildId:w.id,name:t?.n||w.templateId,hp:w.hp,maxHp:t?.hp||w.hp,skillText:t?.skillText||""}
     })():null;
-    return{introPending:now<match.startedAt,reworkRegions:(match.reworkObjects||[]).filter(o=>o.kind==="mist").map(o=>({region:o.region,until:o.until})),regionGardens:match.regionGardens||{},regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.phase==="playing"?Math.max(0,Math.floor((now-match.startedAt)/1000)):(match.elapsed||0),self:self?publicPlayer(match,self,now,false):null,others,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
+    return{introPending:now<match.startedAt,reworkRegions:(match.reworkObjects||[]).filter(o=>o.kind==="mist").map(o=>({region:o.region,until:o.until})),regionGardens:match.regionGardens||{},regionRestrictions:match.regionRestrictions,combatNoticeSeq:match.combatNoticeSeq||0,combatNotices:(match.combatNotices||[]).filter(e=>e.sourceId===self?.playerId||e.targetId===self?.playerId),result:playerResult(match,self,now),matchId:match.matchId,phase:match.phase,createdAt:match.createdAt,startedAt:match.startedAt,serverNow:now,elapsed:match.phase==="playing"?Math.max(0,Math.floor((now-match.startedAt)/1000)):(match.elapsed||0),self:self?publicPlayer(match,self,now,false):null,others,spectatorPlayers:self&&(!self.alive||match.phase==="finished")?Object.fromEntries(match.players.map(p=>[p.playerId,this.spectatorPlayer(match,p,now)])):null,aliveCount:match.players.filter(p=>p.alive).length,regions:REGIONS,adjacency:ADJACENCY,encounter,
       pendingEvent:self?.pendingEvent?(()=>{
         const e=match.eventCatalog.find(e=>e.id===self.pendingEvent);if(!e)return null;
         return {...e,choices:(e.choices||[]).map((choice,index)=>({...choice,...eventChoiceAvailability(e,self,index)}))}
@@ -4144,6 +4154,7 @@ class GameRoom extends DurableObject{
 }
 
 
+
 return {GameRoom};
 })();
 __modules["src/offline_session.js"]=(()=>{
@@ -4214,6 +4225,7 @@ function installOfflineMode(adapter){
 }
 
 
+
 return {OfflineSession,installOfflineMode};
 })();
 __modules["src/tutorial_practice.js"]=(()=>{
@@ -4280,6 +4292,7 @@ class TutorialPractice{
   return{self:publicPlayer(this.match,this.player,now,false),enemy:this.enemy,match:this.match,favorites:this.favorites,result:this.result,choice:this.choice,choiceLabel:REWORK_LABELS[this.choice]||this.choice,adjacent:ADJACENCY[this.player.region]||[]};
  }
 }
+
 
 return {TutorialPractice};
 })();

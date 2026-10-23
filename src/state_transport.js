@@ -12,7 +12,7 @@ export function stateDiff(before,after,path=[],set=[],remove=[]){
   return {set,remove};
 }
 export function substantivePatch(patch){
-  const clock=p=>p.length===1&&['serverNow','elapsed','combatNoticeSeq'].includes(p[0])||p.length===2&&p[0]==='self'&&['cdC','cdA'].includes(p[1]);
+  const clock=p=>p.length===1&&['serverNow','elapsed','combatNoticeSeq'].includes(p[0])||p.length===2&&p[0]==='self'&&['cdC','cdA'].includes(p[1])||p.length===3&&p[0]==='spectatorPlayers'&&['cdC','cdA'].includes(p[2]);
   return patch.remove.some(p=>!clock(p))||patch.set.some(([p])=>!clock(p));
 }
 export function compactSnapshot(snapshot){
@@ -22,3 +22,4 @@ export function compactSnapshot(snapshot){
   if(s.self?.inventory){const inv=s.self.inventory;s.self.inventory={eq:inv.eq.map(x=>({id:x.id,salvage:x.salvage})),mat:inv.mat.map(x=>({id:x.id,count:x.count})),con:inv.con.map(x=>({id:x.id,count:x.count}))}}
   return JSON.parse(JSON.stringify(s));
 }
+

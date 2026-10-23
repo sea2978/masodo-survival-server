@@ -492,6 +492,15 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 }
 @media(prefers-reduced-motion:reduce){#tutorialGameScreen .scenario-enemy{transition:none}}
 
+
+/* Spectator view shares the existing state stream; cards retain their portraits. */
+#spectatorScreen[hidden]{display:none!important}
+#spectatorScreen{position:fixed;inset:0;z-index:14;display:flex;flex-direction:column;background:#0b111a;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));overflow:hidden}
+.spectator-header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;flex:none;padding-bottom:10px;border-bottom:1px solid #46515f}.spectator-header h2{margin:0}.spectator-header button{margin-left:auto}
+#spectatorGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));align-content:start;gap:12px;overflow:auto;min-height:0;overscroll-behavior:contain;padding:12px 2px}
+.spectator-card{min-width:0;background:#151d29;border:1px solid #394d65;border-radius:12px;padding:12px;overflow-wrap:anywhere}.spectator-card.dead{border-color:#76545d}.spectator-identity{display:flex;align-items:center;gap:12px}.spectator-portrait{position:relative;width:88px;height:88px;flex:none;border-radius:10px;overflow:hidden;background:#0b111a}.spectator-portrait canvas{width:100%;height:100%;object-fit:contain}.spectator-portrait span{position:absolute;inset:0;display:grid;place-items:center}.spectator-card h3{margin:0 0 5px;font-size:17px}.spectator-card p{margin:8px 0;font-size:13px;line-height:1.6}.spectator-card strong{color:#c2d8ee}.spectator-card .spectator-effects{white-space:pre-line}
+@media(max-width:800px),(pointer:coarse){#spectatorScreen{padding:8px}.spectator-header{gap:6px;font-size:12px}.spectator-header h2{font-size:17px}.spectator-portrait{width:72px;height:72px}#spectatorGrid{gap:8px}.spectator-card{padding:10px}}
+
 </style></head><body><section id="matchIntro" role="region" aria-label="게임 참가자 소개" hidden><header class="intro-heading"><h1>생존자 집결</h1><p>이번 게임에 참가하는 플레이어와 캐릭터</p></header><div id="introCards" class="intro-cards"></div><footer class="intro-footer"><span id="introCountdown">5</span>초 후 게임이 시작됩니다</footer></section>
 
 <div class="wrap">
@@ -639,11 +648,14 @@ body.game-active .wrap{position:fixed!important;inset:0!important;max-width:none
 <div id="actionLoading" role="status" aria-live="polite" hidden></div>
 <dialog id="clientUpdatePanel" class="game-popup" aria-labelledby="clientUpdateTitle"><h2 id="clientUpdateTitle">클라이언트 업데이트 필요</h2><p>서버와 클라이언트 버전이 다릅니다. 최신 클라이언트를 내려받아 실행해 주세요.</p><p id="clientUpdateVersions"></p><button id="clientUpdateClose" type="button">확인</button></dialog>
 <dialog id="reconnectPanel" aria-labelledby="reconnectTitle"><h2 id="reconnectTitle">서버 연결 중</h2><p id="reconnectDetail" role="status" aria-live="polite">연결이 끊어졌습니다. 기존 경기로 다시 접속하고 있습니다.</p></dialog>
+<section id="spectatorScreen" hidden aria-label="경기 관전">
+<header class="spectator-header"><h2>관전</h2><span id="spectatorSummary"></span><span id="spectatorConnection"></span><button id="spectatorLobby" type="button">로비로 돌아가기</button></header>
+<div id="spectatorGrid"></div></section>
 <dialog id="resultPanel" aria-labelledby="resultTitle">
 <div class="result-kicker">MATCH RESULT</div><h2 id="resultTitle">경기 결산</h2>
 <p id="resultPlayer"></p><p id="resultCharacter" class="muted"></p><p id="resultDeath" hidden></p>
 <div class="result-stats"><div class="result-stat">순위<b id="resultRank"></b></div><div class="result-stat">처치<b id="resultKills"></b></div><div class="result-stat">생존 시간<b id="resultTime"></b></div><div class="result-stat">마지막 지역<b id="resultRegion"></b></div></div>
-<p id="resultNote" class="muted"></p><div class="result-actions"><button id="resultWatch">화면 보기</button><button id="resultLobby">로비로 돌아가기</button></div></dialog>
+<p id="resultNote" class="muted"></p><div class="result-actions"><button id="resultWatch">관전하기</button><button id="resultLobby">로비로 돌아가기</button></div></dialog>
 <script type="module">
 import{installOfflineMode,TutorialPractice}from"./offline_runtime.js";
 import{TutorialUI}from"./tutorial.js";
@@ -762,7 +774,7 @@ net.on('close',()=>{loadingDisconnected=true;clearLocalAction()});
 net.on('connected',()=>{loadingDisconnected=false});
 let serverReady=false;
 function showLogin(){showLobby();$('#loginScreen').hidden=false;$('#lobbyScreen').hidden=true}
-function showLobby(){ matchIntro.clear();debuffHud.clear();clearMatchClock();clearSkillCooldowns();hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#loginScreen').hidden=serverReady;$('#lobbyScreen').hidden=!serverReady; $('#gameScreen').hidden=true; }
+function showLobby(){ closeSpectator();matchIntro.clear();debuffHud.clear();clearMatchClock();clearSkillCooldowns();hideReconnectLoading();clearLocalAction();stopSearchLoading(); document.querySelectorAll(".game-popup[open]").forEach(d=>d.close()); document.body.classList.remove("game-active"); $('#loginScreen').hidden=serverReady;$('#lobbyScreen').hidden=!serverReady; $('#gameScreen').hidden=true; }
 function showGame(){ $('#loginScreen').hidden=true;document.querySelectorAll('.lobby-popup[open],#createRoomPanel[open]').forEach(d=>d.close());document.body.classList.add("game-active"); $('#lobbyScreen').hidden=true; $('#gameScreen').hidden=false; }
 const gameLog=x=>{const el=$('#gameLog');if(!el)return;el.textContent+=x+"\n";el.scrollTop=999999};
 const log=x=>{$('#log').textContent+=x+"\n";$('#log').scrollTop=999999};const rname=id=>(net.catalog?.regions||M?.regions||[]).find(r=>r.id===id)?.name||id;
@@ -1263,6 +1275,7 @@ function paintMatchClock(){
   matchClockFrame=null;if(!matchClockAnchor)return;
   const seconds=matchClockAnchor.elapsed+(matchClockAnchor.running?(performance.now()-matchClockAnchor.at)/1000:0);
   $('#elapsed').textContent=String(Math.max(0,Math.floor(seconds)));
+  if(spectatingMatch&&M){const now=(matchClockAnchor.serverNow||M.serverNow)+(matchClockAnchor.running?performance.now()-matchClockAnchor.at:0);paintSpectatorTime({...M,serverNow:now},Math.floor(seconds))}
   if(matchClockAnchor.running)matchClockFrame=requestAnimationFrame(paintMatchClock);
 }
 function syncMatchClock(m){
@@ -1349,6 +1362,51 @@ net.on('inventory_result',e=>{
   else toast('아이템 버림',name,r.count?'×'+r.count+' 전체 버림':'장비 한 칸을 비웠습니다.');
 });
 net.on('close',()=>{inventoryPending=false;pickupViewKey=''});
+let spectatingMatch=null;
+const spectatorCards=new Map();
+function closeSpectator(){spectatingMatch=null;spectatorPaintSecond=-1;spectatorCards.clear();$('#spectatorGrid').replaceChildren();$('#spectatorScreen').hidden=true}
+function spectatorSeconds(until,m){return Math.max(0,Math.ceil(((until||0)-(m.serverNow||Date.now()))/1000))}
+function spectatorInfo(p,m){
+ const esc=escapeRoomText,num=v=>Number.isFinite(Number(v))?String(Math.round(Number(v)*10)/10):'—';
+ const row=(label,value)=>'<p><strong>'+esc(label)+'</strong> '+esc(value)+'</p>';
+ const inv=p.inventory||{},items=key=>(inv[key]||[]).map(x=>{const it=net.itemCatalog?.[x.id]||D.items[x.id]||x;return (it.n||x.name||x.id)+(x.count!=null?' ×'+x.count:'')}).join(' · ')||'없음';
+ const action=p.pendingAction,labels={search:'탐색',rest:'휴식',move:'이동',attack:'공격',skill:'전투 스킬',char_action:'추가 행동',craft:'제작',use_item:'소모품 사용',event_choice:'이벤트 선택',flee:'도주',loot_corpse:'전리품 획득',remove_object:'설치물 제거'};
+ const effects=Object.entries({...p.statuses,...p.buffs}).map(([id,e])=>{if(!e||e.until&&e.until<=m.serverNow)return '';const d=DebuffHud.definitions()[id];return (e.name||d?.name||id)+(e.stacks?' ×'+e.stacks:'')+(e.until?' · '+spectatorSeconds(e.until,m)+'초':'')+(e.description?' — '+e.description:d?.describe?' — '+d.describe(e.stacks||1):'')}).filter(Boolean).join('\n')||'없음';
+ const ci=charInfo(p.charId),skills=(ci?.action||'추가 행동')+' '+spectatorSeconds(p.cdAUntil,m)+'초 / '+(ci?.combat||'전투 스킬')+' '+spectatorSeconds(p.cdCUntil,m)+'초';
+ const prof=Object.entries(p.proficiency||{}).map(([k,v])=>k+' '+num(v)).join(' · ')||'없음';
+ const death=p.deathSource;return row('위치',rname(p.region))+
+ row('HP / SP',num(Math.max(0,p.hp))+' / '+num(p.maxHp)+' HP · '+num(p.sp)+' / '+num(p.maxSp)+' SP')+
+ row('포만도 / 능력치',num(p.satiety)+'% · 공격력 '+num(p.atk)+' · 방어력 '+num(p.def))+
+ row('처치 / 부활',num(p.kills)+'명 · '+(p.rev?'부활 사용':'부활 미사용'))+
+ row('현재 행동',!p.alive?'사망':action?(labels[action.type]||'행동')+' 중 · '+spectatorSeconds(action.completeAt,m)+'초'+(action.payload?.to?' → '+rname(action.payload.to):''):'대기 중')+
+ row('조우 / 이벤트',(p.encounter?.name||'없음')+' / '+(p.pendingEvent?.name||'없음'))+row('획득 대기',p.pendingPickup?(net.itemCatalog?.[p.pendingPickup.itemId||p.pendingPickup.id]?.n||D.items[p.pendingPickup.itemId||p.pendingPickup.id]?.n||'아이템 선택 대기'):'없음')+row('스킬 쿨타임',skills)+row('무기·장비',items('eq'))+row('소모품',items('con'))+row('재료',items('mat'))+row('숙련도',prof)+
+ '<p class="spectator-effects"><strong>버프·디버프 / 고유 기믹</strong> '+esc(effects)+'</p>'+
+ (p.rework?.shield?row('보호막',num(p.rework.shield)):'')+
+ (!p.alive?row('사망 기록',(death?.name||death?.cause||'기록 없음')+(death?.name&&death?.cause?' · '+death.cause:'')+(p.finishRank?' · '+p.finishRank+'위':'')):'');
+}
+let spectatorPaintSecond=-1;
+function paintSpectatorTime(m,seconds){
+ $('#spectatorSummary').textContent=(m.phase==='finished'?'경기 종료':'경기 진행 중')+' · '+Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')+' · 생존 '+m.aliveCount+' / '+Object.keys(m.spectatorPlayers||{}).length+'명';
+ $('#spectatorConnection').textContent=$('#gameStatus').textContent;
+ if(spectatorPaintSecond===seconds)return;spectatorPaintSecond=seconds;
+ for(const[id,card]of spectatorCards){const p=m.spectatorPlayers?.[id];if(p)card.info.innerHTML=spectatorInfo(p,m)}
+}
+function renderSpectator(m){
+ showGame();$('#gameScreen').hidden=true;$('#spectatorScreen').hidden=false;debuffHud.clear();clearSkillCooldowns();clearLocalAction();stopSearchLoading();syncMatchClock(m);
+ const players=Object.values(m.spectatorPlayers||{});
+ paintSpectatorTime(m,Math.max(0,Math.floor(m.elapsed||0)));
+ $('#spectatorConnection').textContent=$('#gameStatus').textContent;
+ const grid=$('#spectatorGrid');
+ if(!players.length){grid.textContent='관전 정보를 받는 중입니다.';return}
+ if(!spectatorCards.size)grid.replaceChildren();
+ for(const p of players){let card=spectatorCards.get(p.playerId);if(!card){const root=document.createElement('article'),identity=document.createElement('div'),portrait=document.createElement('div'),canvas=document.createElement('canvas'),fallback=document.createElement('span'),title=document.createElement('div'),info=document.createElement('div');root.className='spectator-card';identity.className='spectator-identity';portrait.className='spectator-portrait';portrait.append(canvas,fallback);identity.append(portrait,title);root.append(identity,info);grid.appendChild(root);card={root,canvas,fallback,title,info};spectatorCards.set(p.playerId,card)}
+  card.root.classList.toggle('dead',!p.alive);card.title.innerHTML='<h3>'+escapeRoomText(p.playerName)+'</h3>'+escapeRoomText(characterName(p.charId))+' · '+(p.isAI?'AI · ':'')+(p.alive?'생존':'사망');
+  if(card.charId!==p.charId){card.charId=p.charId;setCharacterSprite(card.canvas,card.fallback,p.charId,characterName(p.charId),'profile')}
+  card.info.innerHTML=spectatorInfo(p,m);
+ }
+ for(const[id,card]of spectatorCards)if(!m.spectatorPlayers[id]){card.root.remove();spectatorCards.delete(id)}
+}
+
 const shownResults=new Set();
 function renderResult(m){
   const result=m.result;if(!result||!m.self)return;
@@ -1367,6 +1425,7 @@ function renderResult(m){
   const sec=result.survivalSeconds;$('#resultTime').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
   $('#resultRegion').textContent=rname(result.region);
   $('#resultNote').textContent=m.phase==='finished'?'경기가 종료되었습니다.': '탈락 시점의 기록입니다. 남은 경기는 계속 진행됩니다.';
+  $('#resultWatch').hidden=!!m.self.alive&&m.phase!=='finished';
   $('#resultPanel').showModal();
 }
 $('#leaveGame').onclick=async()=>{
@@ -1377,8 +1436,10 @@ $('#leaveGame').onclick=async()=>{
  catch(e){toast('게임 나가기 실패',String(e.message||e),'다시 시도해 주세요.','combat')}
  finally{button.disabled=false}
 };
-$('#resultWatch').onclick=()=>$('#resultPanel').close();
-$('#resultLobby').onclick=()=>{net.close();$('#resultPanel').close();M=null;showLobby();refreshRooms()};
+$('#resultWatch').onclick=()=>{if(!M?.self||M.self.alive&&M.phase!=='finished')return;$('#resultPanel').close();spectatingMatch=M.matchId;renderSpectator(M)};
+async function returnFromResult(){await net.leaveGame();$('#resultPanel').close();M=null;showLobby();await refreshRooms()}
+$('#resultLobby').onclick=()=>returnFromResult().catch(e=>toast('로비 이동 실패',String(e.message||e),'다시 시도해 주세요.','combat'));
+$('#spectatorLobby').onclick=$('#resultLobby').onclick;
 function busy(){return !!inventoryPending||!!M?.self?.pendingPickup||M?.phase==="finished"||!!localAction||!!searchLoading||!!M?.self?.pendingAction}
 let regionLockViewKey='';
 function regionLocked(m,id){return (m.regionRestrictions?.locked||[]).includes(id)}
@@ -1420,7 +1481,7 @@ function renderVitalBars(p){
 function renderOtherSurvivors(m){
  $('#others').innerHTML=(m.others||[]).map(o=>`<div class="card">${o.alive?'●':'☠'} ${o.isAI?'[AI] ':''}${escapeRoomText(o.playerName)} / ${escapeRoomText(characterName(o.charId))} / 처치 ${o.kills??0}</div>`).join('');
 }
-function renderMatch(m){M=m;if(matchIntro.show(m)){showGame();$('#gameScreen').hidden=true;clearMatchClock();clearSkillCooldowns();debuffHud.clear();return}notifyMatchChanges(m);showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderVitalBars(p);debuffHud.update(m);reworkUI.update(m);renderActionLoading(m);renderResult(m);renderPickup(m);
+function renderMatch(m){M=m;if(spectatingMatch===m.matchId&&m.self&&(!m.self.alive||m.phase==='finished')){renderSpectator(m);return}if(spectatingMatch)closeSpectator();if(matchIntro.show(m)){showGame();$('#gameScreen').hidden=true;clearMatchClock();clearSkillCooldowns();debuffHud.clear();return}notifyMatchChanges(m);showGame();$('#noMatch').hidden=true;$('#game').hidden=false;const p=m.self;if(!p)return;applyGameVisuals(m,p);renderRegionRestrictions(m);renderEnemyContacts(m);renderVitalBars(p);debuffHud.update(m);reworkUI.update(m);renderActionLoading(m);renderResult(m);renderPickup(m);
 $('#hp').textContent=Math.max(0,Math.round(p.hp))+"/"+p.maxHp;$('#sp').textContent=Math.round(p.sp)+"/"+p.maxSp;$('#sat').textContent=Math.round(p.satiety);$('#atk').textContent=Number(p.atk).toFixed(1);$('#def').textContent=Number(p.def).toFixed(1);$('#alive').textContent=m.aliveCount;$('#aiCount').textContent=m.aiCount??0;
 const dis=busy()||!p.alive, inEncounter=!!m.encounter, inEvent=!!m.pendingEvent;
 const actionHome=inEncounter?$('#encounterActionRow'):$('#exploreActionRow');if($('#charAction').parentNode!==actionHome){if(inEncounter)actionHome.prepend($('#charAction'));else actionHome.appendChild($('#charAction'));}
@@ -1593,4 +1654,5 @@ $('#createRoomForm').onsubmit=async e=>{e.preventDefault();if(roomEntryBusy)retu
 $('#join').onclick=()=>connectRoom($('#room').value);$('#char').onchange=()=>{renderCharInfo();if(net.ws?.readyState===WebSocket.OPEN)net.setCharacter($('#char').value)};$('#startRegion').onchange=()=>{if(net.ws?.readyState===WebSocket.OPEN)net.setStartRegion($('#startRegion').value)};$('#ready').onclick=()=>net.setReady(true);$('#unready').onclick=()=>net.setReady(false);$('#start').onclick=()=>net.requestStart();$('#refresh').onclick=refreshInfo;$('#search').onclick=startSearchLoading;$('#rest').onclick=()=>net.rest();$('#attack').onclick=()=>net.attack();$('#skill').onclick=()=>reworkUI.openCombat();$('#charAction').onclick=()=>reworkUI.open();$('#flee').onclick=()=>net.flee();
 if(typeof ResizeObserver!=='undefined'){const encounterInfoObserver=new ResizeObserver(([entry])=>{$('#gameScreen').style.setProperty('--encounter-info-height',Math.ceil(entry.contentRect.height)+'px')});encounterInfoObserver.observe($('#game'))}
 </script></body></html>
+
 

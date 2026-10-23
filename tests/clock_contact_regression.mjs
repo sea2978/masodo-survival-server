@@ -14,7 +14,7 @@ p.pendingEvent='E001';const queued=beginEventChoice(m,p,1,t+100250);assert(queue
 // Repaint the SAME old event snapshot while the four-second wait runs.
 // Previously syncMatchClock reset elapsed=100 every repaint, then appeared to add 4 at completion.
 const html=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8'),clockEl={textContent:''};let perf=0;
-const ctx={$:()=>clockEl,performance:{now:()=>perf},requestAnimationFrame:()=>1,cancelAnimationFrame(){}};vm.createContext(ctx);
+const ctx={spectatingMatch:null,M:null,$:()=>clockEl,performance:{now:()=>perf},requestAnimationFrame:()=>1,cancelAnimationFrame(){}};vm.createContext(ctx);
 vm.runInContext(html.slice(html.indexOf('let matchClockFrame=null,'),html.indexOf('const skillCooldowns=')),ctx);
 ctx.syncMatchClock(first);assert.equal(clockEl.textContent,'100');perf=2000;ctx.syncMatchClock(first);assert.equal(clockEl.textContent,'102');perf=4000;ctx.syncMatchClock(first);assert.equal(clockEl.textContent,'104');ctx.syncMatchClock(h.room.snapshot(m,p.sessionId,t+104250));assert.equal(clockEl.textContent,'104');perf=5000;ctx.syncMatchClock(first);assert.equal(clockEl.textContent,'105','stale sample must not rewind');
 const end={...h.room.snapshot(m,p.sessionId,t+105250),phase:'finished',elapsed:105};ctx.syncMatchClock(end);perf=9000;ctx.syncMatchClock(end);assert.equal(clockEl.textContent,'105');ctx.syncMatchClock({...first,matchId:'next-game',startedAt:t+100000,serverNow:t+100250});assert.equal(clockEl.textContent,'0');
@@ -32,3 +32,4 @@ q.encounter={kind:'player',targetId:p.playerId};const random=Math.random;Math.ra
 try{const a=beginServerAction(m,q,'attack',{},t+107000);assert(a.ok);assert(completeAction(m,q,a.action.completeAt).ok);assert.deepEqual(p.enemyContacts.city.map(x=>x.id),ids);assert.equal(p.enemyContacts.city.find(x=>x.id===q.playerId).hp,61)}finally{Math.random=random}
 await h.room.saveMatch(m);const room=new Room(h.ctx,h.env),net=new MasodoNetworkAdapter('https://example.test');room.sendMatchState(h.sockets[0],await room.getMatch(),{force:true,now:t+106000});net.acceptStateMessage(h.sockets[0].messages.at(-1));assert.deepEqual(net.lastMatch.self.enemyContacts.map(x=>x.id),ids);assert.equal(net.lastMatch.self.enemyContacts.find(x=>x.id===q.playerId).hp,61);assert.equal(net.lastMatch.elapsed,106);
 console.log('PASS: stale-snapshot clock jump reproduced and fixed; legacy offsets ignored by engine/snapshot/locks; timed choice clock advances only in real time; frozen finish/new game; HP and stable contact order survive incoming attacks/observation/save/reconnect (clock DOM mock)');
+

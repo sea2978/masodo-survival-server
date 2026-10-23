@@ -1,2 +1,3 @@
-export const CLIENT_VERSION="0.10.5-online";
+export const CLIENT_VERSION="0.10.6-online";
+
 

@@ -53,10 +53,11 @@ for(const id of synergyIds)assert.ok(ITEMS[id],"missing synergy item "+id);
 for(const id of Object.keys(NAMED_GEAR_FX))assert.ok(ITEMS[id],"named gear FX without item: "+id);
 assert.equal(Object.keys(NAMED_GEAR_FX).length,41);
 
-assert.equal(GAME_VERSION,"0.10.5-online");
+assert.equal(GAME_VERSION,"0.10.6-online");
 assert.equal(PHASE,"3A");
 assert.equal(PROTOCOL_VERSION,14);
 assert.equal(INTENTIONAL_SOURCE_GAPS.length,3);
 
 console.log("client/server/static audit ok",{characters:CHARACTERS.length,namedGear:Object.keys(NAMED_GEAR_FX).length,version:GAME_VERSION});
+
 

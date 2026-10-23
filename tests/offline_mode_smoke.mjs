@@ -32,7 +32,16 @@ try{
  // The actual offline adapter executes the new weapon profile and publishes equipped-effect buffs.
  match=await local.room.getMatch();match.players[0].eq=['final_15'];match.players[0].pendingAction=null;match.players[0].encounter={kind:'player',targetId:match.players[1].playerId};match.players[1].maxHp=match.players[1].hp=1000;await local.room.saveMatch(match);const oldTwinRandom=Math.random;Math.random=()=>.1;try{await send('command_attack');await advance(2000);await advance(250);}finally{Math.random=oldTwinRandom}match=await local.room.getMatch();const twinHits=match.combatNotices.filter(x=>x.sourceId===match.players[0].playerId&&x.kind==='일반 공격');assert.equal(twinHits.length,2);assert.equal(twinHits[1].at-twinHits[0].at,200);assert(net.lastMatch.self.buffs.rw_gear_final_15.description.includes('60%'));assert.equal(remote,0);assert.equal(sockets,0);
  net.close();assert.equal(timers.size,0);assert.equal(remote,0);assert.equal(sockets,0);assert(saved.size>0);
+ // A dead offline human receives all AI state and local AI continues until explicit exit.
+ await net.createRoom({aiMode:'fixed',aiCount:3});await net.connect('LOCAL',{charId:'c01',playerName:'observer'});await send('set_ready',{ready:true});await send('request_start');await advance(5000);
+ match=await local.room.getMatch();match.players[0].alive=false;match.players[0].hp=0;match.players[0].diedAt=now;await local.room.saveMatch(match);local.room.broadcastMatchState(match);
+ assert.equal(Object.keys(net.lastMatch.spectatorPlayers).length,4);assert(local.running);
+ const watchBefore=JSON.stringify(match.players.filter(p=>p.isAI));await advance(4000);match=await local.room.getMatch();assert.notEqual(JSON.stringify(match.players.filter(p=>p.isAI)),watchBefore);assert.equal(net.lastMatch.spectatorPlayers[match.players[1].playerId].hp,match.players[1].hp);assert.equal(remote,0);assert.equal(sockets,0);
+ await net.leaveGame();assert(!local.running);assert.equal(timers.size,0);assert.equal(net.lastMatch,null);assert.equal(await local.room.getMatch(),null);
+ console.log('PASS: offline death -> full spectator state -> AI keeps acting -> no fetch/socket -> explicit lobby exit deletes session and stops timers');
+
  // Closing offline mode restores the original online transport instead of retaining local routing.
  net.useOnline();assert.equal(net.offline,false);await assert.rejects(net.loadCatalog());assert.equal(remote,1);assert.equal(sockets,0);
  console.log('PASS: zero fetch/socket calls through offline catalog, lobby/AI settings, 5s intro, search, garden/HUD, AI actions, browser save/resume of pending action, normal victory result and cleanup; online transport restores explicitly');
 }finally{net?.close();globalThis.fetch=original.fetch;globalThis.WebSocket=original.WebSocket;globalThis.setTimeout=original.setTimeout;globalThis.clearTimeout=original.clearTimeout;globalThis.localStorage=original.localStorage;Date.now=original.now}
+
