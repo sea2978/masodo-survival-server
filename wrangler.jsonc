@@ -23,5 +23,14 @@
       "/api/*"
     ],
     "not_found_handling": "404-page"
+  },
+  "vars": {
+    "OPERATING_HOURS_ENABLED": "true",
+    "QUOTA_GUARD_ENABLED": "true"
+  },
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
   }
 }

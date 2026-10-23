@@ -127,9 +127,15 @@ export class MasodoNetworkAdapter {
     }catch{this.resyncPending=true;this.requestState();return null}
   }
 
+  checkServerClosed(data){
+    if(data?.error!=='server_closed')return;
+    this.close();this.emit('server_closed',data);
+    const error=new Error(data.message||'서버 운영이 종료되었습니다.');error.code='server_closed';throw error;
+  }
   async listRooms() {
     const res = await fetch(`${this.baseUrl}/api/rooms`, { cache: "no-store" });
     const data = await res.json();
+    this.checkServerClosed(data);
     if (!res.ok || !data.ok) throw new Error(data.error || "room_list_failed");
     return data;
   }
@@ -142,6 +148,7 @@ export class MasodoNetworkAdapter {
   async loadCatalog() {
     const res = await fetch(`${this.baseUrl}/api/catalog${this.clientVersion?"?clientVersion="+encodeURIComponent(this.clientVersion):""}`, { cache: "no-store" });
     const data = await res.json();
+    this.checkServerClosed(data);
     if(data.error==='client_version_mismatch'){const error=new Error(data.error);error.code=data.error;error.clientVersion=this.clientVersion;error.serverVersion=data.version;throw error;}
     if (!res.ok || !data.ok) throw new Error(data.error || "catalog_load_failed");
     this.checkClientVersion(data.version);
@@ -156,6 +163,7 @@ export class MasodoNetworkAdapter {
   async createRoom(settings = {}) {
     const res = await fetch(`${this.baseUrl}/api/room/create`, { method: "POST", headers:{"content-type":"application/json"},body:JSON.stringify(settings) });
     const data = await res.json();
+    this.checkServerClosed(data);
     if (!res.ok) throw new Error(data.error || "room_create_failed");
     return data;
   }
@@ -163,6 +171,7 @@ export class MasodoNetworkAdapter {
   async roomStatus(code) {
     const res = await fetch(`${this.baseUrl}/api/room/${encodeURIComponent(code)}/status`);
     const data = await res.json();
+    this.checkServerClosed(data);
     if (!res.ok) throw new Error(data.error || "room_status_failed");
     return data;
   }
@@ -182,6 +191,9 @@ export class MasodoNetworkAdapter {
 
   async connect(code, { playerName = "Player", charId = "c01", startRegion = "city" } = {}) {
     const epoch=++this.connectionEpoch;
+    // HTTP preflight delivers the closure reason even when WebSocket upgrades are refused.
+    await this.roomStatus(String(code).trim().toUpperCase());
+    if(epoch!==this.connectionEpoch)return this;
     const roomCode = String(code).trim().toUpperCase();
     const storageKey = `masodo-session-${roomCode}`;
     const reconnectToken = await this.getReconnectToken(roomCode);
@@ -225,6 +237,7 @@ export class MasodoNetworkAdapter {
           try { sessionStorage.setItem(storageKey, msg.sessionId); } catch {}
           if (msg.reconnectToken) this.saveReconnectToken(this.roomCode, msg.reconnectToken);
         }
+        if(msg.type==='server_closed'){clearTimeout(handshakeTimer);this.close();this.emit('server_closed',msg);return}
         if(msg.type==='room_left'||msg.type==='room_deleted')this.endRoomConnection();
         if (msg.catalog) this.mergeCatalog(msg.catalog);
         if (msg.build) this.build = msg.build;
@@ -240,6 +253,7 @@ export class MasodoNetworkAdapter {
       clearTimeout(handshakeTimer);
       if (this.ws !== ws) return;
       this.ws = null;
+      if(event.code===4003){this.close();this.emit('server_closed',{message:'서버 운영이 종료되었습니다. 운영 시간은 한국 시간 17:30~24:00입니다.'});return}
       this.emit("close", { code: event.code, reason: event.reason });
       clearTimeout(handshakeTimer);
       this.scheduleReconnect();

@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - name: Operating hours, quota shutdown and persistent chat
+        run: npm run test:operations-chat
       - name: Spectator privacy and live updates
         run: npm run test:spectator
       - name: Regular client and preserved mobile layout

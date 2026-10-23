@@ -1,3 +1,4 @@
+import {operatingWindow,operationStatus,readOperationStatus,handleOperations} from "./server_operations.js";
 import {isUniqueMaterial} from "./unique_materials.js";
 import {updateRegionRestrictions,nextRegionLockAt} from "./region_restrictions.js";
 import {normalizeRoomSettings,roomSettings,humanCapacity,plannedAICount} from "./room_settings.js";
@@ -26,6 +27,31 @@ export class GameRoom extends DurableObject{
     super(ctx,env);this.env=env;this.sessions=new Map();this.sentStates=new WeakMap();this.recipeCache=new Map();
     for(const ws of this.ctx.getWebSockets()){const a=ws.deserializeAttachment();if(a?.sessionId)this.sessions.set(ws,a)}
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping","pong"));
+  }
+  async shutdownServer(status){
+    const meta=await this.getMeta();
+    await this.ctx.storage.put('server_closed',status);
+    await this.ctx.storage.deleteAlarm();
+    for(const ws of this.sessions.keys()){send(ws,'server_closed',status);try{ws.close(4003,'Server closed')}catch{}}
+    this.sessions.clear();
+    if(meta)await this.removeFromDirectory(meta.code);
+  }
+  async enforceOperations(){
+    if(this.env.OPERATING_HOURS_ENABLED!=='true'&&this.env.QUOTA_GUARD_ENABLED!=='true')return true;
+    let status;
+    try{if(this.operationsCache&&Date.now()-this.operationsCache.at<15000)status=this.operationsCache.status;else{status=await readOperationStatus(this.env);this.operationsCache={at:Date.now(),status}}
+      if(this.env.OPERATING_HOURS_ENABLED==='true'&&!operatingWindow().open)status=operationStatus({...this.env,QUOTA_GUARD_ENABLED:'false'});}catch{status={open:false,reason:'usage_unavailable',message:'서버 사용량을 확인하지 못해 접속을 잠시 중단했습니다.'}}
+    if(!status.open){await this.shutdownServer(status);return false}return true;
+  }
+  async sendChatHistory(ws,meta,before=null){
+    const count=(await this.ctx.storage.get('chat_count'))||0;
+    const end=Number.isInteger(before)?Math.min(count,Math.max(0,before)):count;
+    const start=Math.max(0,end-50),messages=[];
+    for(let page=Math.floor(start/50);page<=Math.floor((end-1)/50);page++){
+      const entries=(await this.ctx.storage.get('chat_page_'+page))||[];
+      messages.push(...entries.filter(e=>e.seq>=start&&e.seq<end));
+    }
+    send(ws,'chat_history',{messages,code:meta.code,before:start,hasMore:start>0,reset:before===null});
   }
   async getMeta(){const value=(await this.ctx.storage.get(ROOM_META_KEY))||null;this.metaJson=JSON.stringify(value);return value}
   async saveMeta(v){const json=JSON.stringify(v);if(json===this.metaJson)return;await this.ctx.storage.put(ROOM_META_KEY,v);this.metaJson=json}
@@ -147,6 +173,11 @@ export class GameRoom extends DurableObject{
 
   async scheduleNextAlarm(match,meta=null){
     const now=Date.now(),times=[];
+    if(this.joinedSessions().length&&this.env.OPERATING_HOURS_ENABLED==='true'){
+      const w=operatingWindow(now);times.push(w.open?w.closesAt:now+250);
+      for(const minutes of [10,5,1])if(w.closesAt-minutes*60000>now)times.push(w.closesAt-minutes*60000);
+    }
+    if(this.joinedSessions().length&&this.env.QUOTA_GUARD_ENABLED==='true')times.push(now+60000);
     if(this.joinedSessions().length>0&&match){
       if(match.phase==="playing"&&match.startedAt>now)times.push(match.startedAt);
       times.push(...Object.values(match.regionGardens||{}).flatMap(g=>(g.sources||[g]).map(x=>x.until)));
@@ -192,6 +223,14 @@ export class GameRoom extends DurableObject{
     return changed;
   }
   async alarm(){
+    if(!await this.enforceOperations())return;
+    if(this.env.OPERATING_HOURS_ENABLED==='true'){
+      const remaining=operatingWindow().closesAt-Date.now();
+      for(const minute of [1,5,10])if(remaining<=minute*60000&&remaining>0){
+        const key=new Date().toISOString().slice(0,10)+':'+minute;
+        if(await this.ctx.storage.get('closing_notice')!==key){await this.ctx.storage.put('closing_notice',key);this.broadcast('server_notice',{message:'서버 운영 종료까지 '+minute+'분 남았습니다. 자정에 연결이 종료됩니다.'})}break;
+      }
+    }
     const meta=await this.getMeta();if(!meta)return;
     const now=Date.now();meta.reconnectRecords=this.reconnectRecords(meta).filter(r=>!r.disconnectedAt||now-r.disconnectedAt<RECONNECT_GRACE_MS);
     if(this.joinedSessions().length===0){
@@ -212,7 +251,11 @@ export class GameRoom extends DurableObject{
 
   async fetch(request){
     const url=new URL(request.url),path=url.pathname;
+    if(path==='/operations/close'){await this.shutdownServer(await request.json());return json({ok:true})}
+    if(path.startsWith('/operations/'))return handleOperations(this,request,path);
     if(path.startsWith("/directory/"))return this.handleDirectoryRequest(request,path);
+    if(!await this.enforceOperations())return json({ok:false,error:'server_closed'},503);
+    if(await this.ctx.storage.get('server_closed'))return json({ok:false,error:'room_not_found'},404);
     if(path==="/init"&&request.method==="POST"){
       const body=await request.json().catch(()=>({})),existing=await this.getMeta();
       if(existing)return json({ok:false,reason:"exists",room:this.roomState(existing)},409);
@@ -233,6 +276,8 @@ export class GameRoom extends DurableObject{
   }
 
   async webSocketMessage(ws,message){
+    if(await this.ctx.storage.get('server_closed'))return;
+    if(!await this.enforceOperations())return;
     const msg=parseJsonMessage(message),session=this.sessions.get(ws)||ws.deserializeAttachment(),meta=await this.getMeta();
     if(!msg||!session||!meta){send(ws,"error",{error:"invalid_message"});return}
     if(msg.type==="hello"){
@@ -265,8 +310,9 @@ export class GameRoom extends DurableObject{
       session.joined=true;ws.serializeAttachment(session);this.sessions.set(ws,session);
       record.playerName=session.playerName;record.charId=session.charId;record.startRegion=session.startRegion;record.ready=!!session.ready;record.disconnectedAt=null;
       meta.reconnectRecords=records;if(meta.emptySince)delete meta.emptySince;if(!meta.hostSessionId)meta.hostSessionId=session.sessionId;await this.saveMeta(meta);
+      await this.sendChatHistory(ws,meta);
       send(ws,"hello_ok",{sessionId:session.sessionId,reconnectToken,resumed,reconnected:resumed,host:meta.hostSessionId===session.sessionId});
-      if(meta.phase!=="lobby"){const changed=await this.completeDueActions(m,now,{defer:true});await this.saveMatch(m);this.sendMatchState(ws,m,{force:true});if(changed)for(const other of this.sessions.keys())if(other!==ws)this.sendMatchState(other,m,{now});meta.phase=m.phase;await this.updateDirectory(meta);await this.scheduleNextAlarm(m,meta)}else await this.broadcastRoomState(meta);
+      if(meta.phase!=="lobby"){const changed=await this.completeDueActions(m,now,{defer:true});await this.saveMatch(m);this.sendMatchState(ws,m,{force:true});if(changed)for(const other of this.sessions.keys())if(other!==ws)this.sendMatchState(other,m,{now});meta.phase=m.phase;await this.updateDirectory(meta);await this.scheduleNextAlarm(m,meta)}else {await this.broadcastRoomState(meta);await this.scheduleNextAlarm(null,meta);}
       return
     }
     if(!session.joined){send(ws,"error",{error:"hello_required"});return}
@@ -320,7 +366,28 @@ export class GameRoom extends DurableObject{
       if(result.ok||changed||m.phase!=="playing")this.broadcastMatchState(m);
       return;
     }
-    if(msg.type==="chat"){const text=safeText(msg.text,120,"");if(text)this.broadcast("chat",{from:session.sessionId,playerName:session.playerName,text,at:Date.now()});return}
+    if(msg.type==='chat_history'){
+      if(!Number.isInteger(msg.before)||msg.before<0){send(ws,'error',{error:'invalid_chat'});return}
+      const now=Date.now();if(now-(session.lastHistoryAt||0)<1000)return;
+      session.lastHistoryAt=now;ws.serializeAttachment(session);await this.sendChatHistory(ws,meta,msg.before);return;
+    }
+    if(msg.type==="chat"){
+      const text=typeof msg.text==='string'?msg.text.trim():'';
+      if(!text||text.length>300){send(ws,'error',{error:'invalid_chat'});return}
+      const now=Date.now();if(now-(session.lastChatAt||0)<1000){send(ws,'error',{error:'chat_rate_limited'});return}
+      session.lastChatAt=now;ws.serializeAttachment(session);
+      const entry={id:crypto.randomUUID(),playerName:session.playerName,text,at:now};
+      // Serialize history updates across overlapping messages. Keep the full room lifetime history.
+      this.chatQueue=(this.chatQueue||Promise.resolve()).catch(()=>{}).then(async()=>{
+        const persist=async storage=>{
+          const count=(await storage.get('chat_count'))||0,key='chat_page_'+Math.floor(count/50);
+          const history=(await storage.get(key))||[];entry.seq=count;history.push(entry);
+          await storage.put(key,history);await storage.put('chat_count',count+1);
+        };
+        if(this.ctx.storage.transaction)await this.ctx.storage.transaction(persist);else await persist(this.ctx.storage);
+        for(const [peer,s]of this.sessions)if(s.joined)send(peer,'chat',entry);
+      });await this.chatQueue;return;
+    }
 
     const commandMap={command_remove_object:"remove_object",command_move:"move",command_search:"search",command_rest:"rest",command_craft:"craft",command_use_item:"use_item",command_attack:"attack",command_skill:"skill",command_flee:"flee",command_char_action:"char_action",command_loot_corpse:"loot_corpse"};
     if(commandMap[msg.type]){
@@ -342,6 +409,7 @@ export class GameRoom extends DurableObject{
   }
 
   async markDisconnected(ws){
+    if(await this.ctx.storage.get('server_closed')){this.sessions.delete(ws);return}
     const ss=this.sessions.get(ws)||ws.deserializeAttachment();this.sessions.delete(ws);const meta=await this.getMeta();if(!meta)return;
     const now=Date.now(),record=this.reconnectRecords(meta).find(r=>r.sessionId===ss?.sessionId);if(record&&!this.joinedSessions().some(x=>x.sessionId===ss.sessionId))record.disconnectedAt=now;
     if(meta.phase==="lobby"&&meta.hostSessionId===ss?.sessionId)meta.hostSessionId=this.joinedSessions()[0]?.sessionId||null;

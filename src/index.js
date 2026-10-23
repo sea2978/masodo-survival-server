@@ -1,3 +1,4 @@
+import {readOperationStatus,refreshUsage,operationStatus} from "./server_operations.js";
 import {ITEMS} from "./offline_content.js";
 import {normalizeRoomSettings} from "./room_settings.js";
 import { json, randomRoomCode, safeRoomCode } from "./protocol.js";
@@ -24,11 +25,17 @@ async function getRoomStub(env, code) {
 }
 
 export default {
+  async scheduled(event,env,ctx){ctx.waitUntil(refreshUsage(env))},
   async fetch(request, env) {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
+    if(url.pathname.startsWith('/api/')&&url.pathname!=='/api/health'){
+      let status;try{status=await readOperationStatus(env)}catch{status={...operationStatus(env),open:false,reason:'usage_unavailable',message:'서버 사용량을 확인하지 못해 접속을 잠시 중단했습니다.'}}
+      if(url.pathname==='/api/server-status')return withCors(json(status));
+      if(!status.open)return withCors(json({ok:false,error:'server_closed',...status},503));
+    }
     if (url.pathname === "/api/health") {
       return withCors(json({ ok: true, service: "masodo-survival-server", version: GAME_VERSION, buildLabel: BUILD_LABEL, phase: PHASE, protocolVersion: PROTOCOL_VERSION }));
     }

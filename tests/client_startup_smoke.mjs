@@ -214,3 +214,15 @@ watchHarness.match.players[1].hp=19;watchHarness.match.players[1].kills=3;watchR
 watchHarness.match.phase='finished';watchReceive();assert(document.querySelector('#spectatorSummary').textContent.includes('경기 종료'));assert(!document.querySelector('#spectatorScreen').hidden);
 let watchLeaves=0;const watchLeave=net.leaveGame;net.leaveGame=async()=>{watchLeaves++};await document.querySelector('#spectatorLobby').click();net.leaveGame=watchLeave;assert.equal(watchLeaves,1);assert(document.querySelector('#spectatorScreen').hidden);assert.equal(vm.runInContext('spectatingMatch',ctx),null);assert(!document.querySelector('#lobbyScreen').hidden);
 console.log('PASS: death result -> observer cards/profiles -> live delta without portrait replacement or extra fetch -> finished match retained -> lobby cleanup (complete client DOM/socket mocks)');
+
+// Persistent room chat renders untrusted text as text nodes in the actual client.
+net.emit('chat_history',{reset:true,messages:[{id:'a',seq:50,playerName:'늦은 참가자',text:'<img src=x onerror=alert(1)>',at:Date.now()}],before:50,hasMore:true});
+assert.equal(document.querySelector('#roomChat').hidden,false);
+assert.equal(document.querySelector('#chatOlder').hidden,false);
+const chatBox=document.querySelector('#roomChatLog');assert.equal(chatBox.children.length,1);assert.equal(chatBox.children[0].children[1].textContent,'<img src=x onerror=alert(1)>');
+net.emit('chat_history',{reset:false,messages:[{id:'old',seq:0,playerName:'방장',text:'입장 전 대화',at:Date.now()}],before:0,hasMore:false});
+assert.equal(chatBox.children.length,2);assert.equal(chatBox.children[0].children[1].textContent,'입장 전 대화');
+net.emit('chat',{id:'a',seq:50,playerName:'늦은 참가자',text:'<img src=x onerror=alert(1)>',at:Date.now()});assert.equal(chatBox.children.length,2,'duplicate messages deduplicated');
+net.ws={readyState:1,send:s=>sent.push(JSON.parse(s)),close(){}};document.querySelector('#roomChatInput').value='한글 전송';document.querySelector('#roomChatForm').onsubmit({preventDefault(){}});assert.equal(sent.at(-1).type,'chat');assert.equal(sent.at(-1).text,'한글 전송');
+net.emit('server_closed',{message:'오늘의 사용량 80% 도달'});assert.equal(document.querySelector('#serverConnectMessage').textContent,'오늘의 사용량 80% 도달');assert.equal(document.querySelector('#loginScreen').hidden,false);assert.equal(document.querySelector('#roomChat').hidden,true);assert.equal(net.manualClose,true);assert.equal(net.reconnectTimer,null);
+console.log('PASS: actual client chat history/older pages/dedup/text-only rendering/Korean submission and shutdown notice -> login -> reconnect disabled (DOM mocks)');

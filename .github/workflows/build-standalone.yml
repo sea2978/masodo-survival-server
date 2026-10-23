@@ -1,6 +1,13 @@
 name: Build standalone HTML
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/index.html"
+      - "public/network_adapter.js"
+      - "scripts/build_standalone.mjs"
   workflow_dispatch:
 
 permissions:
