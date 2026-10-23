@@ -5,7 +5,7 @@ const source=fs.readFileSync(new URL('../public/index.html',import.meta.url),'ut
 const standalone=fs.readFileSync(new URL('../public/MasodoSurvival.html',import.meta.url),'utf8');
 for(const html of [source,standalone]){
  assert(!/ALPHA_SERVER_URL|ALPHA_CODE_DIGEST|alphaCodePanel|alphaCreateGrant|alphacheonbung\.workers\.dev|알파 테스트 전용/.test(html));
- assert(html.includes('id="serverAddress"'));assert(html.includes('class="event-choices"'));assert(html.includes('class="event-choice"'));
+ assert.match(html, /<input id="serverAddress"[^>]*type="hidden"/);assert(!html.includes('for="serverAddress"'));assert(html.includes('플레이어명을 입력해 접속하세요.'));assert(html.includes('class="event-choices"'));assert(html.includes('class="event-choice"'));
  assert(html.includes("style.setProperty('--encounter-info-height'"));assert(html.includes('width:min(38vw,300px)'));
  for(const fn of ['renderRegionRestrictions','renderPickup','renderOtherSurvivors','refreshInfo'])assert(html.includes('function '+fn+'('));
  assert(html.includes("message.textContent='서버 연결됨'"));assert(!html.includes("message.textContent='서버 연결 성공: '+url.origin"));

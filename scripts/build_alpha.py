@@ -1,7 +1,7 @@
 from pathlib import Path
 import re,sys,zipfile
 source=Path(sys.argv[1]);out=Path(sys.argv[2]);s=source.read_text()
-s,n=re.subn(r'<label for="serverAddress">[^<]*</label><input id="serverAddress"[^>]*>', '', s);assert n==1
+s,n=re.subn(r'(?:<label for="serverAddress">[^<]*</label>)?<input id="serverAddress"[^>]*>', '', s);assert n==1
 s=s.replace("if(!$('#serverAddress').value)$('#serverAddress').value='https://masodo-survival-server.cheonbung.workers.dev';",'')
 a=s.index(" try{url=new URL($('#serverAddress').value.trim());");b=s.index('\n button.disabled=true;',a)
 s=s[:a]+" url=new URL('https://masodo-survival-server.alphacheonbung.workers.dev/');\n if(mobileScreenQuery.matches)void enterMobileFullscreen();"+s[b:]
